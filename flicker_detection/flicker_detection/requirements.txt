@@ -1,0 +1,7 @@
+coloredlogs
+opencv-python
+flask
+flask-cors
+matplotlib
+numpy
+tensorflow
