@@ -112,6 +112,7 @@ class Features:
         logging.info("Execution takes {} second(s).".format(
             end_time - start_time))
 
+        self.embeddings = embeddings
         self.similarities = similarities
         self.suspects = suspects
         self.horizontal_displacements = horizontal_displacements
