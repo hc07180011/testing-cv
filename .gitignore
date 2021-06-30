@@ -202,4 +202,7 @@ Thumbs.db
 # keras
 model.h5
 
+# dataset
+*.mp4
+
 # End of https://www.toptal.com/developers/gitignore/api/python,c++,vscode
