@@ -1,0 +1,15 @@
+language: python
+
+python:
+  - "3.8"
+
+matrix:
+  fast_finish: true
+
+install:
+  - pip install -r ../requirements.txt
+
+before_script:
+  - wget https://hc07180011.synology.me/data/googlecv/facenet_model.h5
+
+script: pytest
