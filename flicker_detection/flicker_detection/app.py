@@ -4,7 +4,7 @@ import tempfile
 import flask
 import flask_cors
 
-from core.flicker import flicker_detection
+from core.flicker import feature_extraction
 
 app = flask.Flask(__name__)
 flask_cors.CORS(app)
@@ -19,12 +19,12 @@ def func():
     file = flask.request.files['video']
     save_path = tempfile.NamedTemporaryFile()
     file.save(save_path.name)
-    similarities2, similarities6, suspects, horizontal_displacements, vertical_displacements = flicker_detection(
+    similarities, suspects, horizontal_displacements, vertical_displacements = feature_extraction(
         save_path.name, False, cache_dir)
     return flask.jsonify({
         "status": "ok",
-        "similarities2": similarities2.tolist(),
-        "similarities6": similarities6.tolist(),
+        "similarities2": similarities[0].tolist(),
+        "similarities6": similarities[2].tolist(),
         "suspects": suspects.tolist(),
         "horizontal_displacements": horizontal_displacements.tolist(),
         "vertical_displacements": vertical_displacements.tolist()

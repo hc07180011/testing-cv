@@ -1,0 +1,105 @@
+{
+    "label": [
+        {
+            "name": "001.mp4",
+            "flicker": [
+                {
+                    "type": "flickering",
+                    "frame": 400
+                }
+            ]
+        },
+        {
+            "name": "002.mp4",
+            "flicker": [
+                {
+                    "type": "discontinuous",
+                    "frame": 154
+                }
+            ]
+        },
+        {
+            "name": "003.mp4",
+            "flicker": [
+                {
+                    "type": "discontinuous",
+                    "frame": 114
+                },
+                {
+                    "type": "discontinuous",
+                    "frame": 185
+                }
+            ]
+        },
+        {
+            "name": "004.mp4",
+            "flicker": [
+                {
+                    "type": "discontinuous",
+                    "frame": 183
+                }
+            ]
+        },
+        {
+            "name": "005.mp4",
+            "flicker": [
+                {
+                    "type": "discontinuous",
+                    "frame": 67
+                },
+                {
+                    "type": "discontinuous",
+                    "frame": 117
+                },
+                {
+                    "type": "discontinuous",
+                    "frame": 181
+                }
+            ]
+        },
+        {
+            "name": "006.mp4",
+            "flicker": [
+                {
+                    "type": "discontinuous",
+                    "frame": 108
+                },
+                {
+                    "type": "discontinuous",
+                    "frame": 132
+                },
+                {
+                    "type": "discontinuous",
+                    "frame": 204
+                }
+            ]
+        },
+        {
+            "name": "new_testEnterSplitScreen_launchToSide_0_transition.mp4",
+            "flicker": [
+            ]
+        },
+        {
+            "name": "new_testRotateAndEnterAppPairsMode__ROTATION_90_0_transition.mp4",
+            "flicker": [
+                {
+                    "type": "discontinuous",
+                    "frame": 66
+                }
+            ]
+        },
+        {
+            "name": "new_video.mp4",
+            "flicker": [
+                {
+                    "type": "flickering",
+                    "frame": 365
+                },
+                {
+                    "type": "flickering",
+                    "frame": 382
+                }
+            ]
+        }
+    ]
+}

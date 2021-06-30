@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 from argparse import ArgumentParser
 
-from core.flicker import flicker_detection
+from core.flicker import feature_extraction, flicker_detection
 
 
 def main() -> None:
@@ -60,8 +60,11 @@ def main() -> None:
 
     logging.info("Program start ...")
 
-    similarities2, similarities6, suspects, horizontal_displacements, vertical_displacements = flicker_detection(
+    similarities, suspects, horizontal_displacements, vertical_displacements = feature_extraction(
         args.data_path, not args.disable_cache, args.cache_dir)
+
+    flicker_detection(similarities, suspects,
+                      horizontal_displacements, vertical_displacements)
 
 
 if __name__ == "__main__":

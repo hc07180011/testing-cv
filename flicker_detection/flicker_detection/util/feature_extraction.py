@@ -65,9 +65,9 @@ class Features:
             for i, (frame1, frame2) in enumerate(zip(processing_frames[:-1], processing_frames[1:])):
                 if similarities[i] < similarity_baseline:
                     suspects.append(i)
-                    delta_x, delta_y = brisk.calculate_movement(frame1, frame2)
-                    horizontal_displacements.append(delta_x)
-                    vertical_displacements.append(delta_y)
+                delta_x, delta_y = brisk.calculate_movement(frame1, frame2)
+                horizontal_displacements.append(delta_x)
+                vertical_displacements.append(delta_y)
             suspects = np.array(suspects)
             horizontal_displacements = np.array(horizontal_displacements)
             vertical_displacements = np.array(vertical_displacements)
