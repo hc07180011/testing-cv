@@ -7,9 +7,13 @@ matrix:
   fast_finish: true
 
 install:
+  - cd flicker_detection/flicker_detection/tests/
   - pip install -r ../requirements.txt
 
 before_script:
+  - cd flicker_detection/flicker_detection/tests/
   - wget https://hc07180011.synology.me/data/googlecv/facenet_model.h5
 
-script: pytest
+script:
+  - cd flicker_detection/flicker_detection/tests/
+  - pytest
