@@ -1,40 +1,5 @@
-import time
 import logging
 import numpy as np
-
-from typing import List
-
-from util.feature_extraction import Features
-from util.processing import consine_similarity
-
-
-def feature_extraction(video_path: str, enable_cache: bool, cache_dir: str) -> List[np.ndarray]:
-
-    start_time = time.perf_counter()
-
-    logging.info("Start flicker detection ..")
-    logging.info("Video path: {}, cache directory: {}".format(
-        video_path, cache_dir))
-
-    video_features = Features(video_path, enable_cache, cache_dir)
-    embeddings, suspects, horizontal_displacements, vertical_displacements = video_features.extract()
-
-    logging.info("Start testing similarity ...")
-
-    similarities = []
-    window_size_max = 10
-    for window_size in range(2, window_size_max + 1):
-        compare_with_next = window_size - 1
-        similarity = []
-        for emb1, emb2 in zip(embeddings[:-(1+window_size_max)], embeddings[compare_with_next:-(1+window_size_max-compare_with_next)]):
-            similarity.append(consine_similarity(emb1, emb2))
-        similarities.append(similarity)
-    similarities = np.array(similarities)
-
-    end_time = time.perf_counter()
-    logging.info("Execution takes {} second(s).".format(end_time - start_time))
-
-    return [similarities, suspects, horizontal_displacements, vertical_displacements]
 
 
 def flicker_detection(similarities, suspects, horizontal_displacements, vertical_displacements, human_reaction_threshold=3):

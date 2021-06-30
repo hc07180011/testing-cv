@@ -1,14 +1,15 @@
 import os
 import gc
+import time
 import hashlib
 import logging
 import numpy as np
 
 from typing import List
 
-from motion.brisk import Brisk
-from similarity.facenet import Facenet
-from util.processing import take_snapshots, consine_similarity
+from preprocessing.movement.brisk import Brisk
+from preprocessing.embedding.facenet import Facenet
+from util.utils import take_snapshots, euclidean_distance
 
 
 class Features:
@@ -28,7 +29,7 @@ class Features:
         self.__cache_dir = cache_dir
         self.__enable_cache = enable_cache
 
-    def extract(self) -> List[np.ndarray]:
+    def __extract(self) -> List[np.ndarray]:
 
         md5 = hashlib.md5(open(self.__video_path, 'rb').read()).hexdigest()
         cache_data_path = os.path.join(self.__cache_dir, "{}.npz".format(md5))
@@ -55,7 +56,7 @@ class Features:
 
             similarities = []
             for emb1, emb2 in zip(embeddings[:-1], embeddings[1:]):
-                similarities.append(consine_similarity(emb1, emb2))
+                similarities.append(euclidean_distance(emb1, emb2))
             similarities = np.array(similarities)
             similarity_baseline = np.mean(similarities)
 
@@ -84,3 +85,34 @@ class Features:
             logging.info("Delete frames and free the memory")
 
         return [embeddings, suspects, horizontal_displacements, vertical_displacements]
+
+    def feature_extraction(self):
+
+        start_time = time.perf_counter()
+
+        logging.info("Start flicker detection ..")
+        logging.info("Video path: {}, cache directory: {}".format(
+            self.__video_path, self.__cache_dir))
+
+        embeddings, suspects, horizontal_displacements, vertical_displacements = self.__extract()
+
+        logging.info("Start testing similarity ...")
+
+        similarities = []
+        window_size_max = 10
+        for window_size in range(2, window_size_max + 1):
+            compare_with_next = window_size - 1
+            similarity = []
+            for emb1, emb2 in zip(embeddings[:-(1+window_size_max)], embeddings[compare_with_next:-(1+window_size_max-compare_with_next)]):
+                similarity.append(euclidean_distance(emb1, emb2))
+            similarities.append(similarity)
+        similarities = np.array(similarities)
+
+        end_time = time.perf_counter()
+        logging.info("Execution takes {} second(s).".format(
+            end_time - start_time))
+
+        self.similarities = similarities
+        self.suspects = suspects
+        self.horizontal_displacements = horizontal_displacements
+        self.vertical_displacements = vertical_displacements

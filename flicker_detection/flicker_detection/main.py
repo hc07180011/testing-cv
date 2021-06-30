@@ -3,11 +3,10 @@ import logging
 import datetime
 import coloredlogs
 
-import matplotlib.pyplot as plt
-
 from argparse import ArgumentParser
 
-from core.flicker import feature_extraction, flicker_detection
+from preprocessing.feature_extraction import Features
+from core.flicker import flicker_detection
 
 
 def main() -> None:
@@ -60,11 +59,12 @@ def main() -> None:
 
     logging.info("Program start ...")
 
-    similarities, suspects, horizontal_displacements, vertical_displacements = feature_extraction(
+    video_features = Features(
         args.data_path, not args.disable_cache, args.cache_dir)
+    video_features.feature_extraction()
 
-    flicker_detection(similarities, suspects,
-                      horizontal_displacements, vertical_displacements)
+    flicker_detection(video_features.similarities, video_features.suspects,
+                      video_features.horizontal_displacements, video_features.vertical_displacements)
 
 
 if __name__ == "__main__":
