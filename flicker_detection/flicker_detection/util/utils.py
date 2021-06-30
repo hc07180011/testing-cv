@@ -26,7 +26,7 @@ def take_snapshots(video_path: str, limit=np.inf) -> np.ndarray:
     return np.array(ret_images)
 
 
-def consine_similarity(vector1: np.ndarray, vector2: np.ndarray) -> float:
+def euclidean_distance(vector1: np.ndarray, vector2: np.ndarray) -> float:
     """This is an example of a module level function.
 
     Function parameters should be documented in the ``Args`` section. The name
@@ -75,8 +75,6 @@ def consine_similarity(vector1: np.ndarray, vector2: np.ndarray) -> float:
         ValueError: If `param2` is equal to `param1`.
     """
 
-    ret = np.inner(vector1, vector2) / \
-        (np.linalg.norm(vector1) * np.linalg.norm(vector2))
-    # fake
-    ret = -np.linalg.norm(vector1 - vector2)
+    distance = np.linalg.norm(vector1 - vector2)
+    ret = -1 * distance
     return float(ret)
