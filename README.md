@@ -12,6 +12,8 @@
 
 ## Flicker Detection
 
+[![Build Status](https://travis-ci.com/hc07180011/NTU-Google-Testing.svg?branch=main)](https://travis-ci.com/hc07180011/NTU-Google-Testing)
+
 * Embedding
   * [Siamese Network](https://keras.io/examples/vision/siamese_network/)
   * [Facenet](https://www.cv-foundation.org/openaccess/content_cvpr_2015/app/1A_089.pdf)
@@ -24,3 +26,5 @@
 * [5/11](https://drive.google.com/file/d/1NK_6WXSEU-nph6-zQVSXyBaWTfwp-Ui4/view?usp=sharing)
 * [5/25](https://drive.google.com/file/d/1rZaxUIxic1-Nu3rF4XP9oH2YC4J1_EoV/view?usp=sharing)
 * [6/1](https://drive.google.com/file/d/1BOe8rsGuGdZxant4D-6FjkE7ptCs0Cfj/view?usp=sharing)
+* [6/15](https://drive.google.com/file/d/12M3fkW3vxlglwOrtW_Tppe3iCP7SUKQ0/view?usp=sharing)
+* [6/30](https://drive.google.com/file/d/105ZfZX9DWU7Jwpbme24X7q2YIdhFe0Hu/view?usp=sharing)
