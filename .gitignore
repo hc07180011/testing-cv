@@ -200,7 +200,7 @@ Thumbs.db
 *.code-workspace
 
 # keras
-model.h5
+*.h5
 
 # dataset
 *.mp4
