@@ -1,4 +1,5 @@
 {
+    "name": "facenet_model.h5",
     "tag": "facenet_resnet_siamese_consine_similarity",
     "url": "https://hc07180011.synology.me/data/googlecv/facenet_model.h5"
 }
