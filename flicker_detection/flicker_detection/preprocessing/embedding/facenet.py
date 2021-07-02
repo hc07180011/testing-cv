@@ -60,20 +60,15 @@ class Facenet:
         self.__siamese_model = SiameseModel(siamese_network)
 
         model_base_dir = os.path.join("preprocessing", "embedding", "models")
-        if not os.path.exists(model_base_dir):
-            model_base_dir = os.path.join(
-                "..", "preprocessing", "embedding", "models")
 
         model_settings = json.load(
             open(os.path.join(model_base_dir, "model.json"), "r"))
         model_path = os.path.join(model_base_dir, model_settings["name"])
-        if not os.path.exists(model_path): # pytest path
-            os.system(
-                "wget {} -o {}".format(model_settings["url"], model_path))
 
         if os.path.exists(model_path):
             self.__siamese_model.load_weights(model_path)
         else:
+            raise NotImplementedError
             self.__siamese_model.compile(optimizer=optimizers.Adam(0.0001))
             checkpoint = ModelCheckpoint(
                 model_path, monitor='loss', verbose=1, save_best_only=True, mode='min')
