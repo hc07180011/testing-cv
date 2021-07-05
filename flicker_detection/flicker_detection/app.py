@@ -4,7 +4,7 @@ import tempfile
 import flask
 import flask_cors
 
-from core.flicker import feature_extraction
+from preprocessing.feature_extraction import Features
 
 app = flask.Flask(__name__)
 flask_cors.CORS(app)
@@ -14,20 +14,30 @@ cache_dir = ".cache"
 os.makedirs(cache_dir, exist_ok=True)
 
 
+@app.route('/testAlive', methods=['GET', 'POST'])
+def test_alive():
+    return flask.jsonify({
+        "status": "ok"
+    })
+
+
 @app.route('/flicker/create', methods=['POST'])
 def func():
     file = flask.request.files['video']
     save_path = tempfile.NamedTemporaryFile()
     file.save(save_path.name)
-    similarities, suspects, horizontal_displacements, vertical_displacements = feature_extraction(
+
+    video_features = Features(
         save_path.name, False, cache_dir)
+    video_features.feature_extraction()
+
     return flask.jsonify({
         "status": "ok",
-        "similarities2": similarities[0].tolist(),
-        "similarities6": similarities[2].tolist(),
-        "suspects": suspects.tolist(),
-        "horizontal_displacements": horizontal_displacements.tolist(),
-        "vertical_displacements": vertical_displacements.tolist()
+        "similarities2": video_features.similarities[0].tolist(),
+        "similarities6": video_features.similarities[2].tolist(),
+        "suspects": video_features.suspects.tolist(),
+        "horizontal_displacements": video_features.horizontal_displacements.tolist(),
+        "vertical_displacements": video_features.vertical_displacements.tolist()
     })
 
 
