@@ -32,7 +32,7 @@ jobs:
           output_location: "build" # Built app content directory - optional
           ###### End of Repository/Build Configurations ######
         env: # Add environment variables here
-          REACT_APP_BASE_URL: "https://ntu-google-testing-backend1.azurewebsites.net:5000/"
+          REACT_APP_BASE_URL: "https://googlecv.hc07180011.synology.me"
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
