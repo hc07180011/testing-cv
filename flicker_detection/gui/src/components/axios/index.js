@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const baseURL = process.env.REACT_APP_BASE_URL || "https://googlecv.hc07180011.synology.me"
+const baseURL = process.env.REACT_APP_BASE_URL || "http://140.112.29.204:9696"
 const instance = axios.create({
     baseURL: baseURL,
     headers: {
