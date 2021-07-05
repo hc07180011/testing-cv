@@ -23,6 +23,7 @@ def test_preprocess():
         "tests", "52c4b8563b48b6025cd2d368eab2e33e.npz"))
     embeddings, suspects, horizontal_displacements, vertical_displacements = [
         __cache[__cache.files[i]] for i in range(len(__cache.files))]
+    os.system("ls -al preprocessing/embedding/models/facenet_model.h5")
     assert embeddings.shape == video_features.embeddings.shape
     assert suspects.shape == video_features.suspects.shape
     assert horizontal_displacements.shape == video_features.horizontal_displacements.shape
