@@ -208,94 +208,15 @@ class SiameseModel(Model):
 
 if __name__ == "__main__":
 
-    local_cache_dir = "cache"
+    siamese_model = SiameseModel(siamese_network)
+    filepath = "facenet_model.h5"
 
-    dataset_dir = "177193533"
+    siamese_model.compile(optimizer=optimizers.Adam(0.0001))
+    checkpoint = ModelCheckpoint(
+        filepath, monitor='loss', verbose=1, save_best_only=True, mode='min')
+    callbacks_list = [checkpoint]
+    siamese_model.fit(train_dataset, epochs=10,
+                      validation_data=val_dataset, callbacks=callbacks_list)
 
-    raw_dir = os.path.join(dataset_dir, "raw")
-    os.makedirs(raw_dir, exist_ok=True)
-
-    current_cache_dir = os.path.join(local_cache_dir, dataset_dir)
-    os.makedirs(current_cache_dir, exist_ok=True)
-
-    images_path = np.sort(os.listdir(raw_dir))
-
-    if not os.path.exists(os.path.join(current_cache_dir, "embeddings.npy")):
-
-        siamese_model = SiameseModel(siamese_network)
-        filepath = "model.h5"
-
-        if os.path.exists(os.path.join("model", filepath)):
-            siamese_model.load_weights(os.path.join("model", filepath))
-        else:
-            siamese_model.compile(optimizer=optimizers.Adam(0.0001))
-            checkpoint = ModelCheckpoint(
-                filepath, monitor='loss', verbose=1, save_best_only=True, mode='min')
-            callbacks_list = [checkpoint]
-            siamese_model.fit(train_dataset, epochs=10,
-                              validation_data=val_dataset, callbacks=callbacks_list)
-
-        embeddings = []
-        embeddings_mean = []
-        for image_path, image_path_next in zip(images_path[:-1], images_path[1:]):
-
-            print("Embedding: {}".format(image_path))
-
-            image_array = img_to_array(
-                load_img(os.path.join(raw_dir, image_path)))
-            image_array = cv2.resize(image_array, dsize=target_shape,
-                                     interpolation=cv2.INTER_CUBIC)
-            image_tensor = tf.convert_to_tensor(
-                np.reshape(image_array, (1, 200, 200, 3)), np.float32)
-            embeddings.append(embedding(resnet.preprocess_input(image_tensor)))
-            embeddings_mean.append(
-                embedding(resnet.preprocess_input(image_tensor)))
-
-            image_array_next = img_to_array(
-                load_img(os.path.join(raw_dir, image_path_next)))
-            image_array_next = cv2.resize(image_array_next, dsize=target_shape,
-                                          interpolation=cv2.INTER_CUBIC)
-            image_tensor_next = tf.convert_to_tensor(
-                np.reshape((image_array / 2 + image_array_next / 2), (1, 200, 200, 3)), np.float32)
-            embeddings_mean.append(
-                embedding(resnet.preprocess_input(image_tensor_next)))
-
-        np.save(os.path.join(current_cache_dir, "embeddings.npy"), embeddings)
-        np.save(os.path.join(current_cache_dir,
-                             "embeddings_mean.npy"), embeddings_mean)
-
-    else:
-        embeddings = np.load(os.path.join(current_cache_dir, "embeddings.npy"))
-        embeddings_mean = np.load(os.path.join(
-            current_cache_dir, "embeddings_mean.npy"))
-
-    cosine_similarity = metrics.CosineSimilarity()
-
-    results_dir = os.path.join(dataset_dir, "results")
-    os.makedirs(results_dir, exist_ok=True)
-
-    similarity_1 = []
-    similarity_5 = []
-    for i, (emb1, emb2) in enumerate(zip(embeddings[:-5], embeddings[5:])):
-        print("Processing: {}".format(i))
-        similarity_5.append(np.divide(np.inner(emb1, emb2), np.sqrt(np.multiply(
-            np.sum(np.multiply(emb1, emb1), axis=1), np.inner(emb2, emb2))))[0][0])
-        emb3 = embeddings[i+1]
-        similarity_1.append(np.divide(np.inner(emb1, emb3), np.sqrt(np.multiply(
-            np.sum(np.multiply(emb1, emb1), axis=1), np.inner(emb3, emb3))))[0][0])
-
-    similarity_mean = []
-    for i, (emb1, emb2) in enumerate(zip(embeddings_mean[0::2], embeddings_mean[1::2])):
-        print("Processing: {}".format(i))
-        similarity_mean.append(np.divide(np.inner(emb1, emb2), np.sqrt(np.multiply(
-            np.sum(np.multiply(emb1, emb1), axis=1), np.inner(emb2, emb2))))[0][0])
-
-    plt.figure(figsize=(16, 3), dpi=1000)
-    plt.plot(similarity_1, label="Window Size = 2")
-    plt.plot(similarity_5, label="Window Size = 6")
-    plt.plot(similarity_mean, label="Mean", c="r", alpha=0.5)
-    plt.legend()
-    plt.savefig(os.path.join(results_dir, "resnet.png"))
-    plt.close()
 
 
