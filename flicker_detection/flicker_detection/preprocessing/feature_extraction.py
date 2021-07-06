@@ -9,6 +9,7 @@ from typing import List
 
 from preprocessing.movement.brisk import Brisk
 from preprocessing.embedding.facenet import Facenet
+from preprocessing.tranformation.affine import Affine
 from util.utils import take_snapshots, euclidean_distance
 
 
@@ -45,6 +46,30 @@ class Features:
             processing_frames = take_snapshots(self.__video_path)
             logging.info("Snapshots OK! Got {} frames with shape: {}".format(
                 processing_frames.shape[0], processing_frames.shape[1:]))
+
+            """ Test
+            """
+            affine = Affine()
+            transformation_results = affine.get_transformation(
+                processing_frames[0])
+            facenet = Facenet()
+            embeddings0_0 = facenet.get_embedding(
+                np.array([processing_frames[0], ]))
+            embeddings0_1 = facenet.get_embedding(
+                np.array([processing_frames[1], ]))
+            embeddings1 = facenet.get_embedding(
+                np.array([transformation_results["scale"], ]))
+            embeddings2 = facenet.get_embedding(
+                np.array([transformation_results["rotate"], ]))
+            embeddings3 = facenet.get_embedding(
+                np.array([transformation_results["shear"], ]))
+            print(euclidean_distance(embeddings0_0, embeddings0_1))
+            print(euclidean_distance(embeddings0_0, embeddings1))
+            print(euclidean_distance(embeddings0_0, embeddings2))
+            print(euclidean_distance(embeddings0_0, embeddings3))
+            exit()
+            ####################
+            ####################
 
             logging.info("Start embedding ...")
             facenet = Facenet()
