@@ -41,4 +41,4 @@ def func():
     })
 
 
-app.run("0.0.0.0", port=9696, debug=True)
+app.run("0.0.0.0", port=9696, debug=False)
