@@ -16,7 +16,7 @@ google-pasta==0.2.0
 grpcio==1.34.1
 h5py==2.10.0
 humanfriendly==9.2
-idna==2.10
+idna==3.2
 itsdangerous==2.0.1
 Jinja2==3.0.1
 keras-nightly==2.5.0.dev2021032900
