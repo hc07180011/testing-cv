@@ -19,6 +19,8 @@
   * [Facenet](https://www.cv-foundation.org/openaccess/content_cvpr_2015/app/1A_089.pdf)
 * Movement
   * [BRISK](http://margaritachli.com/papers/ICCV2011paper.pdf)
+* Transformation
+  * [Affine Transformation](https://en.wikipedia.org/wiki/Affine_transformation)
 
 ## Slides
 
@@ -28,3 +30,9 @@
 * [6/1](https://drive.google.com/file/d/1BOe8rsGuGdZxant4D-6FjkE7ptCs0Cfj/view?usp=sharing)
 * [6/15](https://drive.google.com/file/d/12M3fkW3vxlglwOrtW_Tppe3iCP7SUKQ0/view?usp=sharing)
 * [6/30](https://drive.google.com/file/d/105ZfZX9DWU7Jwpbme24X7q2YIdhFe0Hu/view?usp=sharing)
+* [7/14](https://drive.google.com/file/d/1-5u5J8cRsPFO-DoMjQjONRmkHXlfPxGj/view?usp=sharing)
+* [7/21](https://drive.google.com/file/d/1DAHQn88BdUHCFZlU0tV-qhOyGIAvTlbp/view?usp=sharing)
+
+## For more details
+
+* [Proposal](https://docs.google.com/document/d/1vhABHWuuDh31VZ_OTp5DGJH15cjqedEOAQsllqd5iGc/edit?usp=sharing)
