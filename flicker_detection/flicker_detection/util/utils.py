@@ -15,6 +15,7 @@ def take_snapshots(video_path: str, limit=np.inf) -> np.ndarray:
 
     """
     vidcap = cv2.VideoCapture(video_path)
+    # print(vidcap.get(cv2.CAP_PROP_FPS))
     success, image = vidcap.read()
     ret_images = []
     count = 0
