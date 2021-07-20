@@ -11,7 +11,7 @@ from preprocessing.movement.brisk import Brisk
 from preprocessing.embedding.facenet import Facenet
 from preprocessing.tranformation.affine import Affine
 from preprocessing.partition.pixel import Pixel
-from util.utils import take_snapshots, euclidean_distance
+from util.utils import parse_fps, take_snapshots, euclidean_distance
 
 
 class Features:
@@ -28,6 +28,7 @@ class Features:
 
     def __init__(self, video_path: str, enable_cache: bool, cache_dir: str) -> None:
         self.__video_path = video_path
+        self.fps = parse_fps(self.__video_path)
         self.__cache_dir = cache_dir
         self.__enable_cache = enable_cache
 
