@@ -1,55 +1,61 @@
 import logging
 import numpy as np
 
+import matplotlib.pyplot as plt
 
-def flicker_detection(similarities, suspects, horizontal_displacements, vertical_displacements, human_reaction_threshold=3):
 
-    logging.info("Start core function: flicker detection")
+class Flicker:
 
-    # mean without outlier (outside 1 (std_degree) standard error)
-    std_degree = 1
-    horizontal_baseline = np.mean(horizontal_displacements[abs(
-        horizontal_displacements - np.mean(horizontal_displacements)) < std_degree * np.std(horizontal_displacements)])
-    vertical_baseline = np.mean(vertical_displacements[abs(
-        vertical_displacements - np.mean(vertical_displacements)) < std_degree * np.std(vertical_displacements)])
+    def __init__(self, similarities, suspects, horizontal_displacements, vertical_displacements) -> None:
+        self.similarities = similarities
+        self.suspects = suspects
+        self.horizontal_displacements = horizontal_displacements
+        self.vertical_displacements = vertical_displacements
 
-    """
-    If continuously smaller than or greater than -> scroll
-    """
-    scroll_tolerant_error = human_reaction_threshold
-    status_window = np.zeros(scroll_tolerant_error).astype(
-        int).tolist()  # 0 -> nothing | 1 -> greater | -1 -> smaller
-    current_count = 0
-    current_status = 0
-    for i, h in enumerate(horizontal_displacements):
-        if i in suspects:
-            if h - horizontal_baseline > 0.5 * np.std(vertical_displacements):
-                status = 1
-            elif horizontal_baseline - h > 0.5 * np.std(vertical_displacements):
-                status = -1
-            else:
-                status = 0
+    def __moving_avg(self, data: np.ndarray, window: int) -> np.ndarray:
+        return np.convolve(data, np.ones(window), "valid") / window
+
+    def __continuous_behaviour_detection(self, data, description, z_score_threshold, human_reaction_threshold, plotting=False) -> np.ndarray:
+        moving_average = self.__moving_avg(data, human_reaction_threshold)
+        z_scores = (moving_average - np.mean(moving_average)
+                    ) / np.std(moving_average)  # z-value
+        z_score_threshold = z_score_threshold
+
+        if z_score_threshold > 0:
+            ma_outliers = np.where(z_scores > z_score_threshold)[0]
         else:
-            status = 0
-        if status != current_status and current_status not in status_window:  # change status
-            if current_status and current_count > scroll_tolerant_error * 2:
-                print("End = {}, Length = {}, status = {}".format(
-                    i - len(status_window) - 1, current_count - len(status_window), current_status))
-            current_status = status
-            current_count = 0
-            for s in status_window[::-1]:
-                if s == status:
-                    current_count += 1
-        else:
-            current_count += 1
-        status_window.append(status)
-        status_window.pop(0)
+            ma_outliers = np.where(z_scores < z_score_threshold)[0]
 
-    for i, h in enumerate(horizontal_displacements):
-        if i in suspects:
-            if h > horizontal_baseline:
-                print(i, 1)
-            else:
-                print(i, -1)
+        anything_detected = False
+        for seq in np.split(ma_outliers, np.where(np.diff(ma_outliers) != 1)[0] + 1):
+            if len(seq) > (human_reaction_threshold * 2 - 1):  # original + ma
 
-    logging.info("ok")
+                logging.debug(
+                    "Continuous [{}] at frame {}-{}".format(description, seq[0], seq[-1]))
+                anything_detected = True
+
+        if not anything_detected:
+            logging.debug("Cannot detect continuous [{}]".format(description))
+
+        if plotting:  # dev only
+            plt.figure(figsize=(16, 4), dpi=200)
+            plt.plot(data)
+            plt.plot(moving_average)
+            plt.savefig("cont_behav_detect.png")
+
+    def flicker_detection(self, human_reaction_threshold: int = 3):
+
+        logging.info("Start core function: flicker detection")
+
+        logging.debug("Length: {}".format(len(self.similarities[0])))
+
+        self.__continuous_behaviour_detection(
+            self.horizontal_displacements, "right movement", 1.0, human_reaction_threshold)
+        self.__continuous_behaviour_detection(
+            self.horizontal_displacements, "left movement", -1.0, human_reaction_threshold)
+        self.__continuous_behaviour_detection(
+            self.vertical_displacements, "up movement", -1.0, human_reaction_threshold)
+        self.__continuous_behaviour_detection(
+            self.vertical_displacements, "down movement", 1.0, human_reaction_threshold)
+
+        logging.info("ok")

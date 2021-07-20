@@ -14,12 +14,14 @@ class Pixel:
 
     def __warpMask(self, image: np.ndarray, mask: np.ndarray, p: int, q: int, scale: tuple) -> None:
         if mask > 0:
-            image[p * scale[0]: (p + 1) * scale[0], q * scale[1]: (q + 1) * scale[1], 1] = \
-                np.clip(image[p * scale[0]: (p + 1) * scale[0], q * scale[1]: (q + 1) * scale[1], 1].astype(
+            index = 1  # red, large distance
+            image[p * scale[0]: (p + 1) * scale[0], q * scale[1]: (q + 1) * scale[1], index] = \
+                np.clip(image[p * scale[0]: (p + 1) * scale[0], q * scale[1]: (q + 1) * scale[1], index].astype(
                     float) * mask, 0.0, 255.0).astype("uint8")
         elif mask < 0:
-            image[p * scale[0]: (p + 1) * scale[0], q * scale[1]: (q + 1) * scale[1], 2] = \
-                np.clip(image[p * scale[0]: (p + 1) * scale[0], q * scale[1]: (q + 1) * scale[1], 2].astype(
+            index = 2  # blue, small distance
+            image[p * scale[0]: (p + 1) * scale[0], q * scale[1]: (q + 1) * scale[1], index] = \
+                np.clip(image[p * scale[0]: (p + 1) * scale[0], q * scale[1]: (q + 1) * scale[1], index].astype(
                     float) * (-mask), 0.0, 255.0).astype("uint8")
 
     def get_heatmap(self, image1: np.ndarray, image2: np.ndarray, scale: tuple = (5, 5), output=False) -> List[np.ndarray]:
