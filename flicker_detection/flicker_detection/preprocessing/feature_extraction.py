@@ -9,6 +9,7 @@ from typing import List
 
 from preprocessing.movement.brisk import Brisk
 from preprocessing.embedding.facenet import Facenet
+from preprocessing.tranformation.affine import Affine
 from util.utils import take_snapshots, euclidean_distance
 
 
@@ -45,6 +46,13 @@ class Features:
             processing_frames = take_snapshots(self.__video_path)
             logging.info("Snapshots OK! Got {} frames with shape: {}".format(
                 processing_frames.shape[0], processing_frames.shape[1:]))
+
+            """ Affine transformation example, pass now because too slow and not useful
+            """
+            # facenet = Facenet()
+            # affine = Affine()
+            # transformation_results = affine.compare_transformation(
+            #     facenet.get_embedding, processing_frames[309], processing_frames[310])
 
             logging.info("Start embedding ...")
             facenet = Facenet()
