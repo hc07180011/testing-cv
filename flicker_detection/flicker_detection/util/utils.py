@@ -3,6 +3,10 @@ import logging
 import numpy as np
 
 
+def parse_fps(video_path: str) -> float:
+    return cv2.VideoCapture(video_path).get(cv2.CAP_PROP_FPS)
+
+
 def take_snapshots(video_path: str, limit=np.inf) -> np.ndarray:
     """Extracting frames from the given video
 
@@ -15,7 +19,6 @@ def take_snapshots(video_path: str, limit=np.inf) -> np.ndarray:
 
     """
     vidcap = cv2.VideoCapture(video_path)
-    # print(vidcap.get(cv2.CAP_PROP_FPS))
     success, image = vidcap.read()
     ret_images = []
     count = 0

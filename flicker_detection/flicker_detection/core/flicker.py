@@ -6,7 +6,8 @@ import matplotlib.pyplot as plt
 
 class Flicker:
 
-    def __init__(self, similarities, suspects, horizontal_displacements, vertical_displacements) -> None:
+    def __init__(self, fps, similarities, suspects, horizontal_displacements, vertical_displacements) -> None:
+        self.fps = fps
         self.similarities = similarities
         self.suspects = suspects
         self.horizontal_displacements = horizontal_displacements
@@ -29,9 +30,8 @@ class Flicker:
         anything_detected = False
         for seq in np.split(ma_outliers, np.where(np.diff(ma_outliers) != 1)[0] + 1):
             if len(seq) > (human_reaction_threshold * 2 - 1):  # original + ma
-
-                logging.debug(
-                    "Continuous [{}] at frame {}-{}".format(description, seq[0], seq[-1]))
+                logging.debug("Continuous [{}] at frame {}-{} ({:.2f}s-{:.2f}s)".format(
+                    description, seq[0], seq[-1], seq[0] / self.fps, seq[-1] / self.fps))
                 anything_detected = True
 
         if not anything_detected:

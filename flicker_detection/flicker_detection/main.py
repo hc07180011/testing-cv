@@ -63,7 +63,7 @@ def main() -> None:
         args.data_path, not args.disable_cache, args.cache_dir)
     video_features.feature_extraction()
 
-    flicker = Flicker(video_features.similarities, video_features.suspects,
+    flicker = Flicker(video_features.fps, video_features.similarities, video_features.suspects,
                       video_features.horizontal_displacements, video_features.vertical_displacements)
     flicker.flicker_detection()
 
