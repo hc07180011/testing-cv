@@ -6,7 +6,7 @@ import coloredlogs
 from argparse import ArgumentParser
 
 from preprocessing.feature_extraction import Features
-from core.flicker import flicker_detection
+from core.flicker import Flicker
 
 
 def main() -> None:
@@ -63,8 +63,9 @@ def main() -> None:
         args.data_path, not args.disable_cache, args.cache_dir)
     video_features.feature_extraction()
 
-    flicker_detection(video_features.similarities, video_features.suspects,
+    flicker = Flicker(video_features.similarities, video_features.suspects,
                       video_features.horizontal_displacements, video_features.vertical_displacements)
+    flicker.flicker_detection()
 
 
 if __name__ == "__main__":
