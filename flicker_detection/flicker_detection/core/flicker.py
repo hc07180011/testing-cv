@@ -4,6 +4,8 @@ import numpy as np
 
 def flicker_detection(similarities, suspects, horizontal_displacements, vertical_displacements, human_reaction_threshold=3):
 
+    logging.info("Start core function: flicker detection")
+
     # mean without outlier (outside 1 (std_degree) standard error)
     std_degree = 1
     horizontal_baseline = np.mean(horizontal_displacements[abs(
@@ -49,3 +51,5 @@ def flicker_detection(similarities, suspects, horizontal_displacements, vertical
                 print(i, 1)
             else:
                 print(i, -1)
+
+    logging.info("ok")
