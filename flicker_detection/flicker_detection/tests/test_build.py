@@ -17,14 +17,15 @@ def test_alive():
 def test_preprocess():
     from preprocessing.feature_extraction import Features
     video_features = Features(os.path.join(
-        "tests", "test_data.mp4"), False, ".cache")
+        "tests", "test_data.mp4"), True, ".cache")
     video_features.feature_extraction()
     __cache = np.load(os.path.join(
         "tests", "52c4b8563b48b6025cd2d368eab2e33e.npz"))
     embeddings, suspects, horizontal_displacements, vertical_displacements = [
         __cache[__cache.files[i]] for i in range(len(__cache.files))]
-    os.system("ls -al preprocessing/embedding/models/facenet_model.h5")
-    assert embeddings.shape == video_features.embeddings.shape
-    assert suspects.shape == video_features.suspects.shape
-    assert horizontal_displacements.shape == video_features.horizontal_displacements.shape
-    assert vertical_displacements.shape == video_features.vertical_displacements.shape
+    assert np.all(embeddings == video_features.embeddings)
+    assert np.all(suspects == video_features.suspects)
+    assert np.all(horizontal_displacements ==
+                  video_features.horizontal_displacements)
+    assert np.all(vertical_displacements ==
+                  video_features.vertical_displacements)
