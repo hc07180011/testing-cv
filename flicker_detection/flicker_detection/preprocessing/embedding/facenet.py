@@ -76,9 +76,11 @@ class Facenet:
             # self.__siamese_model.fit(train_dataset, epochs=10,
             #                          validation_data=val_dataset, callbacks=callbacks_list)
 
-    def get_embedding(self, images: np.ndarray) -> np.ndarray:
-        assert len(
+    def get_embedding(self, images: np.ndarray, batched=True) -> np.ndarray:
+        assert (not batched) or len(
             images.shape) == 4, "images should be an array of image with shape (width, height, 3)"
+        if not batched:
+            images = np.array([images, ])
         resized_images = np.array([cv2.resize(image, dsize=self.__target_shape,
                                               interpolation=cv2.INTER_CUBIC) for image in images])
         image_tensor = tf.convert_to_tensor(resized_images, np.float32)
