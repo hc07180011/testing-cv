@@ -1,4 +1,5 @@
 import cv2
+import time
 import logging
 import itertools
 import numpy as np
@@ -23,14 +24,28 @@ class Affine:
 
     def __transformation_trial(self, mask, embedding_func, anchor_embedding, transformation_func, image1, image2_border) -> dict:
         results = dict()
+        start = time.perf_counter()
         for value1, value2 in list(itertools.product(range(-10, 11), range(1, 2))):
+            print(value1, value2)
+            print(time.perf_counter() - start)
+            start = time.perf_counter()
             transformed = cv2.warpAffine(image1, transformation_func(
                 image1.shape, value1, value2), image1.shape[1::-1], borderValue=image2_border)
+            print(time.perf_counter() - start)
+            start = time.perf_counter()
             transformed = np.clip(
                 transformed + mask, 0, 255).astype("uint8")
-            current_similarity = np.abs(euclidean_distance(embedding_func(
-                transformed, batched=False), anchor_embedding))
+            # current_similarity = np.abs(euclidean_distance(embedding_func(
+            #     transformed, batched=False), anchor_embedding))
+            print(time.perf_counter() - start)
+            start = time.perf_counter()
+            current_similarity = np.abs(
+                euclidean_distance(transformed, anchor_embedding))
+            print(time.perf_counter() - start)
+            start = time.perf_counter()
             results[(value1, value2)] = current_similarity
+            print(time.perf_counter() - start)
+            start = time.perf_counter()
         return results
 
     def compare_transformation(self, embedding_func, image1: np.array, image2: np.array) -> dict:
@@ -41,9 +56,11 @@ class Affine:
 
         logging.info("Comparing every transformation")
 
-        anchor_embedding = embedding_func(image2, batched=False)
-        anchor_similarity = np.abs(euclidean_distance(
-            embedding_func(image1, batched=False), anchor_embedding))
+        anchor_embedding = image2  # embedding_func(image2, batched=False)
+        # anchor_similarity = np.abs(euclidean_distance(
+        #     embedding_func(image1, batched=False), anchor_embedding))
+        anchor_similarity = np.abs(
+            euclidean_distance(image1, anchor_embedding))
 
         # get the background mask
         # this is neccessary otherwise transformation results might exceed border

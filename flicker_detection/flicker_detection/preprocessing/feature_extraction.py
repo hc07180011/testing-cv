@@ -75,12 +75,17 @@ class Features:
             similarities = np.array(similarities)
             similarity_baseline = np.mean(similarities)
 
+            affine = Affine()
+
+            start_ = time.perf_counter()
             suspects = []
             horizontal_displacements = []
             vertical_displacements = []
             for i, (frame1, frame2) in enumerate(zip(processing_frames[:-1], processing_frames[1:])):
                 if similarities[i] < similarity_baseline:
                     suspects.append(i)
+                    affine.compare_transformation(
+                        facenet.get_embedding, processing_frames[i], processing_frames[i+1])
                 delta_x, delta_y = brisk.calculate_movement(frame1, frame2)
                 horizontal_displacements.append(delta_x)
                 vertical_displacements.append(delta_y)
@@ -88,6 +93,8 @@ class Features:
             horizontal_displacements = np.array(horizontal_displacements)
             vertical_displacements = np.array(vertical_displacements)
             logging.info("BRISK OK!")
+
+            logging.warning("takes {}s".format(time.perf_counter() - start_))
 
             if self.__enable_cache:
                 np.savez(cache_data_path, embeddings, suspects,
