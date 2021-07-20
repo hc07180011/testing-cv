@@ -46,6 +46,7 @@ class Affine:
             embedding_func(image1, batched=False), anchor_embedding))
 
         # get the background mask
+        # this is neccessary otherwise transformation results might exceed border
         background_mask = (image2 == image2[0][0]).astype(
             int) * (255 if image2[0][0][0] else -255)
         # y, x, _ = np.where(image2 != image2[0][0])
