@@ -1,7 +1,7 @@
 import cv2
+import logging
 import itertools
 import numpy as np
-from tensorflow.python.ops.gen_batch_ops import batch
 
 from util.utils import euclidean_distance
 
@@ -9,6 +9,7 @@ from util.utils import euclidean_distance
 class Affine:
 
     def __init__(self) -> None:
+        logging.info("Initializing preprocessing.transformation.affine")
         pass
 
     def __scale(self, shape, x: float = 1.1, y: float = 1.0) -> np.array:
@@ -37,6 +38,9 @@ class Affine:
         Transform image1 to be as similar as possible with image2
         """
         assert len(image1.shape) == 3 and len(image2.shape) == 3
+
+        logging.info("Comparing every transformation")
+
         anchor_embedding = embedding_func(image2, batched=False)
         anchor_similarity = np.abs(euclidean_distance(
             embedding_func(image1, batched=False), anchor_embedding))
@@ -49,4 +53,7 @@ class Affine:
 
         res = self.__transformation_trial(
             background_mask, embedding_func, anchor_embedding, self.__rotate, image1, tuple(image2[0][0].tolist()))
+
+        logging.info("ok")
+
         return res

@@ -10,6 +10,7 @@ from typing import List
 from preprocessing.movement.brisk import Brisk
 from preprocessing.embedding.facenet import Facenet
 from preprocessing.tranformation.affine import Affine
+from preprocessing.partition.pixel import Pixel
 from util.utils import take_snapshots, euclidean_distance
 
 
@@ -53,6 +54,11 @@ class Features:
             # affine = Affine()
             # transformation_results = affine.compare_transformation(
             #     facenet.get_embedding, processing_frames[309], processing_frames[310])
+            """ Pixel-wise distance example, pass now, video 001: 0, 1, 105, 106
+            """
+            # pixel = Pixel()
+            # pixel.get_heatmap(
+            #     processing_frames[105], processing_frames[106], output=True)
 
             logging.info("Start embedding ...")
             facenet = Facenet()
