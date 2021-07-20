@@ -20,6 +20,8 @@ class Facenet:
 
         self.__target_shape = (200, 200)
 
+        np.random.seed(0)
+
         base_cnn = resnet.ResNet50(
             weights="imagenet", input_shape=self.__target_shape + (3,), include_top=False
         )
