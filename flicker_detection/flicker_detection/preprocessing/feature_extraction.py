@@ -57,9 +57,9 @@ class Features:
             #     facenet.get_embedding, processing_frames[309], processing_frames[310])
             """ Pixel-wise distance example, pass now, video 001: 0, 1, 105, 106
             """
-            # pixel = Pixel()
-            # pixel.get_heatmap(
-            #     processing_frames[105], processing_frames[106], output=True)
+            pixel = Pixel()
+            pixel.get_heatmap(
+                processing_frames[105], processing_frames[106], output=False)
 
             logging.info("Start embedding ...")
             facenet = Facenet()
