@@ -49,7 +49,7 @@ class Features:
             logging.info("Snapshots OK! Got {} frames with shape: {}".format(
                 processing_frames.shape[0], processing_frames.shape[1:]))
 
-            """ Affine transformation example, pass now because too slow and not useful
+            """ Affine transformation example, pass now and might be used later
                 video 007: 309, 310
             """
             # facenet = Facenet()
