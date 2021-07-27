@@ -58,8 +58,12 @@ class Features:
             """ Pixel-wise distance example, pass now, video 001: 0, 1, 105, 106
             """
             # pixel = Pixel()
-            # pixel.get_heatmap(
-            #     processing_frames[105], processing_frames[106], output=True)
+            # for i in range(len(processing_frames) - 1):
+            #     pixel.get_heatmap(
+            #         processing_frames[i], processing_frames[i+1], output=True, dump_dir="./dump")
+            # from util.gif import gen_gif_temp
+            # gen_gif_temp("dump")
+            # exit()
 
             logging.info("Start embedding ...")
             facenet = Facenet()
