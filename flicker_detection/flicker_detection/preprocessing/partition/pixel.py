@@ -49,7 +49,7 @@ class Pixel:
         for p in range(int(image1.shape[0] / scale[0])):  # y
             for q in range(int(image1.shape[1] / scale[1])):  # x
                 self.__warpMask(image1, map_mask[p][q], p, q, scale)
-                self.__warpMask(image2, map_mask[p][q], p, q, scale)
+                # self.__warpMask(image2, map_mask[p][q], p, q, scale)
 
         if output:
             image_paths = (os.path.join(dump_dir, "1-{}.png".format(int(time.time() * 1000000))),
@@ -57,7 +57,7 @@ class Pixel:
             logging.info(
                 "Choose to output: {}, {}. Exitting...".format(image_paths[0], image_paths[1]))
             cv2.imwrite(image_paths[0], image1)
-            cv2.imwrite(image_paths[1], image2)
+            # cv2.imwrite(image_paths[1], image2)
             if exit_:
                 sys.exit(0)
 
