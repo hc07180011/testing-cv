@@ -50,11 +50,14 @@ class Features:
                 processing_frames.shape[0], processing_frames.shape[1:]))
 
             """ Affine transformation example, pass now because too slow and not useful
+                video 007: 309, 310
             """
             # facenet = Facenet()
             # affine = Affine()
             # transformation_results = affine.compare_transformation(
-            #     facenet.get_embedding, processing_frames[309], processing_frames[310])
+            #     processing_frames[309], processing_frames[310])
+            # print(transformation_results)
+            # exit()
             """ Pixel-wise distance example, pass now, video 001: 0, 1, 105, 106
             """
             # pixel = Pixel()
