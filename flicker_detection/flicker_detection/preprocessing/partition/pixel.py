@@ -1,7 +1,11 @@
+import os
 import sys
 import cv2
+import time
 import logging
 import numpy as np
+
+from numpy.linalg import norm
 
 from typing import List
 
@@ -24,55 +28,37 @@ class Pixel:
                 np.clip(image[p * scale[0]: (p + 1) * scale[0], q * scale[1]: (q + 1) * scale[1], index].astype(
                     float) * (-mask), 0.0, 255.0).astype("uint8")
 
-    def get_heatmap(self, image1: np.ndarray, image2: np.ndarray, scale: tuple = (5, 5), output=False) -> List[np.ndarray]:
+    def get_heatmap(self, image1: np.ndarray, image2: np.ndarray, scale: tuple = (5, 5), output=False, exit_=False, dump_dir=".") -> List[np.ndarray]:
 
         assert np.all(image1.shape ==
                       image2.shape), "shape of two images should be same"
 
         logging.info("Start getting pixel-wise differences map.")
 
-        cv2.imwrite("_1.png", image1)
-        cv2.imwrite("_2.png", image2)
+        h, w, __ = image1.shape
+        splitted_image1 = image1.reshape(
+            h // scale[0], scale[0], -1, scale[1], 3).swapaxes(1, 2).reshape((h // scale[0]) * (w // scale[1]), -1)
+        splitted_image2 = image2.reshape(
+            h // scale[0], scale[0], -1, scale[1], 3).swapaxes(1, 2).reshape((h // scale[0]) * (w // scale[1]), -1)
 
-        scores = []
-        for p in range(int(image1.shape[0] / scale[0])):
-            for q in range(int(image1.shape[1] / scale[1])):
-
-                t1 = image1[p * scale[0]: (p + 1) * scale[0], q *
-                            scale[1]: (q + 1) * scale[1]]
-                t2 = image2[p * scale[0]: (p + 1) * scale[0], q *
-                            scale[1]: (q + 1) * scale[1]]
-
-                scores.append(np.linalg.norm(t1 - t2))  # euclidian distance
-
-        scores = np.array(scores)
+        scores = norm(splitted_image1 - splitted_image2,
+                      axis=1).reshape(h // scale[0], w // scale[1])
         baseline = np.mean(scores[scores != 0.0])
 
-        map_mask = np.zeros(
-            (int(image1.shape[0] / scale[0]), int(image1.shape[1] / scale[1])))
-        count = 0
-        for p in range(int(image1.shape[0] / scale[0])):  # y
-            for q in range(int(image1.shape[1] / scale[1])):  # x
-                score = scores[count]
-                count += 1
-                factor = (score - baseline) / baseline
-                if score == 0.0:
-                    map_mask[p][q] = 0.0
-                else:
-                    map_mask[p][q] = factor
-
+        map_mask = (scores - baseline) / baseline * scores.astype(bool)
         for p in range(int(image1.shape[0] / scale[0])):  # y
             for q in range(int(image1.shape[1] / scale[1])):  # x
                 self.__warpMask(image1, map_mask[p][q], p, q, scale)
-                self.__warpMask(image2, map_mask[p][q], p, q, scale)
+                # self.__warpMask(image2, map_mask[p][q], p, q, scale)
 
         if output:
+            image_paths = (os.path.join(dump_dir, "1-{}.png".format(int(time.time() * 1000000))),
+                           os.path.join(dump_dir, "2-{}.png".format(int(time.time() * 1000000))))
             logging.info(
-                "Choose to output: {}, {}. Exitting...".format("1.png", "2.png"))
-            cv2.imwrite("1.png", image1)
-            cv2.imwrite("2.png", image2)
-            sys.exit(0)
-
-        logging.info("ok")
+                "Choose to output: {}, {}. Exitting...".format(image_paths[0], image_paths[1]))
+            cv2.imwrite(image_paths[0], image1)
+            # cv2.imwrite(image_paths[1], image2)
+            if exit_:
+                sys.exit(0)
 
         return image1, image2
