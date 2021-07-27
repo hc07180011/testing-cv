@@ -52,11 +52,14 @@ class Features:
             """ Affine transformation example, pass now and might be used later
                 video 007: 309, 310
             """
-            # facenet = Facenet()
             # affine = Affine()
-            # transformation_results = affine.compare_transformation(
-            #     processing_frames[309], processing_frames[310])
-            # print(transformation_results)
+            # with open("rotation.txt", "w") as f:
+            #     for i in range(len(processing_frames) - 1):
+            #         print(i, end=" ")
+            #         transformation_results = affine.compare_transformation(
+            #             processing_frames[i], processing_frames[i + 1])
+            #         f.write("{:04d} {:04.2f} {}\n".format(
+            #             i, i / self.fps, transformation_results["rotate"][0]))
             # exit()
             """ Pixel-wise distance example, pass now, video 001: 0, 1, 105, 106
             """
@@ -91,8 +94,6 @@ class Features:
             for i, (frame1, frame2) in enumerate(zip(processing_frames[:-1], processing_frames[1:])):
                 if similarities[i] < similarity_baseline:
                     suspects.append(i)
-                    affine.compare_transformation(
-                        facenet.get_embedding, processing_frames[i], processing_frames[i+1])
                 delta_x, delta_y = brisk.calculate_movement(frame1, frame2)
                 horizontal_displacements.append(delta_x)
                 vertical_displacements.append(delta_y)

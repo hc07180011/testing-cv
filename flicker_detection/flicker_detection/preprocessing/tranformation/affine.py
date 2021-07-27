@@ -57,8 +57,13 @@ class Affine:
         # y, x, _ = np.where(image2 != image2[0][0])
         # index_mask = np.array([np.min(x), np.min(y), np.max(x), np.max(y)])
 
-        keys, values = self.__transformation_trial(
-            background_mask, anchor_embedding, self.__rotate, image1, tuple(image2[0][0].tolist()))
+        x, y, _ = np.where(image2 != image2[0][0])
+        if np.all(image2[np.min(x)][np.min(y)] == image2[np.max(x)][np.max(y)]):
+            border_value = image2[np.min(x)][np.min(y)]
+            keys, values = self.__transformation_trial(
+                background_mask, anchor_embedding, self.__rotate, image1, tuple(image2[0][0].tolist()))
+        else:
+            return dict({"none": None})
 
         logging.info("ok")
-        return dict({ "rotate": keys[np.argmin(values)] })
+        return dict({"rotate": keys[np.argmin(values)]})
