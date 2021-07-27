@@ -49,12 +49,18 @@ class Features:
             logging.info("Snapshots OK! Got {} frames with shape: {}".format(
                 processing_frames.shape[0], processing_frames.shape[1:]))
 
-            """ Affine transformation example, pass now because too slow and not useful
+            """ Affine transformation example, pass now and might be used later
+                video 007: 309, 310
             """
-            # facenet = Facenet()
             # affine = Affine()
-            # transformation_results = affine.compare_transformation(
-            #     facenet.get_embedding, processing_frames[309], processing_frames[310])
+            # with open("rotation.txt", "w") as f:
+            #     for i in range(len(processing_frames) - 1):
+            #         print(i, end=" ")
+            #         transformation_results = affine.compare_transformation(
+            #             processing_frames[i], processing_frames[i + 1])
+            #         f.write("{:04d} {:04.2f} {}\n".format(
+            #             i, i / self.fps, transformation_results["rotate"][0]))
+            # exit()
             """ Pixel-wise distance example, pass now, video 001: 0, 1, 105, 106
             """
             # pixel = Pixel()
@@ -79,6 +85,9 @@ class Features:
             similarities = np.array(similarities)
             similarity_baseline = np.mean(similarities)
 
+            affine = Affine()
+
+            start_ = time.perf_counter()
             suspects = []
             horizontal_displacements = []
             vertical_displacements = []
@@ -92,6 +101,8 @@ class Features:
             horizontal_displacements = np.array(horizontal_displacements)
             vertical_displacements = np.array(vertical_displacements)
             logging.info("BRISK OK!")
+
+            logging.warning("takes {}s".format(time.perf_counter() - start_))
 
             if self.__enable_cache:
                 np.savez(cache_data_path, embeddings, suspects,
