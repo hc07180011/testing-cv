@@ -32,6 +32,7 @@
 * [6/30](https://drive.google.com/file/d/105ZfZX9DWU7Jwpbme24X7q2YIdhFe0Hu/view?usp=sharing)
 * [7/14](https://drive.google.com/file/d/1-5u5J8cRsPFO-DoMjQjONRmkHXlfPxGj/view?usp=sharing)
 * [7/21](https://drive.google.com/file/d/1DAHQn88BdUHCFZlU0tV-qhOyGIAvTlbp/view?usp=sharing)
+* [7/28](https://drive.google.com/file/d/1zrOD3kwofuVjEaQ5XkXXM7ymbs1fujCL/view?usp=sharing)
 
 ## For more details
 
