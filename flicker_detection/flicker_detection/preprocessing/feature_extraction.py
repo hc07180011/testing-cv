@@ -71,6 +71,37 @@ class Features:
             # gen_gif_temp("dump")
             # exit()
 
+            """ Embedding & no Embedding experiments
+            """
+            # import cv2
+            # import matplotlib.pyplot as plt
+            # facenet = Facenet()
+            # row, col, _ = processing_frames[0].shape
+            # times1 = []
+            # times2 = []
+            # for i in range(1, 60):
+            #     a = cv2.resize(
+            #         processing_frames[0], (int(row / i), int(col / i)))
+            #     b = cv2.resize(
+            #         processing_frames[1], (int(row / i), int(col / i)))
+            #     s = time.perf_counter()
+            #     b1 = facenet.get_embedding(a, batched=False)
+            #     b2 = facenet.get_embedding(b, batched=False)
+            #     for __ in range(100):
+            #         ___ = euclidean_distance(b1, b2)
+            #     times1.append((time.perf_counter() - s) / 100)
+            #     s = time.perf_counter()
+            #     for __ in range(100):
+            #         ___ = euclidean_distance(a, b)
+            #     times2.append((time.perf_counter() - s) / 100)
+            # plt.plot(times1)
+            # plt.plot(times2)
+            # plt.legend(["Embedding", "No Embedding"])
+            # plt.xlabel("Compressing Scale")
+            # plt.ylabel("Time")
+            # plt.savefig("embedding.png")
+            # exit()
+
             logging.info("Start embedding ...")
             facenet = Facenet()
             embeddings = facenet.get_embedding(processing_frames)
