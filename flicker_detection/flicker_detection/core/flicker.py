@@ -66,7 +66,7 @@ class Flicker:
 
         flickers = list()
         flicker_types = ["flickering", "discontinuous", "imbalance"]
-        # flickers: [{ "type": flicker_type, "start": #frame, "end": #frame }, ...]
+        # flickers: [{ "type": flicker_type, "frame": [#frame, #frame], "time": [s, s] }, ...]
 
         exemption_mask = []
 
@@ -116,8 +116,14 @@ class Flicker:
                                 seq1[0], seq2[-1], seq1[0] / self.fps, seq2[-1] / self.fps))
                             flickers.append(dict({
                                 "type": "discontinuous",
-                                "start": int(seq1[0]),
-                                "end": int(seq2[-1])
+                                "frame": [
+                                    int(seq1[0]),
+                                    int(seq2[-1])
+                                ],
+                                "time": [
+                                    "{:.2f}".format(seq1[0] / self.fps),
+                                    "{:.2f}".format(seq2[-1] / self.fps)
+                                ]
                             }))
 
         # flickering
@@ -153,7 +159,7 @@ class Flicker:
                     overlapped = False
                     for flicker in flickers:
                         if flicker["type"] == "discontinuous":
-                            if np.any(np.isin(range(sus_seq_min, sus_seq_max + 1), range(flicker["start"], flicker["end"] + 1))):
+                            if np.any(np.isin(range(sus_seq_min, sus_seq_max + 1), range(flicker["frame"][0], flicker["frame"][1] + 1))):
                                 logging.debug("overlapped")
                                 overlapped = True
                                 break
@@ -162,13 +168,19 @@ class Flicker:
                             sus_seq_min, sus_seq_max, sus_seq_min / self.fps, sus_seq_max / self.fps))
                         flickers.append(dict({
                             "type": "flickering",
-                            "start": int(sus_seq_min),
-                            "end": int(sus_seq_max)
+                            "frame": [
+                                int(sus_seq_min),
+                                int(sus_seq_max)
+                            ],
+                            "time": [
+                                "{:.2f}".format(sus_seq_min / self.fps),
+                                "{:.2f}".format(sus_seq_max / self.fps)
+                            ]
                         }))
 
         logging.info("Final flickers: {}".format(dict({"label": flickers})))
 
         with open(output_path, "w") as f:
-            json.dump(dict({"label": flickers}), f)
+            json.dump(dict({"label": flickers}), f, indent=4)
 
         logging.info("ok")
