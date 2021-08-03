@@ -1,3 +1,4 @@
+import json
 import logging
 import numpy as np
 
@@ -55,7 +56,7 @@ class Flicker:
 
         return np.array(results)
 
-    def flicker_detection(self, human_reaction_threshold: int = 5):
+    def flicker_detection(self, output_path, human_reaction_threshold: int = 5):
 
         # need further tunning of reaction threshold
 
@@ -115,8 +116,8 @@ class Flicker:
                                 seq1[0], seq2[-1], seq1[0] / self.fps, seq2[-1] / self.fps))
                             flickers.append(dict({
                                 "type": "discontinuous",
-                                "start": seq1[0],
-                                "end": seq2[-1]
+                                "start": int(seq1[0]),
+                                "end": int(seq2[-1])
                             }))
 
         # flickering
@@ -130,8 +131,13 @@ class Flicker:
             sus_seq_max = np.max(seq)
             logging.debug("testing: {}-{}".format(sus_seq_min, sus_seq_max))
             if sus_seq_min >= lookbefore_window and sus_seq_max < len(self.similarities[0]):
-                similarity_baseline = np.mean(
-                    self.similarities[lookbefore_window][self.suspects[:-1]])
+                similarity_baseline = 0
+                cnt = 0
+                for suspect in self.suspects:
+                    if suspect < len(self.similarities[lookbefore_window]):
+                        similarity_baseline += self.similarities[lookbefore_window][suspect]
+                        cnt += 1
+                similarity_baseline /= cnt
                 reverse_times = 0
                 current_direction = 0  # 0 -> up, 1 -> down
                 for idx in range(sus_seq_min - lookbefore_window, sus_seq_max + 1):
@@ -156,10 +162,13 @@ class Flicker:
                             sus_seq_min, sus_seq_max, sus_seq_min / self.fps, sus_seq_max / self.fps))
                         flickers.append(dict({
                             "type": "flickering",
-                            "start": sus_seq_min,
-                            "end": sus_seq_max
+                            "start": int(sus_seq_min),
+                            "end": int(sus_seq_max)
                         }))
 
-        logging.info("Final flickers: {}".format(flickers))
+        logging.info("Final flickers: {}".format(dict({"label": flickers})))
+
+        with open(output_path, "w") as f:
+            json.dump(dict({"label": flickers}), f)
 
         logging.info("ok")

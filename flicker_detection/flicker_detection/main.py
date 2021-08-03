@@ -61,7 +61,7 @@ def main() -> None:
     coloredlogs.install(
         fmt="%(asctime)s %(hostname)s %(name)s[%(process)d] %(levelname)s %(processName)s(%(threadName)s) %(module)s:%(lineno)d  %(message)s", level="DEBUG")
 
-    logging.info("Program start ...")
+    logging.info("Program starts")
 
     video_features = Features(
         args.data_path, not args.disable_cache, args.cache_dir)
@@ -69,7 +69,9 @@ def main() -> None:
 
     flicker = Flicker(video_features.fps, video_features.similarities, video_features.suspects,
                       video_features.horizontal_displacements, video_features.vertical_displacements)
-    flicker.flicker_detection()
+
+    flicker.flicker_detection(output_path="{}.json".format(
+        os.path.basename(args.data_path)))
 
 
 def __monitor(pid):
