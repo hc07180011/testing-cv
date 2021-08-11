@@ -24,34 +24,60 @@
 
 ## Install
 
+### Ubuntu
+
 #### Tested on
 1. [Docker Ubuntu Official Image 18.04](https://hub.docker.com/_/ubuntu/)
-2. [Google Cloud Platform - Ubuntu 18.04](https://cloud.google.com/)
+2. [Google Cloud Platform - Ubuntu 16.04, 18.04, 20.04](https://cloud.google.com/)
 
 ```bash
+# Update and install packages
 sudo apt update
 sudo apt install -y make build-essential libssl-dev zlib1g-dev libbz2-dev \
   libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev \
   xz-utils tk-dev libffi-dev liblzma-dev python-openssl git
 
+# Install pyenv
 curl https://pyenv.run | bash
 export PATH="${HOME}/.pyenv/bin:$PATH"
 eval "$(pyenv init -)"
 eval "$(pyenv virtualenv-init -)"
 
+# Install python3.8.5
 pyenv install 3.8.5
 
+# Clone this repo
 git clone https://github.com/hc07180011/NTU-Google-Testing.git
 cd NTU-Google-Testing/flicker_detection/flicker_detection
 
+# Download the facenet pre-trained model
 wget https://hc07180011.synology.me/data/googlecv/facenet_model.h5 -O preprocessing/embedding/models/facenet_model.h5
 
+# Activate environment and install dependencies
 ~/.pyenv/versions/3.8.5/bin/python -m venv .env
 source .env/bin/activate
 python3 -m pip install -r requirements.txt
 
+# Run the program
 time python3 main.py -d tests/test_data.mp4 
 ```
+
+### Docker
+
+* Prerequisite: [Docker](https://www.docker.com/)
+
+```bash
+# Clone this repo
+git clone https://github.com/hc07180011/NTU-Google-Testing.git
+cd NTU-Google-Testing/flicker_detection/flicker_detection
+
+# Build the container
+docker build -t flicker_detection_runner .
+
+# Run the container with a specific input data
+docker run --rm -e data=tests/test_data.mp4 -it flicker_detection_runner
+```
+
 
 ## Slides
 
