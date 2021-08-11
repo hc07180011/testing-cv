@@ -34,6 +34,7 @@
 * [7/21](https://drive.google.com/file/d/1DAHQn88BdUHCFZlU0tV-qhOyGIAvTlbp/view?usp=sharing)
 * [7/28](https://drive.google.com/file/d/1zrOD3kwofuVjEaQ5XkXXM7ymbs1fujCL/view?usp=sharing)
 * [8/4](https://drive.google.com/file/d/1yfbYejz3P3AzQMykJ-yIWynyCUseJIhA/view?usp=sharing)
+* [8/11](https://docs.google.com/presentation/d/1CJW8kz393O-I4MTPlevxvmpfsUYRzzkv/edit?usp=sharing&ouid=101634550160064789006&rtpof=true&sd=true)
 
 ## For more details
 
