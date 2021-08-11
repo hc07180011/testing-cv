@@ -22,6 +22,37 @@
 * Transformation
   * [Affine Transformation](https://en.wikipedia.org/wiki/Affine_transformation)
 
+## Install
+
+#### Tested on
+1. [Docker Ubuntu Official Image 18.04](https://hub.docker.com/_/ubuntu/)
+2. [Google Cloud Platform - Ubuntu 18.04](https://cloud.google.com/)
+
+```bash
+sudo apt update
+sudo apt install -y make build-essential libssl-dev zlib1g-dev libbz2-dev \
+  libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev \
+  xz-utils tk-dev libffi-dev liblzma-dev python-openssl git
+
+curl https://pyenv.run | bash
+export PATH="${HOME}/.pyenv/bin:$PATH"
+eval "$(pyenv init -)"
+eval "$(pyenv virtualenv-init -)"
+
+pyenv install 3.8.5
+
+git clone https://github.com/hc07180011/NTU-Google-Testing.git
+cd NTU-Google-Testing/flicker_detection/flicker_detection
+
+wget https://hc07180011.synology.me/data/googlecv/facenet_model.h5 -O preprocessing/embedding/models/facenet_model.h5
+
+~/.pyenv/versions/3.8.5/bin/python -m venv .env
+source .env/bin/activate
+python3 -m pip install -r requirements.txt
+
+time python3 main.py -d tests/test_data.mp4 
+```
+
 ## Slides
 
 * [5/4](https://drive.google.com/file/d/1aVSWCC9GXZOBZjz8sjVIfGsHkOgVYl5Z/view?usp=sharing)
