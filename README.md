@@ -75,7 +75,7 @@ cd NTU-Google-Testing/flicker_detection/flicker_detection
 docker build -t flicker_detection_runner .
 
 # Run the container with a specific input data (put it under data/ directory)
-docker run --rm -e data=data/[video_name] -v $PWD/data:/app/data -it flicker_detection_runner
+docker run --rm -e data=data/test_data.mp4 -v $PWD/data:/app/data -it flicker_detection_runner
 ```
 
 
