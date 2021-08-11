@@ -1,5 +1,6 @@
 import os
 import gc
+import cv2
 import time
 import hashlib
 import logging
@@ -45,9 +46,60 @@ class Features:
 
         else:
 
-            processing_frames = take_snapshots(self.__video_path)
-            logging.info("Snapshots OK! Got {} frames with shape: {}".format(
-                processing_frames.shape[0], processing_frames.shape[1:]))
+            facenet = Facenet()
+            brisk = Brisk()
+
+            vidcap = cv2.VideoCapture(self.__video_path)
+            success, image = vidcap.read()
+            last_frame = image
+            last_embedding = facenet.get_embedding(image, batched=False)
+
+            embeddings = []
+            similarities = []
+            horizontal_displacements = []
+            vertical_displacements = []
+
+            count = 0
+            while success:
+                embeddings.append(last_embedding)
+
+                success, image = vidcap.read()
+
+                try:
+                    embedding = facenet.get_embedding(image, batched=False)
+                except:
+                    break
+
+                similarities.append(euclidean_distance(
+                    last_embedding, embedding))
+                delta_x, delta_y = brisk.calculate_movement(last_frame, image)
+                horizontal_displacements.append(delta_x)
+                vertical_displacements.append(delta_y)
+
+                last_frame = image
+                last_embedding = embedding
+                logging.debug('Parsing image: #{:04d}'.format(count))
+                count += 1
+
+            similarities = np.array(similarities)
+            similarity_baseline = np.mean(similarities)
+
+            suspects = []
+            for i in range(similarities.shape[0]):
+                if similarities[i] < similarity_baseline:
+                    suspects.append(i)
+            suspects = np.array(suspects)
+            horizontal_displacements = np.array(horizontal_displacements)
+            vertical_displacements = np.array(vertical_displacements)
+
+            if self.__enable_cache:
+                np.savez(cache_data_path, embeddings, suspects,
+                         horizontal_displacements, vertical_displacements)
+                logging.debug("Cache save at: {} with size = {} bytes".format(
+                    cache_data_path, os.path.getsize(cache_data_path)))
+
+            gc.collect()
+            logging.info("Delete frames and free the memory")
 
             """ Affine transformation example, pass now and might be used later
                 video 007: 309, 310
@@ -101,49 +153,6 @@ class Features:
             # plt.ylabel("Time")
             # plt.savefig("embedding.png")
             # exit()
-
-            logging.info("Start embedding ...")
-            facenet = Facenet()
-            embeddings = facenet.get_embedding(processing_frames)
-            logging.info("Embedding OK!")
-
-            logging.info("Start BRISK algorithm ...")
-            brisk = Brisk()
-
-            similarities = []
-            for emb1, emb2 in zip(embeddings[:-1], embeddings[1:]):
-                similarities.append(euclidean_distance(emb1, emb2))
-            similarities = np.array(similarities)
-            similarity_baseline = np.mean(similarities)
-
-            affine = Affine()
-
-            start_ = time.perf_counter()
-            suspects = []
-            horizontal_displacements = []
-            vertical_displacements = []
-            for i, (frame1, frame2) in enumerate(zip(processing_frames[:-1], processing_frames[1:])):
-                if similarities[i] < similarity_baseline:
-                    suspects.append(i)
-                delta_x, delta_y = brisk.calculate_movement(frame1, frame2)
-                horizontal_displacements.append(delta_x)
-                vertical_displacements.append(delta_y)
-            suspects = np.array(suspects)
-            horizontal_displacements = np.array(horizontal_displacements)
-            vertical_displacements = np.array(vertical_displacements)
-            logging.info("BRISK OK!")
-
-            logging.warning("takes {}s".format(time.perf_counter() - start_))
-
-            if self.__enable_cache:
-                np.savez(cache_data_path, embeddings, suspects,
-                         horizontal_displacements, vertical_displacements)
-                logging.debug("Cache save at: {} with size = {} bytes".format(
-                    cache_data_path, os.path.getsize(cache_data_path)))
-
-            del processing_frames
-            gc.collect()
-            logging.info("Delete frames and free the memory")
 
         return [embeddings, suspects, horizontal_displacements, vertical_displacements]
 

@@ -11,4 +11,8 @@ RUN python3 -m pip install -r requirements.txt
 ARG data
 ENV data=$data
 
-CMD ["sh", "-c", "python3 main.py -d $data"]
+ARG command
+ENV command=$command
+
+CMD ["sh", "-c", "python3 main.py -d $data $command"]
+

@@ -59,7 +59,7 @@ source .env/bin/activate
 python3 -m pip install -r requirements.txt
 
 # Run the program
-time python3 main.py -d tests/test_data.mp4 
+time python3 main.py -d data/test_data.mp4 
 ```
 
 ### Docker
