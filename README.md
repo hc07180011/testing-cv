@@ -78,7 +78,6 @@ docker build -t flicker_detection_runner .
 docker run --rm -e data=data/test_data.mp4 -v $PWD/data:/app/data -it flicker_detection_runner
 ```
 
-
 ## Slides
 
 * [5/4](https://drive.google.com/file/d/1aVSWCC9GXZOBZjz8sjVIfGsHkOgVYl5Z/view?usp=sharing)
@@ -92,6 +91,7 @@ docker run --rm -e data=data/test_data.mp4 -v $PWD/data:/app/data -it flicker_de
 * [7/28](https://drive.google.com/file/d/1zrOD3kwofuVjEaQ5XkXXM7ymbs1fujCL/view?usp=sharing)
 * [8/4](https://drive.google.com/file/d/1yfbYejz3P3AzQMykJ-yIWynyCUseJIhA/view?usp=sharing)
 * [8/11](https://docs.google.com/presentation/d/1CJW8kz393O-I4MTPlevxvmpfsUYRzzkv/edit?usp=sharing&ouid=101634550160064789006&rtpof=true&sd=true)
+* [8/18](https://docs.google.com/presentation/d/1kjuvNALKazf5GQpdxf2jBo6Ii65RNJIJ/edit?usp=sharing&ouid=101634550160064789006&rtpof=true&sd=true)
 
 ## For more details
 
