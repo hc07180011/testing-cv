@@ -51,7 +51,7 @@ git clone https://github.com/hc07180011/NTU-Google-Testing.git
 cd NTU-Google-Testing/flicker_detection/flicker_detection
 
 # Download the facenet pre-trained model
-wget https://hc07180011.synology.me/data/googlecv/facenet_model.h5 -O preprocessing/embedding/models/facenet_model.h5
+wget https://hc07180011.synology.me/data/googlecv/facenet_model.lite.h5 -O preprocessing/embedding/models/facenet_model.lite.h5
 
 # Activate environment and install dependencies
 ~/.pyenv/versions/3.8.5/bin/python -m venv .env
