@@ -81,6 +81,7 @@ class Features:
                 logging.debug('Parsing image: #{:04d}'.format(count))
                 count += 1
 
+            embeddings = np.array(embeddings)
             similarities = np.array(similarities)
             similarity_baseline = np.mean(similarities)
 

@@ -9,7 +9,7 @@ from tensorflow.keras import layers
 from tensorflow.keras import optimizers
 from tensorflow.keras import Model
 from tensorflow.keras.callbacks import ModelCheckpoint
-from tensorflow.keras.applications import resnet
+from tensorflow.keras.applications import resnet, mobilenet
 
 
 class Facenet:
@@ -22,24 +22,21 @@ class Facenet:
 
         np.random.seed(0)
 
-        base_cnn = resnet.ResNet50(
+        base_cnn = mobilenet.MobileNet(
             weights="imagenet", input_shape=self.__target_shape + (3,), include_top=False
         )
 
-        flatten = layers.Flatten()(base_cnn.output)
-        dense1 = layers.Dense(512, activation="relu")(flatten)
-        dense1 = layers.BatchNormalization()(dense1)
-        dense2 = layers.Dense(256, activation="relu")(dense1)
-        dense2 = layers.BatchNormalization()(dense2)
-        output = layers.Dense(256)(dense2)
+        # flatten = layers.Flatten()(base_cnn.output)
+        # dense1 = layers.Dense(512, activation="relu")(flatten)
+        # dense1 = layers.BatchNormalization()(dense1)
+        # dense2 = layers.Dense(256, activation="relu")(dense1)
+        # dense2 = layers.BatchNormalization()(dense2)
+        output = layers.Dense(256)(base_cnn.output)
 
         self.__embedding = Model(base_cnn.input, output, name="Embedding")
 
-        trainable = False
-        for layer in base_cnn.layers:
-            if layer.name == "conv5_block1_out":
-                trainable = True
-            layer.trainable = trainable
+        for layer in base_cnn.layers[:-23]:
+            layer.trainable = False
 
         anchor_input = layers.Input(
             name="anchor", shape=self.__target_shape + (3,))

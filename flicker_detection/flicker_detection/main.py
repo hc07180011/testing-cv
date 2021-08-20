@@ -73,18 +73,18 @@ def main() -> None:
     flicker.flicker_detection(output_path="{}.json".format(
         os.path.basename(args.data_path)))
 
-'''
+
 def __monitor(pid):
     memory_usage_gb = []
     while True:
         memory_usage_gb.append(psutil.Process(pid).memory_info().rss / 2 ** 30)
         np.save("memory_record", memory_usage_gb)
         time.sleep(1)
-'''
+
 
 if __name__ == "__main__":
-    # pid = os.getpid()
-    # p = Process(target=__monitor, args=(pid,))
-    # p.start()
+    pid = os.getpid()
+    p = Process(target=__monitor, args=(pid,))
+    p.start()
     main()
-    # p.kill()
+    p.kill()
