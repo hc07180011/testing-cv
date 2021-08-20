@@ -23,7 +23,7 @@ def test_preprocess():
         "tests", "52c4b8563b48b6025cd2d368eab2e33e.npz"))
     embeddings, suspects, horizontal_displacements, vertical_displacements = [
         __cache[__cache.files[i]] for i in range(len(__cache.files))]
-    # assert np.all(embeddings == video_features.embeddings)
+    assert np.all(embeddings.shape == video_features.embeddings.shape)
     assert np.all(suspects == video_features.suspects)
     assert np.all(horizontal_displacements ==
                   video_features.horizontal_displacements)

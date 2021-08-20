@@ -12,7 +12,7 @@ from tensorflow.keras import losses
 from tensorflow.keras import optimizers
 from tensorflow.keras import metrics
 from tensorflow.keras import Model
-from tensorflow.keras.applications import resnet
+from tensorflow.keras.applications import resnet, mobilenet
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
 
@@ -102,24 +102,36 @@ def visualize(anchor, positive, negative):
 
 visualize(*list(train_dataset.take(1).as_numpy_iterator())[0])
 
-base_cnn = resnet.ResNet50(
+# base_cnn = mobilenet.MobileNet(
+#     weights="imagenet", input_shape=target_shape + (3,), include_top=False
+# )
+
+# flatten = layers.Flatten()(base_cnn.output)
+# dense1 = layers.Dense(512, activation="relu")(flatten)
+# dense1 = layers.BatchNormalization()(dense1)
+# dense2 = layers.Dense(256, activation="relu")(dense1)
+# dense2 = layers.BatchNormalization()(dense2)
+# output = layers.Dense(256)(flatten)
+
+# embedding = Model(base_cnn.input, output, name="Embedding")
+
+base_cnn = mobilenet.MobileNet(
     weights="imagenet", input_shape=target_shape + (3,), include_top=False
 )
 
-flatten = layers.Flatten()(base_cnn.output)
-dense1 = layers.Dense(512, activation="relu")(flatten)
-dense1 = layers.BatchNormalization()(dense1)
-dense2 = layers.Dense(256, activation="relu")(dense1)
-dense2 = layers.BatchNormalization()(dense2)
-output = layers.Dense(256)(dense2)
+# flatten = layers.Flatten()(base_cnn.output)
+# dense1 = layers.Dense(512, activation="relu")(flatten)
+# dense1 = layers.BatchNormalization()(dense1)
+# dense2 = layers.Dense(256, activation="relu")(dense1)
+# dense2 = layers.BatchNormalization()(dense2)
+output = layers.Dense(256)(base_cnn.output)
 
 embedding = Model(base_cnn.input, output, name="Embedding")
 
-trainable = False
-for layer in base_cnn.layers:
-    if layer.name == "conv5_block1_out":
-        trainable = True
-    layer.trainable = trainable
+embedding.summary()
+
+for layer in base_cnn.layers[:-23]:
+    layer.trainable = False
 
 
 class DistanceLayer(layers.Layer):
@@ -217,6 +229,3 @@ if __name__ == "__main__":
     callbacks_list = [checkpoint]
     siamese_model.fit(train_dataset, epochs=10,
                       validation_data=val_dataset, callbacks=callbacks_list)
-
-
-
