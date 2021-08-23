@@ -56,7 +56,7 @@ class Flicker:
 
         return np.array(results)
 
-    def flicker_detection(self, output_path, human_reaction_threshold: int = 5):
+    def flicker_detection(self, output_path, output: bool = True, human_reaction_threshold: int = 5):
 
         # need further tunning of reaction threshold
 
@@ -180,7 +180,13 @@ class Flicker:
 
         logging.info("Final flickers: {}".format(dict({"label": flickers})))
 
-        with open(output_path, "w") as f:
-            json.dump(dict({"label": flickers}), f, indent=4)
+        if output:
+            with open(output_path, "w") as f:
+                json.dump(dict({"label": flickers}), f, indent=4)
 
         logging.info("ok")
+
+        print(
+            dict({"similarity": self.similarities[0].tolist(), "label": flickers}))
+
+        return dict({"similarity": self.similarities[0].tolist(), "label": flickers})
