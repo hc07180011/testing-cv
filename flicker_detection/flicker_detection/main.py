@@ -9,6 +9,7 @@ import numpy as np
 from argparse import ArgumentParser
 from multiprocessing import Process
 
+from preprocessing.embedding.facenet import Facenet
 from preprocessing.feature_extraction import Features
 from core.flicker import Flicker
 
@@ -63,8 +64,9 @@ def main() -> None:
 
     logging.info("Program starts")
 
-    video_features = Features(
-        args.data_path, not args.disable_cache, args.cache_dir)
+    facenet = Facenet()
+    video_features = Features(facenet, args.data_path,
+                              not args.disable_cache, args.cache_dir)
     video_features.feature_extraction()
 
     flicker = Flicker(video_features.fps, video_features.similarities, video_features.suspects,

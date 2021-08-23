@@ -27,7 +27,8 @@ class Features:
 
     """
 
-    def __init__(self, video_path: str, enable_cache: bool, cache_dir: str) -> None:
+    def __init__(self, facenet: Facenet, video_path: str, enable_cache: bool, cache_dir: str) -> None:
+        self.facenet = facenet
         self.__video_path = video_path
         self.fps = parse_fps(self.__video_path)
         self.__cache_dir = cache_dir
@@ -46,13 +47,12 @@ class Features:
 
         else:
 
-            facenet = Facenet()
             brisk = Brisk()
 
             vidcap = cv2.VideoCapture(self.__video_path)
             success, image = vidcap.read()
             last_frame = image
-            last_embedding = facenet.get_embedding(image, batched=False)
+            last_embedding = self.facenet.get_embedding(image, batched=False)
 
             embeddings = []
             similarities = []
@@ -66,7 +66,8 @@ class Features:
                 success, image = vidcap.read()
 
                 try:
-                    embedding = facenet.get_embedding(image, batched=False)
+                    embedding = self.facenet.get_embedding(
+                        image, batched=False)
                 except:
                     break
 
