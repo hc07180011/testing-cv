@@ -40,5 +40,6 @@ def func():
         flicker.flicker_detection(output_path="", output=False)
     )
 
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
 
-app.run("0.0.0.0", port=9696, debug=False)
