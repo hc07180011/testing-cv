@@ -186,7 +186,4 @@ class Flicker:
 
         logging.info("ok")
 
-        print(
-            dict({"similarity": self.similarities[0].tolist(), "label": flickers}))
-
-        return dict({"similarity": self.similarities[0].tolist(), "label": flickers})
+        return dict({"labels": flickers, "similarity": np.round(self.similarities[0], 2).tolist()})
