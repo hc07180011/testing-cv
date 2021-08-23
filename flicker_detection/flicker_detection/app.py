@@ -5,6 +5,7 @@ import flask
 import flask_cors
 
 from preprocessing.feature_extraction import Features
+from core.flicker import Flicker
 
 app = flask.Flask(__name__)
 flask_cors.CORS(app)
@@ -21,24 +22,21 @@ def test_alive():
     })
 
 
-@app.route('/flicker/create', methods=['POST'])
+@app.route('/flicker_detection', methods=['POST'])
 def func():
     file = flask.request.files['video']
-    save_path = tempfile.NamedTemporaryFile()
-    file.save(save_path.name)
+    with tempfile.NamedTemporaryFile() as save_path:
+        file.save(save_path.name)
+        video_features = Features(
+            save_path.name, False, cache_dir)
+        video_features.feature_extraction()
 
-    video_features = Features(
-        save_path.name, False, cache_dir)
-    video_features.feature_extraction()
+    flicker = Flicker(video_features.fps, video_features.similarities, video_features.suspects,
+                      video_features.horizontal_displacements, video_features.vertical_displacements)
 
-    return flask.jsonify({
-        "status": "ok",
-        "similarities2": video_features.similarities[0].tolist(),
-        "similarities6": video_features.similarities[2].tolist(),
-        "suspects": video_features.suspects.tolist(),
-        "horizontal_displacements": video_features.horizontal_displacements.tolist(),
-        "vertical_displacements": video_features.vertical_displacements.tolist()
-    })
+    return flask.jsonify(
+        flicker.flicker_detection(output_path="", output=False)
+    )
 
 
 app.run("0.0.0.0", port=9696, debug=False)
