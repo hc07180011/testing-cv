@@ -15,9 +15,16 @@ def test_alive():
 
 
 def test_preprocess():
+    from preprocessing.embedding.facenet import Facenet
     from preprocessing.feature_extraction import Features
-    video_features = Features(os.path.join(
-        "tests", "test_data.mp4"), False, ".cache")
+
+    facenet = Facenet()
+    video_features = Features(
+        facenet,
+        os.path.join("tests", "test_data.mp4"),
+        False,
+        ".cache"
+    )
     video_features.feature_extraction()
     __cache = np.load(os.path.join(
         "tests", "52c4b8563b48b6025cd2d368eab2e33e.npz"))
