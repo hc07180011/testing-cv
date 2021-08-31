@@ -6,7 +6,8 @@
             "flicker": [
                 {
                     "type": "flickering",
-                    "frame": 400
+                    "start": 401,
+                    "end": 402
                 }
             ]
         },
@@ -16,7 +17,8 @@
             "flicker": [
                 {
                     "type": "discontinuous",
-                    "frame": 154
+                    "start": 155,
+                    "end": 164
                 }
             ]
         },
@@ -26,11 +28,18 @@
             "flicker": [
                 {
                     "type": "discontinuous",
-                    "frame": 114
+                    "start": 123,
+                    "end": 128
+                },
+                {
+                    "type": "flickering",
+                    "start": 133,
+                    "end": 133
                 },
                 {
                     "type": "discontinuous",
-                    "frame": 185
+                    "start": 186,
+                    "end": 220
                 }
             ]
         },
@@ -40,7 +49,8 @@
             "flicker": [
                 {
                     "type": "discontinuous",
-                    "frame": 183
+                    "start": 174,
+                    "end": 183
                 }
             ]
         },
@@ -50,15 +60,18 @@
             "flicker": [
                 {
                     "type": "discontinuous",
-                    "frame": 67
+                    "start": 56,
+                    "end": 73
                 },
                 {
                     "type": "discontinuous",
-                    "frame": 117
+                    "start": 98,
+                    "end": 119
                 },
                 {
                     "type": "discontinuous",
-                    "frame": 181
+                    "start": 187,
+                    "end": 197
                 }
             ]
         },
@@ -68,15 +81,8 @@
             "flicker": [
                 {
                     "type": "discontinuous",
-                    "frame": 108
-                },
-                {
-                    "type": "discontinuous",
-                    "frame": 132
-                },
-                {
-                    "type": "discontinuous",
-                    "frame": 204
+                    "start": 220,
+                    "end": 237
                 }
             ]
         },
@@ -84,6 +90,11 @@
             "name": "007.mp4",
             "original": "new_testEnterSplitScreen_launchToSide_0_transition.mp4",
             "flicker": [
+                {
+                    "type": "rotation",
+                    "start": 291,
+                    "end": 315
+                }
             ]
         },
         {
@@ -91,8 +102,14 @@
             "original": "new_testRotateAndEnterAppPairsMode__ROTATION_90_0_transition.mp4",
             "flicker": [
                 {
+                    "type": "rotation",
+                    "start": 33,
+                    "end": 51
+                },
+                {
                     "type": "discontinuous",
-                    "frame": 66
+                    "start": 67,
+                    "end": 80
                 }
             ]
         },
@@ -100,35 +117,24 @@
             "name": "009.mp4",
             "original": "new_video.mp4",
             "flicker": [
-                {
-                    "type": "flickering",
-                    "frame": 365
-                },
-                {
-                    "type": "flickering",
-                    "frame": 382
-                }
             ]
         },
         {
             "name": "010.mp4",
             "original": "0714_184610272.mp4",
             "flicker": [
-
             ]
         },
         {
             "name": "011.mp4",
             "original": "0714_187681875.mp4",
             "flicker": [
-                
             ]
         },
         {
             "name": "012.mp4",
             "original": "0714_188781057.mp4",
             "flicker": [
-                
             ]
         }
     ]

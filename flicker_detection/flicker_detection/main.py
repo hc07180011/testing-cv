@@ -72,7 +72,7 @@ def main() -> None:
     flicker = Flicker(video_features.fps, video_features.similarities, video_features.suspects,
                       video_features.horizontal_displacements, video_features.vertical_displacements)
 
-    flicker.flicker_detection(output_path="{}.json".format(
+    flicker.flicker_detection(output=False, output_path="{}.json".format(
         os.path.basename(args.data_path)))
 
 
