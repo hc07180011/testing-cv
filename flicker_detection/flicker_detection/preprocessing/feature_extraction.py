@@ -20,14 +20,20 @@ class Features:
 
     Args:
         video_path (:obj:`str`): The path to the video file.
-        limit (:obj:`int`, optional): Maximum frame to take. Defaults to np.inf.
+        limit (:obj:`int`, optional): Max #frames to take. Defaults to np.inf.
 
     Returns:
         np.ndarray: A numpy array that includes all frames
 
     """
 
-    def __init__(self, facenet: Facenet, video_path: str, enable_cache: bool, cache_dir: str) -> None:
+    def __init__(
+        self,
+        facenet: Facenet,
+        video_path: str,
+        enable_cache: bool,
+        cache_dir: str
+    ) -> None:
         self.facenet = facenet
         self.__video_path = video_path
         self.fps = parse_fps(self.__video_path)
@@ -41,8 +47,11 @@ class Features:
 
         if self.__enable_cache and os.path.exists(cache_data_path):
             __cache = np.load(cache_data_path)
-            embeddings, suspects, horizontal_displacements, vertical_displacements = [
-                __cache[__cache.files[i]] for i in range(len(__cache.files))]
+            embeddings, suspects, \
+                horizontal_displacements, vertical_displacements = [
+                    __cache[__cache.files[i]]
+                    for i in range(len(__cache.files))
+                ]
             logging.info("Cache exists, using cache")
 
         else:
@@ -68,11 +77,13 @@ class Features:
                 try:
                     embedding = self.facenet.get_embedding(
                         image, batched=False)
-                except:
+                except Exception as e:
+                    logging.debug("{}".format(repr(e)))
                     break
 
-                similarities.append(euclidean_distance(
-                    last_embedding, embedding))
+                similarities.append(
+                    euclidean_distance(last_embedding, embedding)
+                )
                 delta_x, delta_y = brisk.calculate_movement(last_frame, image)
                 horizontal_displacements.append(delta_x)
                 vertical_displacements.append(delta_y)
@@ -98,7 +109,9 @@ class Features:
                 np.savez(cache_data_path, embeddings, suspects,
                          horizontal_displacements, vertical_displacements)
                 logging.debug("Cache save at: {} with size = {} bytes".format(
-                    cache_data_path, os.path.getsize(cache_data_path)))
+                    cache_data_path,
+                    os.path.getsize(cache_data_path)
+                ))
 
             gc.collect()
             logging.info("Delete frames and free the memory")
@@ -113,14 +126,21 @@ class Features:
             #         transformation_results = affine.compare_transformation(
             #             processing_frames[i], processing_frames[i + 1])
             #         f.write("{:04d} {:04.2f} {}\n".format(
-            #             i, i / self.fps, transformation_results["rotate"][0]))
+            #             i,
+            #             i / self.fps,
+            #             transformation_results["rotate"][0]
+            #         ))
             # exit()
             """ Pixel-wise distance example, pass now, video 001: 0, 1, 105, 106
             """
             # pixel = Pixel()
             # for i in range(len(processing_frames) - 1):
             #     pixel.get_heatmap(
-            #         processing_frames[i], processing_frames[i+1], output=True, dump_dir="./dump")
+            #         processing_frames[i],
+            #         processing_frames[i+1],
+            #         output=True,
+            #         dump_dir="./dump"
+            #     )
             # from util.gif import gen_gif_temp
             # gen_gif_temp("dump")
             # exit()
@@ -156,7 +176,12 @@ class Features:
             # plt.savefig("embedding.png")
             # exit()
 
-        return [embeddings, suspects, horizontal_displacements, vertical_displacements]
+        return list([
+            embeddings,
+            suspects,
+            horizontal_displacements,
+            vertical_displacements
+        ])
 
     def feature_extraction(self):
 
@@ -166,7 +191,8 @@ class Features:
         logging.info("Video path: {}, cache directory: {}".format(
             self.__video_path, self.__cache_dir))
 
-        embeddings, suspects, horizontal_displacements, vertical_displacements = self.__extract()
+        embeddings, suspects, \
+            horizontal_displacements, vertical_displacements = self.__extract()
 
         logging.info("Start testing similarity ...")
 
@@ -175,14 +201,20 @@ class Features:
         for window_size in range(2, window_size_max + 1):
             compare_with_next = window_size - 1
             similarity = []
-            for emb1, emb2 in zip(embeddings[:-(1+window_size_max)], embeddings[compare_with_next:-(1+window_size_max-compare_with_next)]):
+            for emb1, emb2 in zip(
+                    embeddings[:-(1+window_size_max)],
+                    embeddings[
+                        compare_with_next:
+                        -(1+window_size_max-compare_with_next)
+                    ]):
                 similarity.append(euclidean_distance(emb1, emb2))
             similarities.append(similarity)
         similarities = np.array(similarities)
 
         end_time = time.perf_counter()
         logging.info("Execution takes {} second(s).".format(
-            end_time - start_time))
+            end_time - start_time
+        ))
 
         self.embeddings = embeddings
         self.similarities = similarities
