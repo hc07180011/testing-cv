@@ -13,6 +13,7 @@ from preprocessing.embedding.facenet import Facenet
 from preprocessing.tranformation.affine import Affine
 from preprocessing.partition.pixel import Pixel
 from util.utils import parse_fps, take_snapshots, euclidean_distance
+from core.flicker import fullscreen_same_color
 
 
 class Features:
@@ -119,6 +120,8 @@ class Features:
                 delta_x, delta_y = brisk.calculate_movement(last_frame, image)
                 horizontal_displacements.append(delta_x)
                 vertical_displacements.append(delta_y)
+
+                fullscreen_same_color(image)
 
                 last_frame = image
                 last_embedding = embedding
