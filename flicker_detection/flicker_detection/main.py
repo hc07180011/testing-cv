@@ -53,7 +53,7 @@ def main() -> None:
 
     logger.setLevel(logging.DEBUG)
     formatter = logging.Formatter(
-        "%(asctime)s %(name)s[%(process)d]%(levelname)s " + 
+        "%(asctime)s %(name)s[%(process)d]%(levelname)s " +
         "%(processName)s(%(threadName)s) %(module)s:%(lineno)d  %(message)s",
         datefmt='%Y%m%d %H:%M:%S'
     )
@@ -109,7 +109,8 @@ def main() -> None:
         video_features.similarities,
         video_features.suspects,
         video_features.horizontal_displacements,
-        video_features.vertical_displacements
+        video_features.vertical_displacements,
+        args.img_dir
     )
 
     flicker.flicker_detection(

@@ -205,4 +205,7 @@ Thumbs.db
 # dataset
 *.mp4
 
+# images
+.img/
+
 # End of https://www.toptal.com/developers/gitignore/api/python,c++,vscode
