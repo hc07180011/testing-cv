@@ -31,14 +31,46 @@ class Features:
         self,
         facenet: Facenet,
         video_path: str,
+        img_dir: str,
         enable_cache: bool,
         cache_dir: str
     ) -> None:
         self.facenet = facenet
         self.__video_path = video_path
         self.fps = parse_fps(self.__video_path)
+        self.__img_dir = img_dir
         self.__cache_dir = cache_dir
         self.__enable_cache = enable_cache
+
+    def __get_affine_types(
+        self,
+        affine: Affine,
+        frame1: np.ndarray,
+        frame2: np.ndarray
+    ) -> dict():
+        """ Affine transformation example, pass now and might be used later
+            video 007: 309, 310
+        """
+        transformation_results = affine.compare_transformation(
+            frame1,
+            frame2
+        )
+        return transformation_results
+
+    def __get_partition_result(
+        self,
+        pixel: Pixel,
+        frame1: np.ndarray,
+        frame2: np.ndarray
+    ) -> np.ndarray:
+        """ Pixel-wise distance example, pass now, video 001: 0, 1, 105, 106
+        """
+        pixel_result = pixel.get_heatmap(
+            frame1,
+            frame2,
+            dump_dir=self.__img_dir
+        )
+        return pixel_result
 
     def __extract(self) -> List[np.ndarray]:
 
@@ -116,66 +148,6 @@ class Features:
             gc.collect()
             logging.info("Delete frames and free the memory")
 
-            """ Affine transformation example, pass now and might be used later
-                video 007: 309, 310
-            """
-            # affine = Affine()
-            # with open("rotation.txt", "w") as f:
-            #     for i in range(len(processing_frames) - 1):
-            #         print(i, end=" ")
-            #         transformation_results = affine.compare_transformation(
-            #             processing_frames[i], processing_frames[i + 1])
-            #         f.write("{:04d} {:04.2f} {}\n".format(
-            #             i,
-            #             i / self.fps,
-            #             transformation_results["rotate"][0]
-            #         ))
-            # exit()
-            """ Pixel-wise distance example, pass now, video 001: 0, 1, 105, 106
-            """
-            # pixel = Pixel()
-            # for i in range(len(processing_frames) - 1):
-            #     pixel.get_heatmap(
-            #         processing_frames[i],
-            #         processing_frames[i+1],
-            #         output=True,
-            #         dump_dir="./dump"
-            #     )
-            # from util.gif import gen_gif_temp
-            # gen_gif_temp("dump")
-            # exit()
-
-            """ Embedding & no Embedding experiments
-            """
-            # import cv2
-            # import matplotlib.pyplot as plt
-            # facenet = Facenet()
-            # row, col, _ = processing_frames[0].shape
-            # times1 = []
-            # times2 = []
-            # for i in range(1, 60):
-            #     a = cv2.resize(
-            #         processing_frames[0], (int(row / i), int(col / i)))
-            #     b = cv2.resize(
-            #         processing_frames[1], (int(row / i), int(col / i)))
-            #     s = time.perf_counter()
-            #     b1 = facenet.get_embedding(a, batched=False)
-            #     b2 = facenet.get_embedding(b, batched=False)
-            #     for __ in range(100):
-            #         ___ = euclidean_distance(b1, b2)
-            #     times1.append((time.perf_counter() - s) / 100)
-            #     s = time.perf_counter()
-            #     for __ in range(100):
-            #         ___ = euclidean_distance(a, b)
-            #     times2.append((time.perf_counter() - s) / 100)
-            # plt.plot(times1)
-            # plt.plot(times2)
-            # plt.legend(["Embedding", "No Embedding"])
-            # plt.xlabel("Compressing Scale")
-            # plt.ylabel("Time")
-            # plt.savefig("embedding.png")
-            # exit()
-
         return list([
             embeddings,
             suspects,
@@ -183,7 +155,7 @@ class Features:
             vertical_displacements
         ])
 
-    def feature_extraction(self):
+    def feature_extraction(self) -> None:
 
         start_time = time.perf_counter()
 
@@ -221,3 +193,4 @@ class Features:
         self.suspects = suspects
         self.horizontal_displacements = horizontal_displacements
         self.vertical_displacements = vertical_displacements
+

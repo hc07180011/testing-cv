@@ -98,6 +98,7 @@ def main() -> None:
     video_features = Features(
         facenet,
         args.data_path,
+        args.img_dir,
         not args.disable_cache,
         args.cache_dir
     )
