@@ -9,6 +9,7 @@ import pandas as pd
 from tqdm import tqdm
 from argparse import ArgumentParser
 
+from index.colourcast import ColourCast
 from index.purplefringing import PurpleFringing
 
 
@@ -89,7 +90,7 @@ def main() -> None:
 
     results_dict = dict()
     labels = list([
-        "Name", "Purple Fringing Pixel",
+        "Name", "K", "Purple Fringing Pixel",
         "Purple Fringing Total Ratio",
         "Purple Fringing Denoise Pixel",
         "Purple Fringing Denoise Total Ratio",
@@ -113,6 +114,18 @@ def main() -> None:
             args.img_dir,
             img_filename
         ))
+
+        """
+        Colour Cast
+        """
+
+        colour_cast = ColourCast(image)
+
+        results_dict["K"].append(colour_cast.color_cast())
+
+        """
+        Purple Fringing
+        """
 
         purple_fringing = PurpleFringing(image)
 
