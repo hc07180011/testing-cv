@@ -232,7 +232,7 @@ class Flicker:
                         reverse_times += 1
                         current_direction = 1
                     elif current_direction and \
-                        self.similarities[lookbefore_window][idx] > similarity_baseline:
+                            self.similarities[lookbefore_window][idx] > similarity_baseline:
                         reverse_times += 1
                         current_direction = 0
                 if reverse_times >= 3 and not \
@@ -296,7 +296,7 @@ class Flicker:
 def fullscreen_same_color(frame: np.ndarray, threshold: float = 0.9) -> bool:
     frame = cv2.resize(
         frame,
-        tuple((np.array(frame.shape) / 10)[:2].astype(int).tolist())
+        tuple((np.array(frame.shape) / 10)[1::-1].astype(int).tolist())
     )
     value, counts = np.unique(frame.reshape(-1, 3), return_counts=True, axis=0)
     """
@@ -304,8 +304,11 @@ def fullscreen_same_color(frame: np.ndarray, threshold: float = 0.9) -> bool:
     """
     value = value[1:]
     counts = counts[1:]
-    print(np.max(counts) / np.sum(counts))
+    if not len(value) or not len(counts):
+        return False
+
+    print("ratio = {}".format(np.max(counts) / np.sum(counts)))
+
     if np.max(counts) > np.sum(counts) * threshold:
         return True
     return False
-
