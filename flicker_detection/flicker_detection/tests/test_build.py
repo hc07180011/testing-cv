@@ -22,6 +22,7 @@ def test_preprocess():
     video_features = Features(
         facenet,
         os.path.join("tests", "test_data.mp4"),
+        ".",
         False,
         ".cache"
     )
