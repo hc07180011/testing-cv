@@ -307,7 +307,7 @@ def fullscreen_same_color(frame: np.ndarray, threshold: float = 0.9) -> bool:
     if not len(value) or not len(counts):
         return False
 
-    print("ratio = {}".format(np.max(counts) / np.sum(counts)))
+    # print("ratio = {}".format(np.max(counts) / np.sum(counts)))
 
     if np.max(counts) > np.sum(counts) * threshold:
         return True

@@ -23,14 +23,11 @@ class Facenet:
         np.random.seed(0)
 
         base_cnn = mobilenet.MobileNet(
-            weights="imagenet", input_shape=self.__target_shape + (3,), include_top=False
+            weights="imagenet",
+            input_shape=self.__target_shape + (3,),
+            include_top=False
         )
 
-        # flatten = layers.Flatten()(base_cnn.output)
-        # dense1 = layers.Dense(512, activation="relu")(flatten)
-        # dense1 = layers.BatchNormalization()(dense1)
-        # dense2 = layers.Dense(256, activation="relu")(dense1)
-        # dense2 = layers.BatchNormalization()(dense2)
         output = layers.Dense(256)(base_cnn.output)
 
         self.__embedding = Model(base_cnn.input, output, name="Embedding")
@@ -39,11 +36,14 @@ class Facenet:
             layer.trainable = False
 
         anchor_input = layers.Input(
-            name="anchor", shape=self.__target_shape + (3,))
+            name="anchor", shape=self.__target_shape + (3,)
+        )
         positive_input = layers.Input(
-            name="positive", shape=self.__target_shape + (3,))
+            name="positive", shape=self.__target_shape + (3,)
+        )
         negative_input = layers.Input(
-            name="negative", shape=self.__target_shape + (3,))
+            name="negative", shape=self.__target_shape + (3,)
+        )
 
         distances = DistanceLayer()(
             self.__embedding(resnet.preprocess_input(anchor_input)),
@@ -52,16 +52,22 @@ class Facenet:
         )
 
         siamese_network = Model(
-            inputs=[anchor_input, positive_input,
-                    negative_input], outputs=distances
+            inputs=[
+                anchor_input,
+                positive_input,
+                negative_input
+            ],
+            outputs=distances
         )
 
         self.__siamese_model = SiameseModel(siamese_network)
+        self.__siamese_model.built = True
 
         model_base_dir = os.path.join("preprocessing", "embedding", "models")
 
         model_settings = json.load(
-            open(os.path.join(model_base_dir, "model.json"), "r"))
+            open(os.path.join(model_base_dir, "model.json"), "r")
+        )
         model_path = os.path.join(model_base_dir, model_settings["name"])
 
         if os.path.exists(model_path):
