@@ -102,28 +102,10 @@ def visualize(anchor, positive, negative):
 
 visualize(*list(train_dataset.take(1).as_numpy_iterator())[0])
 
-# base_cnn = mobilenet.MobileNet(
-#     weights="imagenet", input_shape=target_shape + (3,), include_top=False
-# )
-
-# flatten = layers.Flatten()(base_cnn.output)
-# dense1 = layers.Dense(512, activation="relu")(flatten)
-# dense1 = layers.BatchNormalization()(dense1)
-# dense2 = layers.Dense(256, activation="relu")(dense1)
-# dense2 = layers.BatchNormalization()(dense2)
-# output = layers.Dense(256)(flatten)
-
-# embedding = Model(base_cnn.input, output, name="Embedding")
-
 base_cnn = mobilenet.MobileNet(
     weights="imagenet", input_shape=target_shape + (3,), include_top=False
 )
 
-# flatten = layers.Flatten()(base_cnn.output)
-# dense1 = layers.Dense(512, activation="relu")(flatten)
-# dense1 = layers.BatchNormalization()(dense1)
-# dense2 = layers.Dense(256, activation="relu")(dense1)
-# dense2 = layers.BatchNormalization()(dense2)
 output = layers.Dense(256)(base_cnn.output)
 
 embedding = Model(base_cnn.input, output, name="Embedding")
@@ -221,11 +203,25 @@ class SiameseModel(Model):
 if __name__ == "__main__":
 
     siamese_model = SiameseModel(siamese_network)
-    filepath = "facenet_model.h5"
+    filepath = "facenet_model.lite.h5"
 
     siamese_model.compile(optimizer=optimizers.Adam(0.0001))
+
     checkpoint = ModelCheckpoint(
-        filepath, monitor='loss', verbose=1, save_best_only=True, mode='min')
+        filepath,
+        monitor="loss",
+        verbose=1,
+        save_best_only=True,
+        save_weights_only=True,
+        mode="min"
+    )
     callbacks_list = [checkpoint]
-    siamese_model.fit(train_dataset, epochs=10,
-                      validation_data=val_dataset, callbacks=callbacks_list)
+    
+    siamese_model.fit(
+        train_dataset,
+        epochs=10,
+        validation_data=val_dataset,
+        callbacks=callbacks_list
+    )
+
+    print("ok!")
