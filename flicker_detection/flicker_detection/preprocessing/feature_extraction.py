@@ -96,10 +96,10 @@ class Features:
             last_frame = image
             last_embedding = self.facenet.get_embedding(image, batched=False)
 
-            embeddings = []
-            similarities = []
-            horizontal_displacements = []
-            vertical_displacements = []
+            embeddings = list()
+            similarities = list()
+            horizontal_displacements = list()
+            vertical_displacements = list()
 
             count = 0
             while success:
@@ -108,8 +108,7 @@ class Features:
                 success, image = vidcap.read()
 
                 try:
-                    embedding = self.facenet.get_embedding(
-                        image, batched=False)
+                    embedding = self.facenet.get_embedding(image, batched=False)
                 except Exception as e:
                     logging.debug("{}".format(repr(e)))
                     break

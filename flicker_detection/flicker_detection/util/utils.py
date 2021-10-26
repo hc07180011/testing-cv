@@ -79,6 +79,12 @@ def euclidean_distance(vector1: np.ndarray, vector2: np.ndarray) -> float:
         ValueError: If `param2` is equal to `param1`.
     """
 
-    distance = np.linalg.norm(vector1 - vector2)
-    ret = -1 * distance
-    return float(ret)
+    # distance = np.linalg.norm(vector1 - vector2)
+    # ret = -1 * distance
+    # return float(ret)
+    vector1 = vector1.flatten()
+    vector2 = vector2.flatten()
+    return float(
+        np.dot(vector1, vector2) /
+        (np.linalg.norm(vector1) * np.linalg.norm(vector2))
+    )
