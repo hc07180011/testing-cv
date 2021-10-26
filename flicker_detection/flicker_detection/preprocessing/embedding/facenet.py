@@ -74,12 +74,6 @@ class Facenet:
             self.__siamese_model.load_weights(model_path)
         else:
             raise NotImplementedError
-            self.__siamese_model.compile(optimizer=optimizers.Adam(0.0001))
-            checkpoint = ModelCheckpoint(
-                model_path, monitor='loss', verbose=1, save_best_only=True, mode='min')
-            callbacks_list = [checkpoint]
-            # self.__siamese_model.fit(train_dataset, epochs=10,
-            #                          validation_data=val_dataset, callbacks=callbacks_list)
 
     def get_embedding(self, images: np.ndarray, batched=True) -> np.ndarray:
         assert (not batched) or len(
