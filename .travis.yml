@@ -13,7 +13,7 @@ install:
   - pip install -r ../requirements.txt
 
 before_script:
-  - wget https://hc07180011.synology.me/data/googlecv/facenet_model.lite.h5 -O ../preprocessing/embedding/models/facenet_model.lite.h5
+  - wget https://www.techsol.cc/data/googlecv/facenet_model.lite.h5 -O ../preprocessing/embedding/models/facenet_model.lite.h5
 
 script:
   - pytest
