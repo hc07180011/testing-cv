@@ -69,16 +69,19 @@ class Flicker:
         if plotting:  # dev only
             plt.figure(figsize=(16, 4), dpi=200)
             plt.plot(data)
-            plt.plot(self.similarities[human_reaction_threshold])
+            # plt.plot(self.similarities[human_reaction_threshold])
             plt.plot(moving_average)
-            plt.legend(["Sim2", "Sim7", "ma"])
+            plt.legend(list(["Similarity", "Moving Average"]))
             for i in ma_outliers:
-                plt.scatter(i, -3, s=3, c="r")
-            for i in range(0, len(data), 10):
-                plt.vlines(
-                    i, ymin=int(np.min(data)), ymax=int(np.max(data)),
-                    linewidth=0.1, colors="red", linestyles="dashed"
-                )
+                plt.scatter(i, 1.0, s=1, c="r")
+            # for i in range(0, len(data), 10):
+            #     plt.vlines(
+            #         i, ymin=int(np.min(data)), ymax=int(np.max(data)),
+            #         linewidth=0.1, colors="red", linestyles="dashed"
+            #     )
+
+            plt.xlabel("Number of Frames")
+            plt.ylabel("Similarity")
             plt.savefig(os.path.join(self.__img_dir, "cont_behav_detect.png"))
 
         return np.array(results)
