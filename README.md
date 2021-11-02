@@ -80,19 +80,24 @@ docker run --rm -e data=data/test_data.mp4 -v $PWD/data:/app/data -it flicker_de
 
 ## Slides
 
-* [5/4](https://drive.google.com/file/d/1aVSWCC9GXZOBZjz8sjVIfGsHkOgVYl5Z/view?usp=sharing)
-* [5/11](https://drive.google.com/file/d/1NK_6WXSEU-nph6-zQVSXyBaWTfwp-Ui4/view?usp=sharing)
-* [5/25](https://drive.google.com/file/d/1rZaxUIxic1-Nu3rF4XP9oH2YC4J1_EoV/view?usp=sharing)
-* [6/1](https://drive.google.com/file/d/1BOe8rsGuGdZxant4D-6FjkE7ptCs0Cfj/view?usp=sharing)
-* [6/15](https://drive.google.com/file/d/12M3fkW3vxlglwOrtW_Tppe3iCP7SUKQ0/view?usp=sharing)
-* [6/30](https://drive.google.com/file/d/105ZfZX9DWU7Jwpbme24X7q2YIdhFe0Hu/view?usp=sharing)
-* [7/14](https://drive.google.com/file/d/1-5u5J8cRsPFO-DoMjQjONRmkHXlfPxGj/view?usp=sharing)
-* [7/21](https://drive.google.com/file/d/1DAHQn88BdUHCFZlU0tV-qhOyGIAvTlbp/view?usp=sharing)
-* [7/28](https://drive.google.com/file/d/1zrOD3kwofuVjEaQ5XkXXM7ymbs1fujCL/view?usp=sharing)
-* [8/4](https://drive.google.com/file/d/1yfbYejz3P3AzQMykJ-yIWynyCUseJIhA/view?usp=sharing)
-* [8/11](https://docs.google.com/presentation/d/1CJW8kz393O-I4MTPlevxvmpfsUYRzzkv/edit?usp=sharing&ouid=101634550160064789006&rtpof=true&sd=true)
-* [8/18](https://docs.google.com/presentation/d/1kjuvNALKazf5GQpdxf2jBo6Ii65RNJIJ/edit?usp=sharing&ouid=101634550160064789006&rtpof=true&sd=true)
-* [8/25](https://docs.google.com/presentation/d/1NvZ_FEm-XFTJ3npdqBK5M43KNJR2mfYS/edit?usp=sharing&ouid=101634550160064789006&rtpof=true&sd=true)
+* [5/4](https://drive.google.com/file/d/1um59arpNZVOS2UmyMSxypDCklbBbKlBi)
+* [5/11](https://drive.google.com/file/d/1gEhwh-pY5t-7Ix1nneKWAur47nagUbfy)
+* [5/25](https://drive.google.com/file/d/1wh3mGCUHGBR11b5FHrI4YgFZRLMF2ipw)
+* [6/1](https://drive.google.com/file/d/1IGPqMAVWqndF0k2e7aXXP-gOXZTWnGjs)
+* [6/15](https://drive.google.com/file/d/1y7P_qGNkOVq9wSbiZdiTu8i5b3kdqOog)
+* [6/30](https://drive.google.com/file/d/1oXYgYuQcl1E5JUEygJE_t0urHzT1oX55)
+* [7/14](https://drive.google.com/file/d/1B_2AIrGZRO07QqMKo3mYzosTIg-A8zgO)
+* [7/21](https://drive.google.com/file/d/1a5uiGk7ElbPZHjLxChIcnS1g-iaGe3VV)
+* [7/28](https://drive.google.com/file/d/1BXtmFVxO2bWC3oga_7Vbzf_-jwawpzY-)
+* [8/4](https://drive.google.com/file/d/14fz6tNubJawxpn6vnBE-WVBHDnlda544)
+* [8/11](https://drive.google.com/file/d/1S4hoHK0-3oV1aeijbZ2ICQPIQILVjLPV)
+* [8/18](https://drive.google.com/file/d/1vFAdzpc0CTnlqOq4ucu6RE7N_CGKMSY5)
+* [8/25](https://drive.google.com/file/d/1LUJFLgKNUu_0yiEAaOTkhpT7DQNlPIWC)
+* [9/1](https://drive.google.com/file/d/1DcU3XVbmaR31BtqAaqMTwI9pR1-u0ykm)
+* [9/29](https://drive.google.com/file/d/1BJClB6p_dfQWjI_WQFxyuL7LTKVbR8Oj)
+* [10/6](https://drive.google.com/file/d/1kma_4n1uy5_-fOrhFYBzGI5tW8A0xmkq)
+* [10/13](https://drive.google.com/file/d/1snQrZhz0LZrvv4-JnOBl5HnHNEVNXWze)
+* [10/27](https://drive.google.com/file/d/1BbC2ZIP-f33-nByzd58ykvzi4ET_KiAB)
 
 ## For more details
 
