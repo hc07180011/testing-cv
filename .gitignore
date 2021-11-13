@@ -204,6 +204,7 @@ Thumbs.db
 
 # dataset
 *.mp4
+*.npy
 
 # images
 .img/
