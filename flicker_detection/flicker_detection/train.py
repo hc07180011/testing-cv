@@ -1,16 +1,15 @@
 import os
 import json
-from cv2 import mean
+
 import numpy as np
-
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix
-
+from sklearn.metrics import f1_score, confusion_matrix
+from keras import backend as K
 from keras.models import Sequential
-from keras.layers import Dense
-from keras.layers import LSTM
+from keras.layers import Dense, LSTM, Conv1D, MaxPooling1D, Flatten
 
 
+# pass the videos without label
 pass_videos = list([
     "0096.mp4", "0097.mp4", "0098.mp4",
     "0125.mp4", "0126.mp4", "0127.mp4",
@@ -19,6 +18,10 @@ pass_videos = list([
 ])
 
 embedding_dir = os.path.join("data", "embedding")
+if not os.path.exists:
+    input("No embeddings found!")
+    exit(0)
+
 embedding_path_list = sorted(os.listdir(embedding_dir))
 
 embeddings = list()
@@ -57,7 +60,7 @@ for path in embedding_path_list:
 
     for j in range(video_lengths[path] // chunk_size):
         embedding_chunks.append(embeddings[prefix_length + chunk_size * j: prefix_length + chunk_size * (j + 1)])
-        label_chunks.append(labels[prefix_length + chunk_size * j: prefix_length + chunk_size * (j + 1)])
+        label_chunks.append(1 if sum(labels[prefix_length + chunk_size * j: prefix_length + chunk_size * (j + 1)]) else 0)
 
     prefix_length += video_lengths[path]
 
@@ -69,24 +72,33 @@ X_train, X_test, y_train, y_test = train_test_split(
     shuffle=False
 )
 
-print(X_train.shape)
+def f1_m(y_true, y_pred):
+    def precision_m(y_true, y_pred):
+        true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+        predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
+        precision = true_positives / (predicted_positives + K.epsilon())
+        return precision
+    def recall_m(y_true, y_pred):
+        true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+        possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
+        recall = true_positives / (possible_positives + K.epsilon())
+        return recall
+
+    precision = precision_m(y_true, y_pred)
+    recall = recall_m(y_true, y_pred)
+    return 2 * ((precision * recall) / (precision + recall + K.epsilon()))
 
 model = Sequential()
-model.add(LSTM(32, input_shape=(X_train.shape[1:]), return_sequences=True))
-model.add(Dense(1, activation="sigmoid"))
-model.compile(loss="binary_crossentropy", optimizer="adam", metrics=["accuracy"])
+# model.add(Conv1D(filters=32, kernel_size=3, input_shape=(X_train.shape[1:]), padding="same"))
+model.add(LSTM(units=32, input_shape=(X_train.shape[1:])))
+model.add(Dense(units=16, activation="sigmoid"))
+model.add(Flatten())
+model.add(Dense(units=1, activation="sigmoid"))
+model.compile(loss="binary_crossentropy", optimizer="adam", metrics=["accuracy", f1_m])
 print(model.summary())
 
-model.fit(X_train, y_train, epochs=3, validation_split=0.1)
+model.fit(X_train, y_train, epochs=1, validation_split=0.1)
 
-y_pred = model.predict(X_test)
-# prob_baseline = np.mean(y_pred)
-# y_pred = np.array([
-#     1 if y > prob_baseline else 0
-#     for y in y_pred
-# ])
+model.evaluate(X_test, y_test)
 
-print(y_pred.shape)
-print(y_test.shape)
-
-# print(confusion_matrix(y_test, y_pred))
+y_pred = model.predict(X_test).reshape(X_test.shape[0])
