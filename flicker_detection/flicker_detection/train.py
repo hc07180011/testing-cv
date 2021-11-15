@@ -8,6 +8,9 @@ from keras import backend as K
 from keras.models import Sequential
 from keras.layers import Dense, LSTM, Conv1D, MaxPooling1D, Flatten
 
+import keras
+from imblearn.under_sampling import RandomUnderSampler
+
 
 # pass the videos without label
 pass_videos = list([
@@ -64,12 +67,23 @@ for path in embedding_path_list:
 
     prefix_length += video_lengths[path]
 
+# Under Sample 
+B, T, C = np.array(embedding_chunks).shape
+sampler = RandomUnderSampler()
+X_resampled, y_resampled = sampler.fit_resample(
+    np.array(embedding_chunks).reshape(B, -1),
+    np.array(label_chunks),)
+B, _ = X_resampled.shape
+X_resampled = X_resampled.reshape(B, T, -1)
+
+
 X_train, X_test, y_train, y_test = train_test_split(
-    np.array(embedding_chunks),
-    np.array(label_chunks),
+    X_resampled,
+    y_resampled,
     test_size=0.1,
     random_state=42,
-    shuffle=False
+    shuffle=True,
+    stratify=y_resampled,
 )
 
 def f1_m(y_true, y_pred):
@@ -90,14 +104,14 @@ def f1_m(y_true, y_pred):
 
 model = Sequential()
 # model.add(Conv1D(filters=32, kernel_size=3, input_shape=(X_train.shape[1:]), padding="same"))
-model.add(LSTM(units=32, input_shape=(X_train.shape[1:])))
-model.add(Dense(units=16, activation="sigmoid"))
+model.add((LSTM(units=64, input_shape=(X_train.shape[1:]))))
+model.add(Dense(units=16, activation="relu"))
 model.add(Flatten())
 model.add(Dense(units=1, activation="sigmoid"))
-model.compile(loss="binary_crossentropy", optimizer="adam", metrics=["accuracy", f1_m])
+model.compile(loss="binary_crossentropy", optimizer=keras.optimizers.Adam(learning_rate=1e-5), metrics=["accuracy", f1_m], )
 print(model.summary())
 
-model.fit(X_train, y_train, epochs=1, validation_split=0.1)
+model.fit(X_train, y_train, epochs=100, validation_split=0.1)
 
 model.evaluate(X_test, y_test)
 
