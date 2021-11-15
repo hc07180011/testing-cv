@@ -116,3 +116,39 @@ model.fit(X_train, y_train, epochs=100, validation_split=0.1)
 model.evaluate(X_test, y_test)
 
 y_pred = model.predict(X_test).reshape(X_test.shape[0])
+
+# TODO (most -> least important): 
+#
+# 1. Be more rigorous about testing! Video-wise testing 
+#    to make sure we're not just over-fitting!
+#    
+#    During the undersampling procedure imblearn shuffles
+#    videos; you can e.g. add a second [independent] sampler.
+#
+# 2. Add training curves plots.
+# 
+# 3. Add monitors, e.g. ReduceLR or saving (selecting)
+#    best-performing checkpoint, early stopping, etc.
+# 
+# 4. Control batch size.
+#
+# 5. Try focal loss. 
+# 
+# 6. Use CNN instead of LSTM and compare which one is better.
+# 
+# 7. You should compare your results to your baseline method.
+
+
+# NOTE 
+# 1. Don't train on imbalanced datasets! your negative 
+#    samples do not contribute to the learning process
+#    (just the opposite). 
+# 
+# 2. Don't use sigmoid as an activation function;
+#    just use ReLU. You can Google for reasons.
+# 
+# 3. Give it more time to converge (not just a couple 
+#    of epochs). Start with small LR because your model 
+#    will always converge (eventually) if the manifold is 
+#    well-behaved. Then you can increase your LR so that
+#    the model converges faster. 
