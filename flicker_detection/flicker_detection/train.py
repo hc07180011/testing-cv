@@ -122,8 +122,8 @@ y_pred = model.predict(X_test).reshape(X_test.shape[0])
 # 1. Be more rigorous about testing! Video-wise testing 
 #    to make sure we're not just over-fitting!
 #    
-#    During the undersampling procedure imblearn shuffles
-#    videos; you can e.g. add a second [independent] sampler.
+#    Sklearn shuffles videos because stratify is set to True; 
+#    you can e.g. add a second [independent] sampler.
 #
 # 2. You should compare your results to your baseline method.
 #
