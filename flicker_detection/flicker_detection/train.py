@@ -125,18 +125,18 @@ y_pred = model.predict(X_test).reshape(X_test.shape[0])
 #    During the undersampling procedure imblearn shuffles
 #    videos; you can e.g. add a second [independent] sampler.
 #
-# 2. Add training curves plots.
+# 2. You should compare your results to your baseline method.
+#
+# 3. Add training curves plots.
 # 
-# 3. Add monitors, e.g. ReduceLR or saving (selecting)
+# 4. Add monitors, e.g. ReduceLR or saving (selecting)
 #    best-performing checkpoint, early stopping, etc.
 # 
-# 4. Control batch size.
+# 5. Control batch size.
 #
-# 5. Try focal loss. 
+# 6. Try focal loss. 
 # 
-# 6. Use CNN instead of LSTM and compare which one is better.
-# 
-# 7. You should compare your results to your baseline method.
+# 7. Use CNN instead of LSTM and compare which one is better.
 
 
 # NOTE 
