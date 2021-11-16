@@ -1,4 +1,5 @@
 import os
+import time
 import json
 
 import numpy as np
@@ -11,6 +12,7 @@ from keras.models import Sequential
 from keras.layers import Dense, LSTM, Conv1D, MaxPooling1D, Flatten
 from keras.callbacks import ModelCheckpoint
 from imblearn.under_sampling import RandomUnderSampler
+from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score, precision_recall_curve, roc_curve
 
 
 # pass the videos without label
@@ -128,6 +130,9 @@ X_test = np.array(X_test)
 y_train = np.array(y_train)
 y_test = np.array(y_test)
 
+print(X_train.shape, X_test.shape)
+exit()
+
 
 def f1_m(y_true, y_pred):
     def precision_m(y_true, y_pred):
@@ -145,70 +150,70 @@ def f1_m(y_true, y_pred):
     recall = recall_m(y_true, y_pred)
     return 2 * ((precision * recall) / (precision + recall + K.epsilon()))
 
-model = Sequential()
-# model.add(Conv1D(filters=32, kernel_size=3, input_shape=(X_train.shape[1:]), padding="same"))
-model.add((LSTM(units=64, input_shape=(X_train.shape[1:]))))
-model.add(Dense(units=16, activation="relu"))
-model.add(Flatten())
-model.add(Dense(units=1, activation="sigmoid"))
-model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5), metrics=["accuracy", f1_m])
-print(model.summary())
+from keras.models import load_model
+model = load_model("model.h5", custom_objects={"f1_m": f1_m})
 
-history = model.fit(
-    X_train, y_train,
-    epochs=1000, validation_split=0.1,
-    callbacks=[ModelCheckpoint('model.h5', save_best_only=True, monitor="val_f1_m", mode="max")]
-)
+s = time.perf_counter()
+y_pred = model.predict(X_test)
+y_pred = np.reshape(y_pred, (y_pred.shape[0], ))
+print("Prediction takes {}s".format(time.perf_counter() - s))
 
-plt.plot(history.history["loss"])
-plt.plot(history.history["val_loss"])
-plt.legend(["loss", "validation loss"])
-plt.savefig("loss.png")
+plt.hist(y_pred, bins=100)
+plt.xlabel("probability of being a flicker")
+plt.ylabel("count(s)")
+plt.title("Counts of Probability being Flickers")
+plt.savefig("test1.png")
 plt.close()
 
-plt.plot(history.history["f1_m"])
-plt.plot(history.history["val_f1_m"])
-plt.legend(["f1", "validation f1"])
-plt.savefig("f1.png")
-
-np.save("history", history.history)
-
 model.evaluate(X_test, y_test)
+print(max([f1_score(y_test, (y_pred > x).astype(int)) for x in np.arange(0.1, 1.0, 0.001)]))
 
-y_pred = model.predict(X_test).reshape(X_test.shape[0])
+np.save("y_test", y_test)
+np.save("y_pred", y_pred)
 
-# TODO (most -> least important): 
-#
-# 1. Be more rigorous about testing! Video-wise testing 
-#    to make sure we're not just over-fitting!
-#    
-#    Sklearn shuffles videos because stratify is set to True; 
-#    you can e.g. add a second [independent] sampler.
-#
-# 2. You should compare your results to your baseline method.
-#
-# 3. Add training curves plots.
-# 
-# 4. Add monitors, e.g. ReduceLR or saving (selecting)
-#    best-performing checkpoint, early stopping, etc.
-# 
-# 5. Control batch size.
-#
-# 6. Try focal loss. 
-# 
-# 7. Use CNN instead of LSTM and compare which one is better.
+threshold_range = np.arange(0.1, 1.0, 0.001)
 
+f1_scores = list()
+precisions = list()
+recalls = list()
+for lambda_ in threshold_range:
+    f1_scores.append(f1_score(y_test, (y_pred > lambda_).astype(int)))
+    precisions.append(precision_score(y_test, (y_pred > lambda_).astype(int)))
+    recalls.append(recall_score(y_test, (y_pred > lambda_).astype(int)))
 
-# NOTE 
-# 1. Don't train on imbalanced datasets! your negative 
-#    samples do not contribute to the learning process
-#    (just the opposite). 
-# 
-# 2. Don't use sigmoid as an activation function;
-#    just use ReLU. You can Google for reasons.
-# 
-# 3. Give it more time to converge (not just a couple 
-#    of epochs). Start with small LR because your model 
-#    will always converge (eventually) if the manifold is 
-#    well-behaved. Then you can increase your LR so that
-#    the model converges faster. 
+print(np.max(f1_scores), np.mean(f1_scores), np.std(f1_scores))
+
+plt.plot(threshold_range, f1_scores)
+plt.scatter(threshold_range[np.argmax(f1_scores)], np.max(f1_scores), c="r")
+plt.xlabel("threshold")
+plt.ylabel("f1 score")
+plt.title("F1-score Under Certain Threshold")
+plt.savefig("test2.png")
+plt.close()
+
+plt.plot(threshold_range, recalls)
+plt.plot(threshold_range, precisions)
+plt.legend(["Recall", "Precision"])
+plt.xlabel("threshold")
+plt.ylabel("score")
+plt.title("Precision & Recall Under Certain Threshold")
+plt.savefig("test3.png")
+plt.close()
+
+fpr, tpr, thresholds = roc_curve(y_test, y_pred)
+plt.plot(fpr, tpr)
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.title("ROC Curve")
+plt.savefig("test4.png")
+plt.close()
+
+precision, recall, thresholds = precision_recall_curve(y_test, y_pred)
+plt.plot(recall, precision)
+plt.xlabel("Recall")
+plt.ylabel("Precision")
+plt.title("Precision-recall Curve")
+plt.savefig("test5.png")
+
+print(confusion_matrix(y_test, (y_pred > 0.5).astype(int)))
+print(confusion_matrix(y_test, (y_pred > 0.9).astype(int)))
