@@ -99,6 +99,9 @@ docker run --rm -e data=data/test_data.mp4 -v $PWD/data:/app/data -it flicker_de
 * [10/6](https://drive.google.com/file/d/1kma_4n1uy5_-fOrhFYBzGI5tW8A0xmkq)
 * [10/13](https://drive.google.com/file/d/1snQrZhz0LZrvv4-JnOBl5HnHNEVNXWze)
 * [10/27](https://drive.google.com/file/d/1BbC2ZIP-f33-nByzd58ykvzi4ET_KiAB)
+* [11/3](https://drive.google.com/file/d/1_1fQ88pBOlwWrYSBPC9z50hSR0OT_DfA)
+* [11/10](https://drive.google.com/file/d/1rplX4srAGs8120OoXicK2YRMwGa_dbPe)
+* [11/17](https://drive.google.com/file/d/1TnV8HJ9F0ddmORsl_K41HVM-kG9JVSUW)
 
 ## For more details
 
