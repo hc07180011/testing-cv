@@ -100,11 +100,11 @@ embedding_chunks = np.array(embedding_chunks)
 # )
 
 video_count = len(video_lengths.values())
-train_size = round(video_count * 0.95)
+train_size = round(video_count * 0.9)
 
 X_train, X_test, y_train, y_test = list(), list(), list(), list()
 
-for k in list(chunk_offsets.keys())[:train_size]:
+for k in list(chunk_offsets.keys())[-train_size:]:
     current_label_chunks = label_chunks[chunk_offsets[k][0]: chunk_offsets[k][1]]
     current_embedding_chunks = embedding_chunks[chunk_offsets[k][0]: chunk_offsets[k][1]]
     positive_idxs = np.where(current_label_chunks == 1)[0]
@@ -113,7 +113,7 @@ for k in list(chunk_offsets.keys())[:train_size]:
     for i in taking_idxs:
         X_train.append(current_embedding_chunks[i].tolist())
         y_train.append(current_label_chunks[i].tolist())
-for k in list(chunk_offsets.keys())[train_size:]:
+for k in list(chunk_offsets.keys())[:-train_size]:
     current_label_chunks = label_chunks[chunk_offsets[k][0]: chunk_offsets[k][1]]
     current_embedding_chunks = embedding_chunks[chunk_offsets[k][0]: chunk_offsets[k][1]]
     positive_idxs = np.where(current_label_chunks == 1)[0]
@@ -156,7 +156,7 @@ print(model.summary())
 
 history = model.fit(
     X_train, y_train,
-    epochs=1000, validation_split=0.1,
+    epochs=10000, validation_split=0.1,
     callbacks=[ModelCheckpoint('model.h5', save_best_only=True, monitor="val_f1_m", mode="max")]
 )
 
