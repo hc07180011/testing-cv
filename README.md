@@ -21,6 +21,8 @@
   * [BRISK](http://margaritachli.com/papers/ICCV2011paper.pdf)
 * Transformation
   * [Affine Transformation](https://en.wikipedia.org/wiki/Affine_transformation)
+* Detection
+  * [LSTM](https://www.tensorflow.org/api_docs/python/tf/keras/layers/LSTM)
 
 ## Install
 
