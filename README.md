@@ -12,7 +12,7 @@
 
 ## Flicker Detection
 
-[![Build Status](https://travis-ci.com/hc07180011/NTU-Google-Testing.svg?branch=main)](https://travis-ci.com/hc07180011/NTU-Google-Testing)
+[![Build Status](https://app.travis-ci.com/hc07180011/testing-cv.svg?branch=main)](https://app.travis-ci.com/hc07180011/testing-cv)
 
 * Embedding
   * [Siamese Network](https://keras.io/examples/vision/siamese_network/)
