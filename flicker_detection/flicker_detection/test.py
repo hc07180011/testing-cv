@@ -102,11 +102,11 @@ embedding_chunks = np.array(embedding_chunks)
 # )
 
 video_count = len(video_lengths.values())
-train_size = round(video_count * 0.95)
+train_size = round(video_count * 0.9)
 
 X_train, X_test, y_train, y_test = list(), list(), list(), list()
 
-for k in list(chunk_offsets.keys())[:train_size]:
+for k in list(chunk_offsets.keys())[-train_size:]:
     current_label_chunks = label_chunks[chunk_offsets[k][0]: chunk_offsets[k][1]]
     current_embedding_chunks = embedding_chunks[chunk_offsets[k][0]: chunk_offsets[k][1]]
     positive_idxs = np.where(current_label_chunks == 1)[0]
@@ -115,7 +115,7 @@ for k in list(chunk_offsets.keys())[:train_size]:
     for i in taking_idxs:
         X_train.append(current_embedding_chunks[i].tolist())
         y_train.append(current_label_chunks[i].tolist())
-for k in list(chunk_offsets.keys())[train_size:]:
+for k in list(chunk_offsets.keys())[:-train_size]:
     current_label_chunks = label_chunks[chunk_offsets[k][0]: chunk_offsets[k][1]]
     current_embedding_chunks = embedding_chunks[chunk_offsets[k][0]: chunk_offsets[k][1]]
     positive_idxs = np.where(current_label_chunks == 1)[0]
@@ -129,10 +129,6 @@ X_train = np.array(X_train)
 X_test = np.array(X_test)
 y_train = np.array(y_train)
 y_test = np.array(y_test)
-
-print(X_train.shape, X_test.shape)
-exit()
-
 
 def f1_m(y_true, y_pred):
     def precision_m(y_true, y_pred):
@@ -217,3 +213,60 @@ plt.savefig("test5.png")
 
 print(confusion_matrix(y_test, (y_pred > 0.5).astype(int)))
 print(confusion_matrix(y_test, (y_pred > 0.9).astype(int)))
+
+
+history = np.load("history.npy", allow_pickle=True).tolist()
+
+print(np.min(history["val_loss"]))
+print(np.max(history["val_f1_m"]))
+
+plt.figure(figsize=(16, 4))
+plt.plot(history["loss"][:2000])
+plt.plot(history["val_loss"][:2000])
+plt.xlabel("#epochs")
+plt.ylabel("loss value")
+plt.title("Loss with LSTM - Undersample")
+plt.savefig("loss.png")
+plt.close()
+
+plt.figure(figsize=(16, 4))
+plt.plot(history["f1_m"][:2000])
+plt.plot(history["val_f1_m"][:2000])
+plt.xlabel("#epochs")
+plt.ylabel("f1 score")
+plt.title("F1 score with LSTM - Undersample")
+plt.savefig("f1.png")
+plt.close()
+
+# positive = 288
+# negative = 8986 - 288
+
+# resample_positive = 288
+# resample_negative = 576 - 288
+
+
+# plt.bar(0, negative, bottom=positive, color="dodgerblue")
+# plt.bar(0, positive, bottom=0, color="midnightblue")
+# plt.bar(1, resample_negative, bottom=resample_positive, color="dodgerblue")
+# plt.bar(1, resample_positive, bottom=0, color="midnightblue")
+
+# plt.legend(["Negative", "Positive"])
+
+# plt.xticks([0, 1], ["Original", "Undersample"])
+# plt.ylabel("count(s)")
+
+# plt.savefig("test.png")
+
+y_true = np.load("y_test.npy")
+y_scores = np.load("y_pred.npy")
+
+precision, recall, thresholds = precision_recall_curve(y_true, y_scores)
+
+print(precision)
+print(recall)
+print(thresholds)
+
+plt.plot(recall, precision)
+plt.xlabel("Recall")
+plt.ylabel("Precision")
+plt.savefig("test.png")
