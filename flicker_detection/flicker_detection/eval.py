@@ -57,6 +57,11 @@ if __name__ == "__main__":
         default=os.path.join("data", "flicker_detection", "0147.mp4"),
         help="the relative path to video"
     )
+    parser.add_argument(
+        "-t", "--threshold", type=float,
+        default=0.5,
+        help="the threshold of positive labels (for dev ONLY, should be tuned with the precision-recall curve)"
+    )
     args = parser.parse_args()
 
     facenet = Facenet()
@@ -78,5 +83,10 @@ if __name__ == "__main__":
 
     results = inference(embedding_chunk, inference_model)
 
-    print(results)
+    print("===== Results =====")
+    for key in results:
+        print("During frame {}, score ~= {:.8f}".format(key, results[key]))
+        print("with thres = {}, {}".format(args.threshold, "ok" if results[key] < args.threshold else "FLICKER!!!"))
+        print("------------------------")
+
     print("takes: {} s".format(time.perf_counter() - start_))
