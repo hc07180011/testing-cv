@@ -75,6 +75,7 @@ if __name__ == "__main__":
 
     start_ = time.perf_counter()
 
+    # First, we use Facenet to do the embedding.
     embedding_arr = list()
     vidcap = cv2.VideoCapture(args.data_path)
     success, image = vidcap.read()
@@ -83,8 +84,10 @@ if __name__ == "__main__":
         embedding_arr.append(facenet.get_embedding(image, batched=False).flatten())
         success, image = vidcap.read()
 
+    # Then, we divide the embeddings of all frames into chunks.
     embedding_chunk = get_chunks(np.array(embedding_arr))
 
+    # Last, we are able to inference the flicker score (probability) of every chunk.
     results = inference(embedding_chunk, inference_model)
 
     print("===== Results =====")
