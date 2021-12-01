@@ -67,6 +67,10 @@ if __name__ == "__main__":
     facenet = Facenet()
     inference_model = load_inference_model()
 
+    if not os.path.exists(args.data_path):
+        print("\"{}\" not exists!".format(args.data_path))
+        exit(1)
+
     print("Testing: {}".format(args.data_path))
 
     start_ = time.perf_counter()
