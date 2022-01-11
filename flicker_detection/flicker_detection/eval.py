@@ -84,6 +84,23 @@ if __name__ == "__main__":
         embedding_arr.append(facenet.get_embedding(image, batched=False).flatten())
         success, image = vidcap.read()
 
+    import matplotlib.pyplot as plt
+    a = list()
+    for arr1, arr2 in zip(embedding_arr[:-1], embedding_arr[1:]):
+        a.append(float(
+            np.dot(arr1, arr2) /
+            (np.linalg.norm(arr1) * np.linalg.norm(arr2))
+        ))
+    
+    plt.figure(figsize=(16, 4), dpi=200)
+    plt.plot(a)
+    plt.xlabel("# Frames")
+    plt.ylabel("Similarity")
+    plt.title("Cosine Similarity Under Facenet Embedding")
+    plt.savefig("test.png")
+    plt.close()
+    exit()
+
     # Then, we divide the embeddings of all frames into chunks.
     embedding_chunk = get_chunks(np.array(embedding_arr))
 

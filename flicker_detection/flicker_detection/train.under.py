@@ -1,5 +1,4 @@
 import os
-import time
 import json
 
 import numpy as np
@@ -12,7 +11,6 @@ from keras.models import Sequential
 from keras.layers import Dense, LSTM, Conv1D, MaxPooling1D, Flatten
 from keras.callbacks import ModelCheckpoint
 from imblearn.under_sampling import RandomUnderSampler
-from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score, precision_recall_curve, roc_curve, auc
 
 
 # pass the videos without label
@@ -83,24 +81,6 @@ for path in embedding_path_list:
 label_chunks = np.array(label_chunks)
 embedding_chunks = np.array(embedding_chunks)
 
-# # Under Sample 
-# B, T, C = np.array(embedding_chunks).shape
-# sampler = RandomUnderSampler()
-# X_resampled, y_resampled = sampler.fit_resample(
-#     np.array(embedding_chunks).reshape(B, -1),
-#     np.array(label_chunks),)
-# B, _ = X_resampled.shape
-# X_resampled = X_resampled.reshape(B, T, -1)
-
-# X_train, X_test, y_train, y_test = train_test_split(
-#     np.array(embedding_chunks), # X_resampled,
-#     np.array(label_chunks), # y_resampled,
-#     test_size=0.1,
-#     random_state=42,
-#     shuffle=True,
-#     # stratify=y_resampled
-# )
-
 video_count = len(video_lengths.values())
 train_size = round(video_count * 0.9)
 
@@ -125,10 +105,11 @@ for k in list(chunk_offsets.keys())[:-train_size]:
         X_test.append(current_embedding_chunks[i].tolist())
         y_test.append(current_label_chunks[i].tolist())
 
-# X_train = np.array(X_train)
-X_test = np.array(X_train + X_test)
-# y_train = np.array(y_train)
-y_test = np.array(y_train + y_test)
+X_train = np.array(X_train)
+X_test = np.array(X_test)
+y_train = np.array(y_train)
+y_test = np.array(y_test)
+
 
 def f1_m(y_true, y_pred):
     def precision_m(y_true, y_pred):
@@ -146,129 +127,70 @@ def f1_m(y_true, y_pred):
     recall = recall_m(y_true, y_pred)
     return 2 * ((precision * recall) / (precision + recall + K.epsilon()))
 
-from keras.models import load_model
-model = load_model("model_under.h5", custom_objects={"f1_m": f1_m})
+model = Sequential()
+# model.add(Conv1D(filters=32, kernel_size=3, input_shape=(X_train.shape[1:]), padding="same"))
+model.add((LSTM(units=64, input_shape=(X_train.shape[1:]))))
+model.add(Dense(units=16, activation="relu"))
+model.add(Flatten())
+model.add(Dense(units=1, activation="sigmoid"))
+model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5), metrics=["accuracy", f1_m])
+print(model.summary())
 
-s = time.perf_counter()
-y_pred = model.predict(X_test)
-y_pred = np.reshape(y_pred, (y_pred.shape[0], ))
-print("Prediction takes {}s".format(time.perf_counter() - s))
+history = model.fit(
+    X_train, y_train,
+    epochs=1000, validation_split=0.1,
+    callbacks=[ModelCheckpoint('model_under.h5', save_best_only=True, monitor="val_f1_m", mode="max")]
+)
 
-plt.hist(y_pred, bins=100)
-plt.xlabel("probability of being a flicker")
-plt.ylabel("count(s)")
-plt.title("Counts of Probability being Flickers")
-plt.savefig("test1.png")
-plt.close()
-
-model.evaluate(X_test, y_test)
-print(max([f1_score(y_test, (y_pred > x).astype(int)) for x in np.arange(0.1, 1.0, 0.001)]))
-
-np.save("y_test", y_test)
-np.save("y_pred", y_pred)
-
-threshold_range = np.arange(0.1, 1.0, 0.001)
-
-f1_scores = list()
-precisions = list()
-recalls = list()
-for lambda_ in threshold_range:
-    f1_scores.append(f1_score(y_test, (y_pred > lambda_).astype(int)))
-    precisions.append(precision_score(y_test, (y_pred > lambda_).astype(int)))
-    recalls.append(recall_score(y_test, (y_pred > lambda_).astype(int)))
-
-print(np.max(f1_scores), np.mean(f1_scores), np.std(f1_scores))
-
-plt.plot(threshold_range, f1_scores)
-plt.scatter(threshold_range[np.argmax(f1_scores)], np.max(f1_scores), c="r")
-plt.xlabel("threshold")
-plt.ylabel("f1 score")
-plt.title("F1-score Under Certain Threshold")
-plt.savefig("test2.png")
-plt.close()
-
-plt.plot(threshold_range, recalls)
-plt.plot(threshold_range, precisions)
-plt.legend(["Recall", "Precision"])
-plt.xlabel("threshold")
-plt.ylabel("score")
-plt.title("Precision & Recall Under Certain Threshold")
-plt.savefig("test3.png")
-plt.close()
-
-fpr, tpr, thresholds = roc_curve(y_test, y_pred)
-plt.plot([0, 1], [0, 1], linestyle="dashed")
-plt.plot(fpr, tpr, marker="o")
-plt.legend(["No Skill", "ROC curve (area = {:.2f})".format(auc(fpr, tpr))])
-plt.xlabel("False Positive Rate")
-plt.ylabel("True Positive Rate")
-plt.title("ROC Curve")
-plt.savefig("test4.png")
-plt.close()
-
-precision, recall, thresholds = precision_recall_curve(y_test, y_pred)
-plt.plot(recall, precision)
-plt.xlabel("Recall")
-plt.ylabel("Precision")
-plt.title("Precision-recall Curve")
-plt.savefig("test5.png")
-
-print(confusion_matrix(y_test, (y_pred > 0.5).astype(int)))
-print(confusion_matrix(y_test, (y_pred > 0.9).astype(int)))
-
-
-history = np.load("history_under.npy", allow_pickle=True).tolist()
-
-print(np.min(history["val_loss"]))
-print(np.max(history["val_f1_m"]))
-
-plt.figure(figsize=(16, 4))
-plt.plot(history["loss"][:2000])
-plt.plot(history["val_loss"][:2000])
-plt.xlabel("#epochs")
-plt.ylabel("loss value")
-plt.title("Loss with LSTM - Oversample")
+plt.plot(history.history["loss"])
+plt.plot(history.history["val_loss"])
+plt.legend(["loss", "validation loss"])
 plt.savefig("loss.png")
 plt.close()
 
-plt.figure(figsize=(16, 4))
-plt.plot(history["f1_m"][:2000])
-plt.plot(history["val_f1_m"][:2000])
-plt.xlabel("#epochs")
-plt.ylabel("f1 score")
-plt.title("F1 score with LSTM - Oversample")
+plt.plot(history.history["f1_m"])
+plt.plot(history.history["val_f1_m"])
+plt.legend(["f1", "validation f1"])
 plt.savefig("f1.png")
-plt.close()
 
-# positive = 288
-# negative = 8986 - 288
+np.save("history_under", history.history)
 
-# resample_positive = 288
-# resample_negative = 576 - 288
+model.evaluate(X_test, y_test)
+
+y_pred = model.predict(X_test).reshape(X_test.shape[0])
+
+# TODO (most -> least important): 
+#
+# 1. Be more rigorous about testing! Video-wise testing 
+#    to make sure we're not just over-fitting!
+#    
+#    Sklearn shuffles videos because stratify is set to True; 
+#    you can e.g. add a second [independent] sampler.
+#
+# 2. You should compare your results to your baseline method.
+#
+# 3. Add training curves plots.
+# 
+# 4. Add monitors, e.g. ReduceLR or saving (selecting)
+#    best-performing checkpoint, early stopping, etc.
+# 
+# 5. Control batch size.
+#
+# 6. Try focal loss. 
+# 
+# 7. Use CNN instead of LSTM and compare which one is better.
 
 
-# plt.bar(0, negative, bottom=positive, color="dodgerblue")
-# plt.bar(0, positive, bottom=0, color="midnightblue")
-# plt.bar(1, resample_negative, bottom=resample_positive, color="dodgerblue")
-# plt.bar(1, resample_positive, bottom=0, color="midnightblue")
-
-# plt.legend(["Negative", "Positive"])
-
-# plt.xticks([0, 1], ["Original", "Undersample"])
-# plt.ylabel("count(s)")
-
-# plt.savefig("test.png")
-
-y_true = np.load("y_test.npy")
-y_scores = np.load("y_pred.npy")
-
-precision, recall, thresholds = precision_recall_curve(y_true, y_scores)
-
-print(precision)
-print(recall)
-print(thresholds)
-
-plt.plot(recall, precision)
-plt.xlabel("Recall")
-plt.ylabel("Precision")
-plt.savefig("test.png")
+# NOTE 
+# 1. Don't train on imbalanced datasets! your negative 
+#    samples do not contribute to the learning process
+#    (just the opposite). 
+# 
+# 2. Don't use sigmoid as an activation function;
+#    just use ReLU. You can Google for reasons.
+# 
+# 3. Give it more time to converge (not just a couple 
+#    of epochs). Start with small LR because your model 
+#    will always converge (eventually) if the manifold is 
+#    well-behaved. Then you can increase your LR so that
+#    the model converges faster. 
