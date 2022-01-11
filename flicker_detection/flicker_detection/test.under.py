@@ -65,39 +65,52 @@ chunk_prefix_length = 0
 
 chunk_offsets = dict()
 
-# To prevent chunks in the same video to be in the same set
-embedding_chunks_train = list()
-embedding_chunks_test = list()
-
-label_chunks_train = list()
-label_chunks_test = list()
-
-cnt = 0
+embedding_chunks = list()
+label_chunks = list()
 for path in embedding_path_list:
     if path.split(".npy")[0] in pass_videos:
         continue
 
     for j in range(video_lengths[path] // chunk_size):
-        if cnt < 70:
-            embedding_chunks_train.append(embeddings[prefix_length + chunk_size * j: prefix_length + chunk_size * (j + 1)])
-        else:
-            embedding_chunks_test.append(embeddings[prefix_length + chunk_size * j: prefix_length + chunk_size * (j + 1)])
-        if cnt < 70:
-            label_chunks_train.append(1 if sum(labels[prefix_length + chunk_size * j: prefix_length + chunk_size * (j + 1)]) else 0)
-        else:
-            label_chunks_test.append(1 if sum(labels[prefix_length + chunk_size * j: prefix_length + chunk_size * (j + 1)]) else 0)
-    cnt += 1
+        embedding_chunks.append(embeddings[prefix_length + chunk_size * j: prefix_length + chunk_size * (j + 1)])
+        label_chunks.append(1 if sum(labels[prefix_length + chunk_size * j: prefix_length + chunk_size * (j + 1)]) else 0)
 
     chunk_offsets[path] = (chunk_prefix_length, chunk_prefix_length + j)
     chunk_prefix_length += j
 
     prefix_length += video_lengths[path]
 
-embedding_chunks_train = np.array(embedding_chunks_train)
-embedding_chunks_test = np.array(embedding_chunks_test)
-label_chunks_train = np.array(label_chunks_train)
-label_chunks_test = np.array(label_chunks_test)
-X_test, y_test = embedding_chunks_test, label_chunks_test
+label_chunks = np.array(label_chunks)
+embedding_chunks = np.array(embedding_chunks)
+
+video_count = len(video_lengths.values())
+train_size = round(video_count * 0.9)
+
+X_train, X_test, y_train, y_test = list(), list(), list(), list()
+
+for k in list(chunk_offsets.keys())[-train_size:]:
+    current_label_chunks = label_chunks[chunk_offsets[k][0]: chunk_offsets[k][1]]
+    current_embedding_chunks = embedding_chunks[chunk_offsets[k][0]: chunk_offsets[k][1]]
+    positive_idxs = np.where(current_label_chunks == 1)[0]
+    negative_idxs = np.random.choice(np.where(current_label_chunks != 1)[0], int(np.sum(current_label_chunks)))
+    taking_idxs = positive_idxs.tolist() + negative_idxs.tolist()
+    for i in taking_idxs:
+        X_train.append(current_embedding_chunks[i].tolist())
+        y_train.append(current_label_chunks[i].tolist())
+for k in list(chunk_offsets.keys())[:-train_size]:
+    current_label_chunks = label_chunks[chunk_offsets[k][0]: chunk_offsets[k][1]]
+    current_embedding_chunks = embedding_chunks[chunk_offsets[k][0]: chunk_offsets[k][1]]
+    positive_idxs = np.where(current_label_chunks == 1)[0]
+    negative_idxs = np.random.choice(np.where(current_label_chunks != 1)[0], int(np.sum(current_label_chunks)))
+    taking_idxs = positive_idxs.tolist() + negative_idxs.tolist()
+    for i in taking_idxs:
+        X_test.append(current_embedding_chunks[i].tolist())
+        y_test.append(current_label_chunks[i].tolist())
+
+X_train = np.array(X_train)
+X_test = np.array(X_test)
+y_train = np.array(y_train)
+y_test = np.array(y_test)
 
 
 def f1_m(y_true, y_pred):
@@ -117,7 +130,7 @@ def f1_m(y_true, y_pred):
     return 2 * ((precision * recall) / (precision + recall + K.epsilon()))
 
 from keras.models import load_model
-model = load_model("model.facenet.oversampling.h5", custom_objects={"f1_m": f1_m})
+model = load_model("model.facenet.undersampling.h5", custom_objects={"f1_m": f1_m})
 
 s = time.perf_counter()
 y_pred = model.predict(X_test)
