@@ -3,12 +3,14 @@
 ## Image Quality Assessment (IQA)
 
 * [NIMA](https://github.com/idealo/image-quality-assessment)
+* [TRIQ](https://github.com/junyongyou/triq)
 * [Explainable](https://github.com/marcotcr/lime)
 * Auto correction
+  * [Exposure](https://github.com/mahmoudnafifi/Exposure_Correction)
   * White-balance
-  * Color
+  * [Denoising](https://github.com/swz30/MPRNet)
 * Detection
-  * Blur
+  * ColorCast
 
 ## Flicker Detection
 
