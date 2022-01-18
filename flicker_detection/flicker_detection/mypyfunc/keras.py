@@ -7,6 +7,10 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score, precision_recall_curve, roc_curve, auc
 
 
+logging.getLogger("matplotlib").setLevel(logging.WARNING)
+logging.getLogger("tensorflow").setLevel(logging.WARNING)
+
+
 class MyMetrics:
 
     def __init__(self) -> None:
