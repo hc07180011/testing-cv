@@ -101,8 +101,8 @@ class Model:
         )
 
     def plot_history(self, key: str) -> None:
-        plt.plot(history.history["{}".format(key)])
-        plt.plot(history.history["val_{}".format(key)])
+        plt.plot(self.history.history["{}".format(key)])
+        plt.plot(self.history.history["val_{}".format(key)])
         plt.legend(["{}".format(key), "val_{}".format(key)])
         plt.savefig("{}.png".format(key))
         plt.close()
