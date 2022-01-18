@@ -2,6 +2,7 @@ import os
 import cv2
 import json
 import logging
+from argparse import ArgumentParser
 
 import tqdm
 import numpy as np
@@ -12,7 +13,7 @@ from imblearn.over_sampling import SMOTE
 from keras.models import Sequential
 from keras.layers import LSTM, Dense, Flatten
 
-from mypyfunc.keras import Model
+from mypyfunc.keras import Model, InferenceModel
 from mypyfunc.logger import init_logger
 from preprocessing.embedding.facenet import Facenet
 
@@ -168,7 +169,7 @@ def _oversampling(
     return (X_train, y_train)
 
 
-def _train(X_train, y_train) -> Model:
+def _train(X_train: np.array, y_train: np.array) -> Model:
     buf = Sequential()
     buf.add((LSTM(units=64, input_shape=(X_train.shape[1:]))))
     buf.add(Dense(units=16, activation="relu"))
@@ -184,8 +185,29 @@ def _train(X_train, y_train) -> Model:
     for k in list(("loss", "accuracy", "f1", "auc")):
         model.plot_history(k)
 
+    return model
+
+
+def _test(model_path: str, X_test: np.array, y_test: np.array) -> None:
+    model = InferenceModel(model_path)
+    y_pred = model.predict(X_test)
+    model.evaluate(y_test, y_pred)
+
 
 def _main() -> None:
+    parser = ArgumentParser()
+    parser.add_argument(
+        "-train", "--train", action="store_true",
+        default=False,
+        help="Whether to do training"
+    )
+    parser.add_argument(
+        "-test", "--test", action="store_true",
+        default=False,
+        help="Whether to do testing"
+    )
+    args = parser.parse_args()
+
     init_logger()
 
     logging.info("[Embedding] Start ...")
@@ -204,19 +226,25 @@ def _main() -> None:
     )
     logging.info("[Preprocessing] done.")
 
-    logging.info("[Oversampling] Start ...")
-    X_train, y_train = _oversampling(
-        X_train,
-        y_train
-    )
-    logging.info("[Oversampling] done.")
+    if args.train:
+        logging.info("[Oversampling] Start ...")
+        X_train, y_train = _oversampling(
+            X_train,
+            y_train
+        )
+        logging.info("[Oversampling] done.")
 
-    logging.info("[Training] Start ...")
-    model = _train(
-        X_train,
-        y_train
-    )
-    logging.info("[Training] done.")
+        logging.info("[Training] Start ...")
+        _ = _train(
+            X_train,
+            y_train
+        )
+        logging.info("[Training] done.")
+
+    if args.test:
+        logging.info("[Testing] Start ...")
+        _test("model.h5", X_test, y_test)
+        logging.info("[Testing] done.")
 
 
 if __name__ == "__main__":
