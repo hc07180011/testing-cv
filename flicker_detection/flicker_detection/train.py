@@ -1,9 +1,9 @@
 import os
-import cv2
 import json
 import logging
 from argparse import ArgumentParser
 
+import cv2
 import tqdm
 import numpy as np
 import tensorflow as tf
@@ -181,7 +181,7 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
         loss="binary_crossentropy",
         optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
     )
-    model.train(X_train, y_train, 100, 0.1, 1024)
+    model.train(X_train, y_train, 3, 0.1, 1024)
     for k in list(("loss", "accuracy", "f1", "auc")):
         model.plot_history(k)
 
