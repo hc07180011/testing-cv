@@ -1,193 +1,223 @@
 import os
+import cv2
 import json
+import logging
 
+import tqdm
 import numpy as np
 import tensorflow as tf
-import matplotlib.pyplot as plt
 
 from sklearn.model_selection import train_test_split
-from keras import backend as K
-from keras.models import Sequential
-from keras.layers import Dense, LSTM, Conv1D, MaxPooling1D, Flatten
-from keras.callbacks import ModelCheckpoint
 from imblearn.over_sampling import SMOTE
-from imblearn.under_sampling import RandomUnderSampler
+from keras.models import Sequential
+from keras.layers import LSTM, Dense, Flatten
+
+from mypyfunc.keras import Model
+from mypyfunc.logger import init_logger
+from preprocessing.embedding.facenet import Facenet
 
 
-# pass the videos without label
-pass_videos = list([
-    "0096.mp4", "0097.mp4", "0098.mp4",
-    "0125.mp4", "0126.mp4", "0127.mp4",
-    "0145.mp4", "0146.mp4", "0147.mp4",
-    "0178.mp4", "0179.mp4", "0180.mp4"
-])
+data_base_dir = "data"
+os.makedirs(data_base_dir, exist_ok=True)
+cache_base_dir = ".cache"
+os.makedirs(cache_base_dir, exist_ok=True)
 
-raw_labels = json.load(open(os.path.join("data", "label.json"), "r"))
-encoding_filename_mapping = json.load(open(os.path.join("data", "mapping.json"), "r"))
 
-embedding_dir = os.path.join("data", "embedding")
-if not os.path.exists:
-    input("No embeddings found!")
-    exit(0)
+def _embed(
+    video_data_dir: str,
+    output_dir: str
+) -> None:
+    os.makedirs(output_dir, exist_ok=True)
 
-embedding_path_list = sorted(os.listdir(embedding_dir))
+    facenet = Facenet()
+    for path in tqdm.tqdm(os.listdir(video_data_dir)):
+        if os.path.exists(os.path.join(output_dir, "{}.npy".format(path))):
+            continue
 
-for path in embedding_path_list:
-    if encoding_filename_mapping[path.replace(".npy", "")] not in raw_labels:
-        pass_videos.append(path.replace(".npy", ""))
+        vidcap = cv2.VideoCapture(os.path.join(data_dir, path))
+        success, image = vidcap.read()
 
-embeddings = list()
-video_lengths = dict()
-for path in embedding_path_list:
-    if path.split(".npy")[0] in pass_videos:
-        continue
+        raw_images = list()
+        while success:
+            raw_images.append(cv2.resize(image, (200, 200)))
+            success, image = vidcap.read()
 
-    buf_embedding = np.load(os.path.join(embedding_dir, path))
-    video_lengths[path] = buf_embedding.shape[0]
-    embeddings.extend(buf_embedding)
+        embeddings = model.get_embedding(np.array(raw_images))
 
-labels = list()
-for i, path in enumerate(embedding_path_list):
-    if path.split(".npy")[0] in pass_videos:
-        continue
+        np.save(os.path.join(output_dir, path), embeddings)
 
-    buf_label = np.zeros(video_lengths[path]).astype(int)
-    if encoding_filename_mapping[path.replace(".npy", "")] in raw_labels:
-        flicker_idxs = np.array(raw_labels[encoding_filename_mapping[path.replace(".npy", "")]]) - 1
+
+def _preprocess(
+    label_path: str,
+    mapping_path: str,
+    data_dir: str,
+    cache_path: str
+) -> tuple[np.array]:
+
+    if os.path.exists("{}.npz".format(cache_path)):
+        __cache__ = np.load("{}.npz".format(cache_path))
+        return tuple((__cache__[k] for k in __cache__))
+
+    pass_videos = list([
+        "0096.mp4", "0097.mp4", "0098.mp4",
+        "0125.mp4", "0126.mp4", "0127.mp4",
+        "0145.mp4", "0146.mp4", "0147.mp4",
+        "0178.mp4", "0179.mp4", "0180.mp4"
+    ])
+    raw_labels = json.load(open(label_path, "r"))
+    encoding_filename_mapping = json.load(open(mapping_path, "r"))
+
+    embedding_path_list = sorted([
+        x for x in os.listdir(data_dir)
+        if x.split(".npy")[0] not in pass_videos
+        and encoding_filename_mapping[x.replace(".npy", "")] in raw_labels
+    ])
+
+    embedding_list_train, embedding_list_test, _, _ = train_test_split(
+        embedding_path_list,
+        list(range(len(embedding_path_list))),
+        test_size=0.1,
+        random_state=42
+    )
+
+    def _get_chunk_array(input_arr: np.array, chunk_size: int) -> list:
+        asymmetric_chunks = np.split(
+            input_arr,
+            list(range(
+                chunk_size,
+                input_arr.shape[0] + 1,
+                chunk_size
+            ))
+        )
+        # TODO: should we take the last chunk?
+        return np.array(asymmetric_chunks[:-1]).tolist()
+
+    chunk_size = 30
+
+    video_embeddings_list_train = list()
+    video_labels_list_train = list()
+    logging.debug(
+        "taking training chunks, length = {}".format(len(embedding_list_train))
+    )
+    for path in tqdm.tqdm(embedding_list_train):
+        real_filename = encoding_filename_mapping[path.replace(".npy", "")]
+
+        buf_embedding = np.load(os.path.join(data_dir, path))
+
+        video_embeddings_list_train.extend(
+            _get_chunk_array(buf_embedding, chunk_size)
+        )
+
+        flicker_idxs = np.array(raw_labels[real_filename]) - 1
+        buf_label = np.zeros(buf_embedding.shape[0]).astype(int)
         buf_label[flicker_idxs] = 1
-    labels.extend(buf_label.tolist())
+        video_labels_list_train.extend([
+            1 if sum(x) else 0
+            for x in _get_chunk_array(buf_label, chunk_size)
+        ])
 
-chunk_size = int(30)
+    video_embeddings_list_test = list()
+    video_labels_list_test = list()
+    logging.debug(
+        "taking testing chunks, length = {}".format(len(embedding_list_test))
+    )
+    for path in tqdm.tqdm(embedding_list_test):
+        real_filename = encoding_filename_mapping[path.replace(".npy", "")]
 
-prefix_length = 0
-chunk_prefix_length = 0
+        buf_embedding = np.load(os.path.join(data_dir, path))
 
-chunk_offsets = dict()
+        video_embeddings_list_test.extend(
+            _get_chunk_array(buf_embedding, chunk_size)
+        )
 
-# To prevent chunks in the same video to be in the same set
-embedding_chunks_train = list()
-embedding_chunks_test = list()
+        flicker_idxs = np.array(raw_labels[real_filename]) - 1
+        buf_label = np.zeros(buf_embedding.shape[0]).astype(int)
+        buf_label[flicker_idxs] = 1
+        video_labels_list_test.extend([
+            1 if sum(x) else 0
+            for x in _get_chunk_array(buf_label, chunk_size)
+        ])
 
-label_chunks_train = list()
-label_chunks_test = list()
+    X_train = np.array(video_embeddings_list_train)
+    X_test = np.array(video_embeddings_list_test)
+    y_train = np.array(video_labels_list_train)
+    y_test = np.array(video_labels_list_test)
 
-cnt = 0
-for path in embedding_path_list:
-    if path.split(".npy")[0] in pass_videos:
-        continue
+    logging.debug("ok. got training: {}/{}, testing: {}/{}".format(
+        X_train.shape, y_train.shape,
+        X_test.shape, y_test.shape
+    ))
 
-    for j in range(video_lengths[path] // chunk_size):
-        if cnt < 70:
-            embedding_chunks_train.append(embeddings[prefix_length + chunk_size * j: prefix_length + chunk_size * (j + 1)])
-        else:
-            embedding_chunks_test.append(embeddings[prefix_length + chunk_size * j: prefix_length + chunk_size * (j + 1)])
-        if cnt < 70:
-            label_chunks_train.append(1 if sum(labels[prefix_length + chunk_size * j: prefix_length + chunk_size * (j + 1)]) else 0)
-        else:
-            label_chunks_test.append(1 if sum(labels[prefix_length + chunk_size * j: prefix_length + chunk_size * (j + 1)]) else 0)
-    cnt += 1
+    np.savez(cache_path, X_train, X_test, y_train, y_test)
 
-    chunk_offsets[path] = (chunk_prefix_length, chunk_prefix_length + j)
-    chunk_prefix_length += j
-
-    prefix_length += video_lengths[path]
-
-embedding_chunks_train = np.array(embedding_chunks_train)
-embedding_chunks_test = np.array(embedding_chunks_test)
-label_chunks_train = np.array(label_chunks_train)
-label_chunks_test = np.array(label_chunks_test)
-
-sm = SMOTE(random_state=42)
-X_train, y_train = sm.fit_resample(
-    np.reshape(embedding_chunks_train, (-1, 30 * 9216)),
-    label_chunks_train
-)
-X_train = np.reshape(X_train, (-1, 30, 9216))
-X_test, y_test = embedding_chunks_test, label_chunks_test
-
-print(X_train.shape, X_test.shape, y_train.shape, y_test.shape)
-
-def f1_m(y_true, y_pred):
-    def precision_m(y_true, y_pred):
-        true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
-        predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
-        precision = true_positives / (predicted_positives + K.epsilon())
-        return precision
-    def recall_m(y_true, y_pred):
-        true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
-        possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
-        recall = true_positives / (possible_positives + K.epsilon())
-        return recall
-
-    precision = precision_m(y_true, y_pred)
-    recall = recall_m(y_true, y_pred)
-    return 2 * ((precision * recall) / (precision + recall + K.epsilon()))
-
-model = Sequential()
-# model.add(Conv1D(filters=32, kernel_size=3, input_shape=(X_train.shape[1:]), padding="same"))
-model.add((LSTM(units=64, input_shape=(X_train.shape[1:]))))
-model.add(Dense(units=16, activation="relu"))
-model.add(Flatten())
-model.add(Dense(units=1, activation="sigmoid"))
-model.compile(loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5), metrics=["accuracy", f1_m])
-print(model.summary())
-
-history = model.fit(
-    X_train, y_train,
-    epochs=1000,
-    validation_split=0.1, batch_size=512,
-    callbacks=[ModelCheckpoint('model.h5', save_best_only=True, monitor="val_f1_m", mode="max")]
-)
-
-plt.plot(history.history["loss"])
-plt.plot(history.history["val_loss"])
-plt.legend(["loss", "validation loss"])
-plt.savefig("loss.png")
-plt.close()
-
-plt.plot(history.history["f1_m"])
-plt.plot(history.history["val_f1_m"])
-plt.legend(["f1", "validation f1"])
-plt.savefig("f1.png")
-
-np.save("history", history.history)
-
-model.evaluate(X_test, y_test)
-
-y_pred = model.predict(X_test).reshape(X_test.shape[0])
-
-# TODO (most -> least important): 
-#
-# 1. Be more rigorous about testing! Video-wise testing 
-#    to make sure we're not just over-fitting!
-#    
-#    Sklearn shuffles videos because stratify is set to True; 
-#    you can e.g. add a second [independent] sampler.
-#
-# 2. You should compare your results to your baseline method.
-#
-# 3. Add training curves plots.
-# 
-# 4. Add monitors, e.g. ReduceLR or saving (selecting)
-#    best-performing checkpoint, early stopping, etc.
-# 
-# 5. Control batch size.
-#
-# 6. Try focal loss. 
-# 
-# 7. Use CNN instead of LSTM and compare which one is better.
+    return (X_train, X_test, y_train, y_test)
 
 
-# NOTE 
-# 1. Don't train on imbalanced datasets! your negative 
-#    samples do not contribute to the learning process
-#    (just the opposite). 
-# 
-# 2. Don't use sigmoid as an activation function;
-#    just use ReLU. You can Google for reasons.
-# 
-# 3. Give it more time to converge (not just a couple 
-#    of epochs). Start with small LR because your model 
-#    will always converge (eventually) if the manifold is 
-#    well-behaved. Then you can increase your LR so that
-#    the model converges faster. 
+def _oversampling(
+    X_train: np.array,
+    y_train: np.array,
+    method="SMOTE"
+) -> tuple[np.array]:
+    sm = SMOTE(random_state=42)
+    original_X_shape = X_train.shape
+    X_train, y_train = sm.fit_resample(
+        np.reshape(X_train, (-1, np.prod(original_X_shape[1:]))),
+        y_train
+    )
+    X_train = np.reshape(X_train, (-1,) + original_X_shape[1:])
+    return (X_train, y_train)
+
+
+def _train(X_train, y_train) -> Model:
+    buf = Sequential()
+    buf.add((LSTM(units=64, input_shape=(X_train.shape[1:]))))
+    buf.add(Dense(units=16, activation="relu"))
+    buf.add(Flatten())
+    buf.add(Dense(units=1, activation="sigmoid"))
+
+    model = Model(
+        model=buf,
+        loss="binary_crossentropy",
+        optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
+    )
+    model.train(X_train, y_train, 100, 0.1, 1024)
+    for k in list(("loss", "accuracy", "f1", "auc")):
+        model.plot_history(k)
+
+
+def _main() -> None:
+    init_logger()
+
+    logging.info("[Embedding] Start ...")
+    _embed(
+        os.path.join(data_base_dir, "flicker-detection"),
+        os.path.join(data_base_dir, "embedding")
+    )
+    logging.info("[Embedding] done.")
+
+    logging.info("[Preprocessing] Start ...")
+    X_train, X_test, y_train, y_test = _preprocess(
+        os.path.join(data_base_dir, "label.json"),
+        os.path.join(data_base_dir, "mapping.json"),
+        os.path.join(data_base_dir, "embedding"),
+        os.path.join(cache_base_dir, "train_test")
+    )
+    logging.info("[Preprocessing] done.")
+
+    logging.info("[Oversampling] Start ...")
+    X_train, y_train = _oversampling(
+        X_train,
+        y_train
+    )
+    logging.info("[Oversampling] done.")
+
+    logging.info("[Training] Start ...")
+    model = _train(
+        X_train,
+        y_train
+    )
+    logging.info("[Training] done.")
+
+
+if __name__ == "__main__":
+    _main()

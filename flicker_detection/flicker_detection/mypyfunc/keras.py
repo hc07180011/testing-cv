@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
@@ -43,11 +45,6 @@ class MyMetrics:
         recall = self.recall(y_true, y_pred)
         return 2 * ((precision * recall) / \
                     (precision + recall + tf.keras.backend.epsilon()))
-    
-    def auc(self, y_true, y_pred):
-        m = tf.keras.metrics.AUC()
-        m.update_state(y_true, y_pred)
-        return m.result().numpy().astype(float)
 
 
 _my_metrics = MyMetrics()
@@ -57,16 +54,17 @@ class Model:
 
     def __init__(
         self,
-        model: Any[tf.keras.models.Sequential],
+        model: tf.keras.models.Sequential,
         loss: str,
-        optimizer: Any[tf.keras.optimizers],
+        optimizer: tf.keras.optimizers,
         metrics: list = list((
             "accuracy",
             _my_metrics.f1,
-            _my_metrics.auc
+            tf.keras.metrics.AUC()
         )),
         summary=True
     ) -> None:
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
         self.model = model
         self.model.compile(
             loss=loss,
