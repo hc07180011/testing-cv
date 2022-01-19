@@ -56,23 +56,39 @@ def _main() -> None:
         # TODO: should we take the last chunk?
         return np.array(asymmetric_chunks[:-1])
 
+    logging.info("Reading video ...")
     vidcap = cv2.VideoCapture(args.data_path)
     success, image = vidcap.read()
     raw_images = list()
     while success:
         raw_images.append(cv2.resize(image, (200, 200)))
         success, image = vidcap.read()
+    logging.info("done.")
 
+    logging.info("Getting embedding ...")
     facenet = Facenet()
     embeddings = facenet.get_embedding(np.array(raw_images))
+    logging.info("done.")
 
+    logging.info("Getting chunks ...")
     chunk_size = 30
     X_test = _get_chunk_array(embeddings, chunk_size)
+    logging.info("done.")
 
+    logging.info("Model inference ...")
     model = InferenceModel("model.h5")
     y_pred = model.predict(X_test.reshape(-1, chunk_size, np.prod(X_test.shape[2:])))
+    logging.info("done.")
 
-    print(y_pred)
+    thres = 0.8
+    for i in range(len(y_pred)):
+        if y_pred[i] > 0.8:
+            logging.warning("{:.0f}-{:.0f} FLICKER".format(i * chunk_size, (i + 1) * chunk_size - 1))
+        else:
+            logging.debug("{:.0f}-{:.0f} ok".format(i * chunk_size, (i + 1) * chunk_size - 1))
+
+
+    logging.info("Program finished.")
 
 
 if __name__ == "__main__":
