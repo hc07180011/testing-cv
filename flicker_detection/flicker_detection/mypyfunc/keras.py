@@ -105,10 +105,15 @@ class Model:
             ]
         )
 
-    def plot_history(self, key: str) -> None:
+    def plot_history(self, key: str, title=None) -> None:
+        plt.figure(figsize=(16, 4), dpi=200)
         plt.plot(self.history.history["{}".format(key)])
         plt.plot(self.history.history["val_{}".format(key)])
         plt.legend(["{}".format(key), "val_{}".format(key)])
+        plt.xlabel("# Epochs")
+        plt.ylabel("{}".format(key))
+        if title:
+            plt.title("{}".format(title))
         plt.savefig("{}.png".format(key))
         plt.close()
 
