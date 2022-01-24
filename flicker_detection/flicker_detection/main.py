@@ -1,4 +1,5 @@
 import os
+import gc
 import time
 import logging
 from argparse import ArgumentParser
@@ -67,7 +68,14 @@ def _main() -> None:
 
     logging.info("Getting embedding ...")
     facenet = Facenet()
-    embeddings = facenet.get_embedding(np.array(raw_images))
+    embeddings = list()
+    for image in raw_images:
+        embeddings.append(
+            facenet.get_embedding(np.array(image), batched=False)[0]
+        )
+    del raw_images
+    gc.collect()
+    embeddings = np.array(embeddings)
     logging.info("done.")
 
     logging.info("Getting chunks ...")
@@ -80,9 +88,9 @@ def _main() -> None:
     y_pred = model.predict(X_test.reshape(-1, chunk_size, np.prod(X_test.shape[2:])))
     logging.info("done.")
 
-    thres = 0.8
+    thres = 0.95
     for i in range(len(y_pred)):
-        if y_pred[i] > 0.8:
+        if y_pred[i] > thres:
             logging.warning("{:.0f}-{:.0f} FLICKER".format(i * chunk_size, (i + 1) * chunk_size - 1))
         else:
             logging.debug("{:.0f}-{:.0f} ok".format(i * chunk_size, (i + 1) * chunk_size - 1))
