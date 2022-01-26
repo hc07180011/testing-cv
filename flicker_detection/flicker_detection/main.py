@@ -26,14 +26,14 @@ def _main() -> None:
         help="directory of experiments .png"
     )
     parser.add_argument(
-        "-dc", "--disable_cache", action="store_true",
-        default=False,
-        help="disable caching function"
-    )
-    parser.add_argument(
         "-c", "--cache_dir", type=str,
         default=".cache",
         help="directory of caches"
+    )
+    parser.add_argument(
+        "-o", "--output", action="store_true",
+        default=False,
+        help="output video chunks"
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true",
@@ -41,6 +41,8 @@ def _main() -> None:
         help="print debugging logs"
     )
     args = parser.parse_args()
+    
+    os.makedirs(args.cache_dir, exist_ok=True)
 
     init_logger()
     logging.info("Program starts")
@@ -62,7 +64,7 @@ def _main() -> None:
     success, image = vidcap.read()
     raw_images = list()
     while success:
-        raw_images.append(cv2.resize(image, (200, 200)))
+        raw_images.append(image)
         success, image = vidcap.read()
     logging.info("done.")
 
@@ -71,10 +73,13 @@ def _main() -> None:
     embeddings = list()
     for image in raw_images:
         embeddings.append(
-            facenet.get_embedding(np.array(image), batched=False)[0]
+            facenet.get_embedding(np.array(
+                cv2.resize(image, (200, 200))
+            ), batched=False)[0]
         )
-    del raw_images
-    gc.collect()
+    if not args.output:
+        del raw_images
+        gc.collect()
     embeddings = np.array(embeddings)
     logging.info("done.")
 
@@ -89,12 +94,30 @@ def _main() -> None:
     logging.info("done.")
 
     thres = 0.95
+    logging.info("Prediction with threshold =\t{}".format(thres))
     for i in range(len(y_pred)):
-        if y_pred[i] > thres:
-            logging.warning("{:.0f}-{:.0f} FLICKER".format(i * chunk_size, (i + 1) * chunk_size - 1))
-        else:
-            logging.debug("{:.0f}-{:.0f} ok".format(i * chunk_size, (i + 1) * chunk_size - 1))
+        left = i * chunk_size
+        right = (i + 1) * chunk_size
 
+        if y_pred[i] > thres:
+            logging.warning("{:.0f}-{:.0f}\tFLICKER\t(score={:.2f})".format(left, right - 1, y_pred[i]))
+        else:
+            logging.debug("{:.0f}-{:.0f}\tok\t(score={:.2f})".format(left, right - 1, y_pred[i]))
+
+        if args.output:
+            output_shape = raw_images[0].shape[:-1]
+            video_writer = cv2.VideoWriter(
+                os.path.join(
+                    args.cache_dir,
+                    args.data_path.replace("/", "_").replace(".mp4", "") + "_{:04d}({:.2f}).mp4".format(i, y_pred[i])
+                ),
+                cv2.VideoWriter_fourcc(*"mp4v"),
+                50.0,
+                output_shape
+            )
+            for j in range(left, right):
+                video_writer.write(cv2.resize(raw_images[j], output_shape))
+            video_writer.release()
 
     logging.info("Program finished.")
 

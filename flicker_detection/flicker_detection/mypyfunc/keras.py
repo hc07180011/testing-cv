@@ -179,3 +179,10 @@ class InferenceModel:
             y_true,
             (y_pred > threshold_range[np.argmax(f1_scores)]).astype(int)
         ))
+
+
+def AdaptiveMaxPool2d(X, output_size):
+    batch_size, h, w, c = tf.keras.backend.int_shape(x)
+    stride = np.floor(h / output_size).astype(np.int32)
+    kernel_size = h - (output_size - 1) * stride
+    return tf.keras.layers.MaxPooling2D(pool_size=(kernel_size, kernel_size), strides=stride)(x)
