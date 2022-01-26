@@ -35,7 +35,7 @@ def _embed(
         if os.path.exists(os.path.join(output_dir, "{}.npy".format(path))):
             continue
 
-        vidcap = cv2.VideoCapture(os.path.join(data_dir, path))
+        vidcap = cv2.VideoCapture(os.path.join(video_data_dir, path))
         success, image = vidcap.read()
 
         raw_images = list()
@@ -43,7 +43,7 @@ def _embed(
             raw_images.append(cv2.resize(image, (200, 200)))
             success, image = vidcap.read()
 
-        embeddings = model.get_embedding(np.array(raw_images))
+        embeddings = facenet.get_embedding(np.array(raw_images))
 
         np.save(os.path.join(output_dir, path), embeddings)
 
