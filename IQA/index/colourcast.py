@@ -33,8 +33,8 @@ class ColourCast:
 
         np_L = (np_Y > 0.008856)*np_L_1 + (np_Y <= 0.008856)*np_L_2
 
-        np_a = 500*(f(np_X/0.9515) - f(np_Y))
-        np_b = 200*(f(np_Y) - f(np_Z/1.0886))
+        np_a = 500*(f(np_X/0.950456) - f(np_Y))
+        np_b = 200*(f(np_Y) - f(np_Z/1.088754))
 
         D = np.sqrt(np_a.mean()**2 + np_b.mean()**2)
         M_a = abs(np_a - np_a.mean()).mean()
