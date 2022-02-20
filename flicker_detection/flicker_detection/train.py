@@ -40,7 +40,8 @@ def _embed(
 
         embeddings = list()
         while success:
-            embeddings.append(facenet.get_embedding(cv2.resize(image, (200, 200)), batched=False)[0])
+            embeddings.append(facenet.get_embedding(
+                cv2.resize(image, (200, 200)), batched=False)[0])
             success, image = vidcap.read()
 
         embeddings = np.array(embeddings)
@@ -249,3 +250,4 @@ def _main() -> None:
 
 if __name__ == "__main__":
     _main()
+    # checking out code base
