@@ -38,12 +38,12 @@ def _embed(
         vidcap = cv2.VideoCapture(os.path.join(video_data_dir, path))
         success, image = vidcap.read()
 
-        raw_images = list()
+        embeddings = list()
         while success:
-            raw_images.append(cv2.resize(image, (200, 200)))
+            embeddings.append(facenet.get_embedding(cv2.resize(image, (200, 200)), batched=False)[0])
             success, image = vidcap.read()
 
-        embeddings = facenet.get_embedding(np.array(raw_images))
+        embeddings = np.array(embeddings)
 
         np.save(os.path.join(output_dir, path), embeddings)
 
