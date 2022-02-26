@@ -41,7 +41,7 @@ def _embed(
         embeddings = list()
         while success:
             embeddings.append(facenet.get_embedding(
-                cv2.resize(image, (200, 200)), batched=False)[0])
+                cv2.resize(image, (200, 200)), batched=False))
             success, image = vidcap.read()
 
         embeddings = np.array(embeddings)
@@ -54,7 +54,7 @@ def _preprocess(
     mapping_path: str,
     data_dir: str,
     cache_path: str
-) -> tuple[np.array]:
+):  # -> tuple[np.array]:
 
     if os.path.exists("{}.npz".format(cache_path)):
         __cache__ = np.load("{}.npz".format(cache_path))
@@ -159,7 +159,7 @@ def _oversampling(
     X_train: np.array,
     y_train: np.array,
     method="SMOTE"
-) -> tuple[np.array]:
+):  # -> tuple[np.array]:
     sm = SMOTE(random_state=42)
     original_X_shape = X_train.shape
     X_train, y_train = sm.fit_resample(
