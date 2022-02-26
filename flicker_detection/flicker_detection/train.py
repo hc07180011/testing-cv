@@ -56,8 +56,8 @@ def _preprocess(
     cache_path: str
 ):  # -> tuple[np.array]:
 
-    if os.path.exists("\{}.npz".format(cache_path)):
-        __cache__ = np.load("\{}.npz".format(cache_path))
+    if os.path.exists("{}.npz".format(cache_path)):
+        __cache__ = np.load("{}.npz".format(cache_path))
         return tuple((__cache__[k] for k in __cache__))
 
     pass_videos = list([
@@ -166,10 +166,13 @@ def _oversampling(
 ):  # -> tuple[np.array]:
     sm = SMOTE(random_state=42)
     original_X_shape = X_train.shape
-    logging.info("original x shape: {}".format(original_X_shape))
-    logging.info("original y shape: {}".format(y_train.shape))
+    # logging.info("original x shape: {}".format(
+    #     np.vstack((X_train, X_train)).T.shape))
+    # logging.info("original y shape: {}".format(y_train.shape))
+    # logging.info(X_train)
+    # logging.info(y_train)
     X_train, y_train = sm.fit_resample(
-        # X_train,
+        # np.vstack((X_train, X_train)).T,
         np.reshape(X_train, (-1, np.prod(original_X_shape[1:]))),
         y_train
     )
@@ -181,8 +184,8 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
     logging.info("LSTM input shape: {}".format(X_train.shape[1:]))
 
     buf = Sequential()
-    buf.add(LSTM(units=64, input_shape=(X_train.shape[1:])))
-    buf.add(Dense(units=16, activation="relu"))
+    buf.add(LSTM(units=256, input_shape=(X_train.shape[3:])))
+    buf.add(Dense(units=128, activation="relu"))
     buf.add(Flatten())
     buf.add(Dense(units=1, activation="sigmoid"))
 
@@ -191,7 +194,7 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
         loss="binary_crossentropy",
         optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
     )
-    model.train(X_train, y_train, 1000, 0.1, 1024)
+    model.train(X_train[0, 0, :, :, :], y_train, 1000, 0.1, 1024)
     for k in list(("loss", "accuracy", "f1", "auc")):
         model.plot_history(k, title="{} - LSTM, Chunk, Oversampling".format(k))
 
@@ -200,7 +203,7 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
 
 def _test(model_path: str, X_test: np.array, y_test: np.array) -> None:
     model = InferenceModel(model_path)
-    y_pred = model.predict(X_test)
+    y_pred = model.predict(X_test[0, 0, :, :, :])
     model.evaluate(y_test, y_pred)
 
 
