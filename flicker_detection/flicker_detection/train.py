@@ -8,6 +8,7 @@ import tqdm
 import numpy as np
 import tensorflow as tf
 
+from tensorflow_addons.layers import AdaptiveMaxPooling3D
 from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
 from keras.models import Sequential
@@ -40,11 +41,10 @@ def _embed(
 
         embeddings = list()
         while success:
-            embeddings.append(facenet.get_embedding(
-                cv2.resize(image, (200, 200)), batched=False))
+            embeddings.append(cv2.resize(image, (200, 200)))
             success, image = vidcap.read()
 
-        embeddings = np.array(embeddings)
+        embeddings = facenet.get_embedding(np.array(embeddings))
 
         np.save(os.path.join(output_dir, path), embeddings)
 
@@ -56,8 +56,8 @@ def _preprocess(
     cache_path: str
 ):  # -> tuple[np.array]:
 
-    if os.path.exists("{}.npz".format(cache_path)):
-        __cache__ = np.load("{}.npz".format(cache_path))
+    if os.path.exists("\{}.npz".format(cache_path)):
+        __cache__ = np.load("\{}.npz".format(cache_path))
         return tuple((__cache__[k] for k in __cache__))
 
     pass_videos = list([
@@ -92,7 +92,10 @@ def _preprocess(
             ))
         )
         # TODO: should we take the last chunk?
+        # logging.info("# chunks: {}".format(len(asymmetric_chunks)))
+        # logging.info("1st chunks:{}".format(len(asymmetric_chunks[:-1])))
         return np.array(asymmetric_chunks[:-1]).tolist()
+        # return np.array(asymmetric_chunks).tolist()
 
     chunk_size = 30
 
@@ -139,6 +142,7 @@ def _preprocess(
             1 if sum(x) else 0
             for x in _get_chunk_array(buf_label, chunk_size)
         ])
+        break
 
     X_train = np.array(video_embeddings_list_train)
     X_test = np.array(video_embeddings_list_test)
@@ -162,7 +166,10 @@ def _oversampling(
 ):  # -> tuple[np.array]:
     sm = SMOTE(random_state=42)
     original_X_shape = X_train.shape
+    logging.info("original x shape: {}".format(original_X_shape))
+    logging.info("original y shape: {}".format(y_train.shape))
     X_train, y_train = sm.fit_resample(
+        # X_train,
         np.reshape(X_train, (-1, np.prod(original_X_shape[1:]))),
         y_train
     )
@@ -171,8 +178,10 @@ def _oversampling(
 
 
 def _train(X_train: np.array, y_train: np.array) -> Model:
+    logging.info("LSTM input shape: {}".format(X_train.shape[1:]))
+
     buf = Sequential()
-    buf.add((LSTM(units=64, input_shape=(X_train.shape[1:]))))
+    buf.add(LSTM(units=64, input_shape=(X_train.shape[1:])))
     buf.add(Dense(units=16, activation="relu"))
     buf.add(Flatten())
     buf.add(Dense(units=1, activation="sigmoid"))
@@ -227,14 +236,14 @@ def _main() -> None:
     )
     logging.info("[Preprocessing] done.")
 
-    if args.train:
-        logging.info("[Oversampling] Start ...")
-        X_train, y_train = _oversampling(
-            X_train,
-            y_train
-        )
-        logging.info("[Oversampling] done.")
+    logging.info("[Oversampling] Start ...")
+    X_train, y_train = _oversampling(
+        X_train,
+        y_train
+    )
+    logging.info("[Oversampling] done.")
 
+    if args.train:
         logging.info("[Training] Start ...")
         _ = _train(
             X_train,
