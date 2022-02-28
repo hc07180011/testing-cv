@@ -223,14 +223,12 @@ def _main() -> None:
 
     init_logger()
 
-    """
     logging.info("[Embedding] Start ...")
     _embed(
         os.path.join(data_base_dir, "flicker-detection"),
         os.path.join(data_base_dir, "embedding")
     )
     logging.info("[Embedding] done.")
-    """
 
     logging.info("[Preprocessing] Start ...")
     X_train, X_test, y_train, y_test = _preprocess(
