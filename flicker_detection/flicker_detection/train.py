@@ -166,13 +166,9 @@ def _oversampling(
 ):  # -> tuple[np.array]:
     sm = SMOTE(random_state=42)
     original_X_shape = X_train.shape
-    # logging.info("original x shape: {}".format(
-    #     np.vstack((X_train, X_train)).T.shape))
-    # logging.info("original y shape: {}".format(y_train.shape))
-    # logging.info(X_train)
-    # logging.info(y_train)
     X_train, y_train = sm.fit_resample(
-        # np.vstack((X_train, X_train)).T,
+        # np.reshape(np.vstack((X_train, X_train)),
+        #            (-1, np.prod(np.vstack((X_train, X_train)).T.shape))),
         np.reshape(X_train, (-1, np.prod(original_X_shape[1:]))),
         y_train
     )
@@ -184,7 +180,7 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
     logging.info("LSTM input shape: {}".format(X_train.shape[1:]))
 
     buf = Sequential()
-    buf.add(LSTM(units=256, input_shape=(X_train.shape[3:])))
+    buf.add(LSTM(units=256, input_shape=(X_train.shape[1:])))
     buf.add(Dense(units=128, activation="relu"))
     buf.add(Flatten())
     buf.add(Dense(units=1, activation="sigmoid"))
