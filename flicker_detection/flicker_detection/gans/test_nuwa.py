@@ -5,106 +5,50 @@ import torch
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-# from torch.utils.data.dataloader import DataLoader
-# from video_dataset import VideoFrameDataset, ImglistToTensor
-from torchvision.io import VideoReader
 from nuwa_pytorch import VQGanVAE, NUWA
-# from mpl_toolkits.axes_grid1 import ImageGrid
 
 
-def example_read_video(video_object, start=0, end=None, read_video=True, read_audio=True):
-    if end is None:
-        end = float("inf")
-    if end < start:
-        raise ValueError(
-            "end time should be larger than start time, got "
-            f"start time={start} and end time={end}"
-        )
+def vid_to_tensor(path):
+    vidcap = cv2.VideoCapture(path)
+    success, image = vidcap.read()
 
-    video_frames = torch.empty(0)
-    video_pts = []
-    if read_video:
-        video_object.set_current_stream("video")
-        frames = []
-        for frame in itertools.takewhile(lambda x: x['pts'] <= end, video_object.seek(start)):
-            frames.append(frame['data'])
-            video_pts.append(frame['pts'])
-        if len(frames) > 0:
-            video_frames = torch.stack(frames, 0)
+    frames = torch.Tensor()
+    while success:
+        success, image = vidcap.read()
+        frame = torch.Tensor(
+            np.array(image).reshape(1, 3, 1080, 2340))
+        frames = torch.cat((frames, frame), 0)
 
-    audio_frames = torch.empty(0)
-    audio_pts = []
-    if read_audio:
-        video_object.set_current_stream("audio")
-        frames = []
-        for frame in itertools.takewhile(lambda x: x['pts'] <= end, video_object.seek(start)):
-            frames.append(frame['data'])
-            video_pts.append(frame['pts'])
-        if len(frames) > 0:
-            audio_frames = torch.cat(frames, 0)
-
-    return video_frames, audio_frames, (video_pts, audio_pts), video_object.get_metadata()
+        logging.info("frames shape: {}".format(
+            frames.shape))
+    frames.to(device=device)
+    return frames
 
 
-if __name__ == "__main__":
-    """
-    https://github.com/lucidrains/nuwa-pytorch
-    """
-    from sys import path
-    from pathlib import Path
-    from os.path import dirname as dir
-    googlecv = Path().parent.absolute().parent
-    path = path.append(dir(str(googlecv)+"/"))
-    __package__ = "mypyfunc"
-    from mypyfunc.logger import init_logger
+def load_device():
+    device = ""
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+    return device
 
-    init_logger()
 
-    vae = VQGanVAE(
+def init_vae(device):
+    return VQGanVAE(
         dim=512,
         # default is 3, but can be changed to any value for the training of the segmentation masks (sketches)
         channels=3,
-        image_size=256,           # image size
+        image_size=(1080, 2340),           # image size
         num_layers=3,             # number of downsampling layers
         num_conv_blocks=2,        # number of convnext blocks
         vq_codebook_size=8192,    # codebook size
         vq_decay=0.8              # codebook exponential decay
-    )
+    ).to(device=device)
 
-    videos_root = os.path.join(os.getcwd(), '../data/flicker-detection')
 
-    logging.info("Extracting VAE encoder")
-    recon_images = []
-    for vid in os.listdir(videos_root):
-        # video_object = VideoReader(videos_root+'/'+vid, 'video')
-        vidcap = cv2.VideoCapture(os.path.join(
-            videos_root, videos_root+'/'+vid))
-        success, image = vidcap.read()
-
-        while success:
-            success, image = vidcap.read()
-            frame = torch.Tensor(np.array(cv2.resize(image, (256, 256))
-                                          )).reshape(1, 3, 256, 256)
-
-            logging.info("tensor shape: {}".format(
-                frame.shape))
-
-            loss = vae(frame, return_loss=True)
-            loss.backward()
-
-            discr_loss = vae(frame,
-                             return_discr_loss=True)
-            discr_loss.backward()
-            # generated images
-            recon_images.extend(vae(frame))
-
-        break
-
-    logging.info("Done extracting VAE encoder")
-
-    logging.info("initializing NUWA")
-
-    nuwa = NUWA(
+def init_nuwa(vae, device):
+    return NUWA(
         vae=vae,
         dim=512,
         text_num_tokens=20000,                # number of text tokens
@@ -127,7 +71,51 @@ if __name__ == "__main__":
         sparse_3dna_dilation=(1, 2, 4),
         # cheap relative positions for sparse 3dna transformer, by shifting along spatial dimensions by one
         shift_video_tokens=True
-    ).cuda()
+    ).to(device=device)
+
+
+if __name__ == "__main__":
+    """
+    https://github.com/lucidrains/nuwa-pytorch
+    """
+    from sys import path
+    from pathlib import Path
+    from os.path import dirname as dir
+    googlecv = Path().parent.absolute().parent
+    path = path.append(dir(str(googlecv)+"/"))
+    __package__ = "mypyfunc"
+    from mypyfunc.logger import init_logger
+
+    init_logger()
+    device = load_device()
+    vae = init_vae(device)
+
+    videos_root = os.path.join(os.getcwd(), '../data/flicker-detection')
+
+    logging.info("Extracting VAE encoder")
+    recon_images = []
+    for vid in os.listdir(videos_root):
+        path = os.path.join(
+            videos_root, videos_root+'/'+vid)
+        frames = vid_to_tensor(path)
+        loss = vae(frames, return_loss=True)
+        torch.cuda.empty_cache()
+        loss.backward()
+
+        discr_loss = vae(frames,
+                         return_discr_loss=True)
+        discr_loss.backward()
+
+        # generated images
+        recon_images.extend(vae(frames))
+
+        break
+
+    torch.cuda.synchronize()
+    logging.info("Done extracting VAE encoder")
+
+    logging.info("initializing NUWA")
+    nuwa = init_nuwa(vae, device)
 
     loss = nuwa(video=recon_images, return_loss=True)
     loss.backward()
