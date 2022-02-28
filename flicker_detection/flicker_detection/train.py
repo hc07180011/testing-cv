@@ -41,10 +41,10 @@ def _embed(
 
         embeddings = list()
         while success:
-            embeddings.append(cv2.resize(image, (200, 200)))
+            embeddings.append(facenet.get_embedding(cv2.resize(image, (200, 200)), batched=False)[0].flatten())
             success, image = vidcap.read()
 
-        embeddings = facenet.get_embedding(np.array(embeddings))
+        embeddings = np.array(embeddings)
 
         np.save(os.path.join(output_dir, path), embeddings)
 
@@ -184,7 +184,7 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
     logging.info("LSTM input shape: {}".format(X_train.shape[1:]))
 
     buf = Sequential()
-    buf.add(LSTM(units=256, input_shape=(X_train.shape[3:])))
+    buf.add(LSTM(units=256, input_shape=(X_train.shape[1:])))
     buf.add(Dense(units=128, activation="relu"))
     buf.add(Flatten())
     buf.add(Dense(units=1, activation="sigmoid"))
@@ -194,7 +194,7 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
         loss="binary_crossentropy",
         optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
     )
-    model.train(X_train[0, 0, :, :, :], y_train, 1000, 0.1, 1024)
+    model.train(X_train, y_train, 1000, 0.1, 1024)
     for k in list(("loss", "accuracy", "f1", "auc")):
         model.plot_history(k, title="{} - LSTM, Chunk, Oversampling".format(k))
 
@@ -203,7 +203,7 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
 
 def _test(model_path: str, X_test: np.array, y_test: np.array) -> None:
     model = InferenceModel(model_path)
-    y_pred = model.predict(X_test[0, 0, :, :, :])
+    y_pred = model.predict(X_test)
     model.evaluate(y_test, y_pred)
 
 
