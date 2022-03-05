@@ -2,22 +2,48 @@ import os
 import cv2
 import numpy as np
 from vidaug import augmentors as va
+from imgaug import augmenters as iaa
+from PIL import Image, ImageSequence
+
+
+def gif_loader(path, modality="RGB"):
+    frames = []
+    with open(path, 'rb') as f:
+        with Image.open(f) as video:
+            index = 1
+            for frame in ImageSequence.Iterator(video):
+                frames.append(frame.convert(modality))
+                index += 1
+        return frames
 
 
 def vid_to_frames(path):
     vidcap = cv2.VideoCapture(path)
-    success, image = vidcap.read()
-    frames, ishape = [], None
-    while success:
-        success, image = vidcap.read()
-        frames.append(image if image is not None else np.zeros(ishape))
-        ishape = image.shape if image is not None else ishape
-    return np.array(frames)
+    frameCount = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
+    frameWidth = int(vidcap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frameHeight = int(vidcap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    buf = np.empty((frameCount, frameHeight, frameWidth, 3), np.dtype('uint8'))
+    fc, ret = 0, True
+    while (fc < frameCount and ret):
+        ret, buf[fc] = vidcap.read()
+        fc += 1
+    vidcap.release()
+    return buf
 
 
 # Used to apply augmentor with 50% probability
 def sometimes(aug):
     return va.Sometimes(0.5, aug)
+
+
+def crop_flip_blur():
+    return iaa.Sequential([
+        # crop images from each side by 0 to 16px (randomly chosen)
+        iaa.Crop(px=(0, 16)),
+        iaa.Fliplr(0.5),  # horizontally flip 50% of the images
+        # blur images with a sigma of 0 to 3.0
+        iaa.GaussianBlur(sigma=(0, 3.0))
+    ])
 
 
 if __name__ == "__main__":
@@ -33,18 +59,14 @@ if __name__ == "__main__":
         # horizontally flip the video with 50% probability
         sometimes(va.HorizontalFlip())
     ])
-    fourcc, fps = cv2.VideoWriter_fourcc(*'mp4v'), 30
     for vid in os.listdir(videos_root):
         path = os.path.join(
             videos_root, videos_root+'/'+vid)
         # 'video' should be either a list of images from type of numpy array or PIL images
-        video = vid_to_frames(path)
-        video_aug = seq(video)
-        writer = cv2.VideoWriter(os.getcwd()+'/../data/augmented/aug_' +
-                                 vid, fourcc, fps, (video_aug[0].shape[0], video_aug[0].shape[1]))
-        print(video_aug[0].astype(np.uint8))
-        for frame in video_aug:
-            print(frame.shape)
-            writer.write(frame.astype(np.uint8))
-        writer.release()
+        frames = vid_to_frames(path)
+        # frames = gif_loader(path)
+        video_aug = seq(frames)
+        print(help(video_aug))
+        video_aug.save_video(os.path.join(
+            os.getcwd(), '../data/augmented/aug_'+vid))
         break

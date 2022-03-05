@@ -12,16 +12,18 @@ def vid_to_tensor(path):
     vidcap = cv2.VideoCapture(path)
     success, image = vidcap.read()
 
-    frames = torch.Tensor()
-    while success:
+    frames = torch.Tensor().to(device=device)
+    count, cur = 10, 0
+    while success and cur < count:
         success, image = vidcap.read()
         frame = torch.Tensor(
-            np.array(image).reshape(1, 3, 1080, 2340))
+            np.array(image).reshape(1, 3, 1080, 2340)).to(device=device)
         frames = torch.cat((frames, frame), 0)
 
         logging.info("frames shape: {}".format(
             frames.shape))
-    frames.to(device=device)
+        cur += 1
+    # frames.to(device=device)
     return frames
 
 
@@ -98,6 +100,7 @@ if __name__ == "__main__":
         path = os.path.join(
             videos_root, videos_root+'/'+vid)
         frames = vid_to_tensor(path)
+        print((type(frames)))
         loss = vae(frames, return_loss=True)
         torch.cuda.empty_cache()
         loss.backward()
