@@ -22,13 +22,15 @@ def vid_to_frames(path):
     frameCount = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
     frameWidth = int(vidcap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frameHeight = int(vidcap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    writer = cv2.VideoWriter("output.mp4", cv2.VideoWriter_fourcc(
+        *'mp4v'), 30, (frameWidth, frameHeight))
     buf = np.empty((frameCount, frameHeight, frameWidth, 3), np.dtype('uint8'))
     fc, ret = 0, True
     while (fc < frameCount and ret):
         ret, buf[fc] = vidcap.read()
         fc += 1
     vidcap.release()
-    return buf
+    return buf, writer
 
 
 # Used to apply augmentor with 50% probability
@@ -61,12 +63,16 @@ if __name__ == "__main__":
     ])
     for vid in os.listdir(videos_root):
         path = os.path.join(
-            videos_root, videos_root+'/'+vid)
+            videos_root, videos_root+'/'+'0000.mp4')
+        print(path)
         # 'video' should be either a list of images from type of numpy array or PIL images
-        frames = vid_to_frames(path)
-        # frames = gif_loader(path)
-        video_aug = seq(frames)
-        print(help(video_aug))
-        video_aug.save_video(os.path.join(
-            os.getcwd(), '../data/augmented/aug_'+vid))
+        frames, out = vid_to_frames(path)
+        print("augmenting video")
+        video_aug = seq(frames[:10])
+
+        for idx, frame in enumerate(video_aug):
+            print(idx)
+            cv2.imwrite(f'output{idx}.jpeg', frame)
+            out.write(frame.astype('uint8'))
+        out.release()
         break
