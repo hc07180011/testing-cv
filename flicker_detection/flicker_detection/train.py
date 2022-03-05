@@ -8,11 +8,13 @@ import tqdm
 import numpy as np
 import tensorflow as tf
 
-from tensorflow_addons.layers import AdaptiveMaxPooling3D
+from tensorflow_addons.layers import AdaptiveMaxPooling1D
 from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
 from keras.models import Sequential
-from keras.layers import LSTM, Dense, Flatten
+from keras.layers import LSTM, Dense, Flatten, BatchNormalization
+from keras.layers.convolutional_recurrent import ConvLSTM2D
+from keras.layers.convolutional import Conv1D
 
 from mypyfunc.keras import Model, InferenceModel
 from mypyfunc.logger import init_logger
@@ -41,7 +43,8 @@ def _embed(
 
         embeddings = list()
         while success:
-            embeddings.append(facenet.get_embedding(cv2.resize(image, (200, 200)), batched=False)[0].flatten())
+            embeddings.append(facenet.get_embedding(cv2.resize(
+                image, (200, 200)), batched=False)[0].flatten())
             success, image = vidcap.read()
 
         embeddings = np.array(embeddings)
@@ -179,11 +182,22 @@ def _oversampling(
 def _train(X_train: np.array, y_train: np.array) -> Model:
     logging.info("LSTM input shape: {}".format(X_train.shape[1:]))
 
-    buf = Sequential()
-    buf.add(LSTM(units=256, input_shape=(X_train.shape[1:])))
-    buf.add(Dense(units=128, activation="relu"))
-    buf.add(Flatten())
-    buf.add(Dense(units=1, activation="sigmoid"))
+    buf = Sequential([
+        LSTM(units=256, input_shape=(X_train.shape[1:])),
+        # Conv1D(filters=256, kernel_size=3, activation="relu"),
+        # ConvLSTM2D(filters=256, kernel_size=(3, 3),
+        #            input_shape=X_train.shape[1:],
+        #            padding='same', return_sequences=True),
+        # BatchNormalization(),
+        # ConvLSTM2D(filters=128, kernel_size=(3, 3),
+        #            padding='same', return_sequences=True),
+        AdaptiveMaxPooling1D(output_size=(256)),
+        Dense(units=128, activation="relu"),
+        AdaptiveMaxPooling1D(output_size=(128)),
+        Dense(units=64, activation="relu"),
+        Flatten(),
+        Dense(units=1, activation="sigmoid")
+    ])
 
     model = Model(
         model=buf,
