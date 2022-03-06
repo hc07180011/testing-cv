@@ -35,7 +35,7 @@ def _embed(
 
     facenet = Facenet()
     for path in tqdm.tqdm(os.listdir(video_data_dir)):
-        if os.path.exists(os.path.join(output_dir, "/{}.npy".format(path))):
+        if os.path.exists(os.path.join(output_dir, "{}.npy".format(path))):
             continue
 
         vidcap = cv2.VideoCapture(os.path.join(video_data_dir, path))
@@ -59,8 +59,8 @@ def _preprocess(
     cache_path: str
 ):  # -> tuple[np.array]:
 
-    if os.path.exists("/{}.npz".format(cache_path)):
-        __cache__ = np.load("/{}.npz".format(cache_path))
+    if os.path.exists("{}.npz".format(cache_path)):
+        __cache__ = np.load("{}.npz".format(cache_path))
         return tuple((__cache__[k] for k in __cache__))
 
     pass_videos = list([
