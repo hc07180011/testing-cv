@@ -8,13 +8,12 @@ import tqdm
 import numpy as np
 import tensorflow as tf
 
-from tensorflow_addons.layers import AdaptiveMaxPooling1D
+from tensorflow_addons.layers import AdaptiveMaxPooling3D
 from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
 from keras.models import Sequential
 from keras.layers import LSTM, Dense, Flatten, BatchNormalization
-from keras.layers.convolutional_recurrent import ConvLSTM2D
-from keras.layers.convolutional import Conv1D
+from keras.layers.convolutional_recurrent import ConvLSTM3D
 
 from mypyfunc.keras import Model, InferenceModel
 from mypyfunc.logger import init_logger
@@ -43,8 +42,10 @@ def _embed(
 
         embeddings = list()
         while success:
-            embeddings.append(facenet.get_embedding(cv2.resize(
-                image, (200, 200)), batched=False)[0].flatten())
+            embeddings.append(facenet.get_embedding(
+                cv2.resize(image, (200, 200)), batched=False))
+            # embeddings.append(facenet.get_embedding(cv2.resize(
+            #     image, (200, 200)), batched=False)[0].flatten()) # where flattened spatial dimension
             success, image = vidcap.read()
 
         embeddings = np.array(embeddings)
@@ -170,8 +171,6 @@ def _oversampling(
     sm = SMOTE(random_state=42)
     original_X_shape = X_train.shape
     X_train, y_train = sm.fit_resample(
-        # np.reshape(np.vstack((X_train, X_train)),
-        #            (-1, np.prod(np.vstack((X_train, X_train)).T.shape))),
         np.reshape(X_train, (-1, np.prod(original_X_shape[1:]))),
         y_train
     )
@@ -183,18 +182,19 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
     logging.info("LSTM input shape: {}".format(X_train.shape[1:]))
 
     buf = Sequential([
-        LSTM(units=256, input_shape=(X_train.shape[1:])),
-        # Conv1D(filters=256, kernel_size=3, activation="relu"),
-        # ConvLSTM2D(filters=256, kernel_size=(3, 3),
-        #            input_shape=X_train.shape[1:],
-        #            padding='same', return_sequences=True),
+        # LSTM(units=256, input_shape=(X_train.shape[1:])),
+        ConvLSTM3D(filters=64, kernel_size=(3, 3, 3),
+                   input_shape=X_train.shape[1:],
+                   padding='same', return_sequences=True),
         # BatchNormalization(),
-        # ConvLSTM2D(filters=128, kernel_size=(3, 3),
+        AdaptiveMaxPooling3D(output_size=(X_train.shape[1:-2])),
+        # ConvLSTM3D(filters=256, kernel_size=(3, 3, 3),
         #            padding='same', return_sequences=True),
-        AdaptiveMaxPooling1D(output_size=(256)),
+        # AdaptiveMaxPooling3D(output_size=(30, 1, 6)),
         Dense(units=128, activation="relu"),
-        AdaptiveMaxPooling1D(output_size=(128)),
+        AdaptiveMaxPooling3D(output_size=(X_train.shape[1:-2])),
         Dense(units=64, activation="relu"),
+        AdaptiveMaxPooling3D(output_size=(X_train.shape[1:-2])),
         Flatten(),
         Dense(units=1, activation="sigmoid")
     ])
