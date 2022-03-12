@@ -28,7 +28,7 @@ class MyMetrics:
             )
         )
         precision = true_positives / \
-                    (predicted_positives + tf.keras.backend.epsilon())
+            (predicted_positives + tf.keras.backend.epsilon())
         return precision
 
     def recall(self, y_true, y_pred):
@@ -43,13 +43,13 @@ class MyMetrics:
             )
         )
         recall = true_positives / \
-                    (possible_positives + tf.keras.backend.epsilon())
+            (possible_positives + tf.keras.backend.epsilon())
         return recall
 
     def f1(self, y_true, y_pred):
         precision = self.precision(y_true, y_pred)
         recall = self.recall(y_true, y_pred)
-        return 2 * ((precision * recall) / \
+        return 2 * ((precision * recall) /
                     (precision + recall + tf.keras.backend.epsilon()))
 
 
@@ -106,6 +106,8 @@ class Model:
         )
 
     def plot_history(self, key: str, title=None) -> None:
+        if key == 'auc':
+            logging.info("{}".format(self.history.history[key]))
         plt.figure(figsize=(16, 4), dpi=200)
         plt.plot(self.history.history["{}".format(key)])
         plt.plot(self.history.history["val_{}".format(key)])

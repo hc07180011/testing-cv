@@ -145,7 +145,6 @@ def _preprocess(
             1 if sum(x) else 0
             for x in _get_chunk_array(buf_label, chunk_size)
         ])
-        break
 
     X_train = np.array(video_embeddings_list_train)
     X_test = np.array(video_embeddings_list_test)
@@ -184,13 +183,6 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
 
     buf = Sequential([
         LSTM(units=256, input_shape=(X_train.shape[1:])),
-        # Conv1D(filters=256, kernel_size=3, activation="relu"),
-        # ConvLSTM2D(filters=256, kernel_size=(3, 3),
-        #            input_shape=X_train.shape[1:],
-        #            padding='same', return_sequences=True),
-        # BatchNormalization(),
-        # ConvLSTM2D(filters=128, kernel_size=(3, 3),
-        #            padding='same', return_sequences=True),
         AdaptiveMaxPooling1D(output_size=(256)),
         Dense(units=128, activation="relu"),
         AdaptiveMaxPooling1D(output_size=(128)),
@@ -272,4 +264,4 @@ def _main() -> None:
 
 if __name__ == "__main__":
     _main()
-    # checking out code base
+    # vimdiff ~/googlecv/train.py /home/henrychao/googlecv/train.py
