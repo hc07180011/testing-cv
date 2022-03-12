@@ -1,8 +1,8 @@
 import os
 import cv2
+import logging
 import numpy as np
 from vidaug import augmentors as va
-from imgaug import augmenters as iaa
 from PIL import Image, ImageSequence
 from multiprocessing import Process, Queue
 
@@ -70,7 +70,9 @@ def geometric_aug():
 
 def producer(frames, aug_lst, q):
     for aug in aug_lst:
+        logging.info('Augmenting....')
         video_aug = aug(frames)
+        logging.info('Augmenting done.')
         q.put(video_aug)
 
 
@@ -80,38 +82,43 @@ def consumer(q, i):
             vidaug = q.get()
             vidaug[0].save(
                 f'{vid[:-4]}_vidaug{i}.gif', save_all=True, append_images=vidaug, loop=0)
+            logging.info(f'{vid[:-4]}_vidaug{i}.gif written to file')
             i += 1
 
 
 if __name__ == "__main__":
+    from sys import path
+    from pathlib import Path
+    from os.path import dirname as dir
+
+    OD = Path().parent.absolute().parent
+    path = path.append(dir(str(OD)+"/"))
+    __package__ = "mypyfunc"
+
+    from mypyfunc.logger import init_logger
+    init_logger()
+
     videos_root = os.path.join(os.getcwd(), '../data/flicker-detection')
-
-    # for vid in os.listdir(videos_root):
-
-    #     frames, npframes, writer = read_vid(
-    #         videos_root+'/'+vid, outstr=videos_root+f'/{vid[:-4]}_imaug.mp4')
-    #     imaug = random_im_aug(npframes, crop_flip_blur())
-    #     write_vid(writer, npframes)
 
     for vid in os.listdir(videos_root):
 
         frames, npframes, writer = read_vid(
             videos_root+'/'+vid, outstr=videos_root+f'/{vid[:-4]}_imaug.mp4')
-        print("WTF")
+
         q = Queue()
         augmentors = affine_aug()+intensity_aug()+flip_aug()+geometric_aug()
-        for i in range(0, len(augmentors), os.cpu_count()-2):
+        for i in range(0, len(augmentors), os.cpu_count()-14):
 
-            aug_lst = augmentors[i:i+os.cpu_count()-6]
+            aug_lst = augmentors[i:i+os.cpu_count()-14]
 
             p = tuple(Process(target=producer, args=(frames, aug_lst, q))
-                      for _ in range(os.cpu_count()-6))
+                      for _ in range(os.cpu_count()-14))
 
             c = tuple(Process(target=consumer, args=(q, i))
-                      for _ in range(os.cpu_count()-10))
+                      for _ in range(os.cpu_count()-2))
 
-            # for c_ in c:
-            #     c_.daemmon = True
+            for c_ in c:
+                c_.daemmon = True
 
             for p_ in p:
                 p_.start()
