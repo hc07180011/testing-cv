@@ -106,8 +106,6 @@ class Model:
         )
 
     def plot_history(self, key: str, title=None) -> None:
-        if key == 'auc':
-            logging.info("{}".format(self.history.history[key]))
         plt.figure(figsize=(16, 4), dpi=200)
         plt.plot(self.history.history["{}".format(key)])
         plt.plot(self.history.history["val_{}".format(key)])
