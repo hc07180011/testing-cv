@@ -18,7 +18,7 @@ def gif_loader(path, modality="RGB"):
         return frames
 
 
-def read_vid(path, outstr='output.mp4', fcc=cv2.VideoWriter_fourcc(*'MJPG'), fc=0, ret=True):
+def read_vid(path, fc=0, ret=True):
     vidcap = cv2.VideoCapture(path)
     if (vidcap.isOpened() == False):
         print("Error reading video file")
@@ -26,22 +26,28 @@ def read_vid(path, outstr='output.mp4', fcc=cv2.VideoWriter_fourcc(*'MJPG'), fc=
     frameCount = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = vidcap.get(cv2.CAP_PROP_FPS)
     size = (int(vidcap.get(3)), int(vidcap.get(4)))
-    writer = cv2.VideoWriter(outstr,
-                             fcc,
-                             fps, size)
 
     buf = np.empty((frameCount, size[1], size[0], 3), np.dtype('uint8'))
     while (fc < frameCount and ret):
         ret, buf[fc] = vidcap.read()
         fc += 1
     vidcap.release()
-    frames = [Image.fromarray(frame.astype('uint8')) for frame in buf]
-    return frames, buf, writer
+    return buf, frameCount, fps, size
+
+
+def get_writer(fps, size, outstr='output.mp4', fcc=cv2.VideoWriter_fourcc(*'MJPG')):
+    return cv2.VideoWriter(outstr,
+                           fcc,
+                           fps, size)
+
+
+def np_pil(frames):
+    return [Image.fromarray(frame.astype('uint8')) for frame in frames]
 
 
 def write_vid(writer, frames):
     for frame in frames:
-        writer.write(frame)
+        writer.write(frame.astype('uint8'))
     writer.release()
 
 
@@ -76,13 +82,12 @@ def producer(frames, aug_lst, q):
         q.put(video_aug)
 
 
-def consumer(q, i):
+def consumer(q, vid, i):
     while True:
         if not q.empty():
-            vidaug = q.get()
-            vidaug[0].save(
-                f'{vid[:-4]}_vidaug{i}.gif', save_all=True, append_images=vidaug, loop=0)
-            logging.info(f'{vid[:-4]}_vidaug{i}.gif written to file')
+            video_aug = q.get()
+            np.save(f"../augmented/aug_{vid[:-4]}{i}.npy", np.array(video_aug))
+            logging.info(f"../augmented/{vid[:-4]}_aug{i}.npy written to file")
             i += 1
 
 
@@ -91,34 +96,34 @@ if __name__ == "__main__":
     from pathlib import Path
     from os.path import dirname as dir
 
-    OD = Path().parent.absolute().parent
+    OD = Path().absolute().parent.parent
     path = path.append(dir(str(OD)+"/"))
     __package__ = "mypyfunc"
 
     from mypyfunc.logger import init_logger
     init_logger()
 
-    videos_root = os.path.join(os.getcwd(), '../data/flicker-detection')
+    videos_root = os.path.join(os.getcwd(), '../flicker-detection')
 
     for vid in os.listdir(videos_root):
 
-        frames, npframes, writer = read_vid(
-            videos_root+'/'+vid, outstr=videos_root+f'/{vid[:-4]}_imaug.mp4')
+        frames, frame_count, fps, size = read_vid(
+            videos_root+'/'+vid)
 
-        q = Queue()
         augmentors = affine_aug()+intensity_aug()+flip_aug()+geometric_aug()
-        for i in range(0, len(augmentors), os.cpu_count()-14):
+        q = Queue()
+        for i in range(0, len(augmentors), os.cpu_count()-15):
 
-            aug_lst = augmentors[i:i+os.cpu_count()-14]
+            aug_lst = augmentors[i:i+os.cpu_count()-15]
 
             p = tuple(Process(target=producer, args=(frames, aug_lst, q))
-                      for _ in range(os.cpu_count()-14))
+                      for _ in range(os.cpu_count()-15))
 
-            c = tuple(Process(target=consumer, args=(q, i))
-                      for _ in range(os.cpu_count()-2))
+            c = tuple(Process(target=consumer, args=(q, vid, i))
+                      for _ in range(os.cpu_count()-1))
 
             for c_ in c:
-                c_.daemmon = True
+                c_.daemon = True
 
             for p_ in p:
                 p_.start()
