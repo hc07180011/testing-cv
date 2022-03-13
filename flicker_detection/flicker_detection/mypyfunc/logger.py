@@ -1,7 +1,6 @@
 import sys
 import logging
 
-import coloredlogs
 from rich.logging import RichHandler
 
 
@@ -9,8 +8,8 @@ def init_logger() -> None:
     logger = logging.getLogger("rich")
 
     FORMAT = "%(name)s[%(process)d] " + \
-                "%(processName)s(%(threadName)s) " + \
-                "%(module)s:%(lineno)d  %(message)s"
+        "%(processName)s(%(threadName)s) " + \
+        "%(module)s:%(lineno)d  %(message)s"
 
     logger.setLevel(logging.DEBUG)
     formatter = logging.Formatter(
