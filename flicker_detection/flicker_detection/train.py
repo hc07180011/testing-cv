@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+from typing import Tuple
 from argparse import ArgumentParser
 
 import cv2
@@ -57,7 +58,7 @@ def _preprocess(
     mapping_path: str,
     data_dir: str,
     cache_path: str
-):  # -> tuple[np.array]:
+) -> Tuple[np.array]:
 
     if os.path.exists("{}.npz".format(cache_path)):
         __cache__ = np.load("{}.npz".format(cache_path))
@@ -165,12 +166,10 @@ def _oversampling(
     X_train: np.array,
     y_train: np.array,
     method="SMOTE"
-):  # -> tuple[np.array]:
+) -> Tuple[np.array]:
     sm = SMOTE(random_state=42)
     original_X_shape = X_train.shape
     X_train, y_train = sm.fit_resample(
-        # np.reshape(np.vstack((X_train, X_train)),
-        #            (-1, np.prod(np.vstack((X_train, X_train)).T.shape))),
         np.reshape(X_train, (-1, np.prod(original_X_shape[1:]))),
         y_train
     )
