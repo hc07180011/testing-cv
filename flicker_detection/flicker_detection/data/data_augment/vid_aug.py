@@ -111,16 +111,17 @@ if __name__ == "__main__":
             videos_root+'/'+vid)
 
         augmentors = affine_aug()+intensity_aug()+flip_aug()+geometric_aug()
-        q = Queue()
-        for i in range(0, len(augmentors), os.cpu_count()-15):
 
-            aug_lst = augmentors[i:i+os.cpu_count()-15]
+        q = Queue()
+        for i in range(0, len(augmentors), os.cpu_count()-1):
+
+            aug_lst = augmentors[i:i+os.cpu_count()-1]
 
             p = tuple(Process(target=producer, args=(frames, aug_lst, q))
-                      for _ in range(os.cpu_count()-15))
+                      for _ in range(os.cpu_count()-1))
 
             c = tuple(Process(target=consumer, args=(q, vid, i))
-                      for _ in range(os.cpu_count()-1))
+                      for _ in range(os.cpu_count()-15))
 
             for c_ in c:
                 c_.daemon = True
