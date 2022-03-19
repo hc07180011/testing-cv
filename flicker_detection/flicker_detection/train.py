@@ -9,11 +9,10 @@ import tqdm
 import numpy as np
 import tensorflow as tf
 
-from tensorflow_addons.layers import AdaptiveMaxPooling1D
 from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
 from keras.models import Sequential
-from keras.layers import LSTM, Dense, Flatten, BatchNormalization
+from keras.layers import LSTM, Dense, Flatten, Bidirectional
 from keras.layers.convolutional_recurrent import ConvLSTM2D
 from keras.layers.convolutional import Conv1D
 
@@ -180,16 +179,12 @@ def _oversampling(
 def _train(X_train: np.array, y_train: np.array) -> Model:
     logging.info("LSTM input shape: {}".format(X_train.shape[1:]))
 
-    buf = Sequential([
-        LSTM(units=256, input_shape=(X_train.shape[1:])),
-        AdaptiveMaxPooling1D(output_size=(256)),
-        Dense(units=128, activation="relu"),
-        AdaptiveMaxPooling1D(output_size=(128)),
-        Dense(units=64, activation="relu"),
-        Flatten(),
-        Dense(units=1, activation="sigmoid")
-    ])
-
+    buf = Sequential()
+    buf.add(Bidirectional(LSTM(units=256, activation='reky'),
+                          input_shape=(X_train.shape[1:])))
+    buf.add(Dense(units=128, activation="relu"))
+    buf.add(Flatten())
+    buf.add(Dense(units=1, activation="sigmoid"))
     model = Model(
         model=buf,
         loss="binary_crossentropy",
