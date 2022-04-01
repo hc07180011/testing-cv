@@ -52,6 +52,23 @@ def _embed(
         np.save(os.path.join(output_dir, path), embeddings)
 
 
+def _get_chunk_array(input_arr: np.array, chunk_size: int) -> list:
+    i_pad = np.pad(input_arr, (0, chunk_size-len(input_arr) %
+                   chunk_size), 'constant')
+    # i_pad = input_arr
+    asymmetric_chunks = np.split(
+        i_pad,
+        list(range(
+            chunk_size,
+            input_arr.shape[0] + 1,
+            chunk_size
+        ))
+    )
+    logging.info("DIVISION {}".format(i_pad.shape[0]/len(asymmetric_chunks)))
+    return np.array(asymmetric_chunks).tolist()
+    # return np.array(asymmetric_chunks[:-1]).tolist()
+
+
 def _preprocess(
     label_path: str,
     mapping_path: str,
@@ -84,21 +101,6 @@ def _preprocess(
         test_size=0.1,
         random_state=42
     )
-
-    def _get_chunk_array(input_arr: np.array, chunk_size: int) -> list:
-        asymmetric_chunks = np.split(
-            input_arr,
-            list(range(
-                chunk_size,
-                input_arr.shape[0] + 1,
-                chunk_size
-            ))
-        )
-        # TODO: should we take the last chunk?
-        # logging.info("# chunks: {}".format(len(asymmetric_chunks)))
-        # logging.info("1st chunks:{}".format(len(asymmetric_chunks[:-1])))
-        return np.array(asymmetric_chunks[:-1]).tolist()
-        # return np.array(asymmetric_chunks).tolist()
 
     chunk_size = 30
 
