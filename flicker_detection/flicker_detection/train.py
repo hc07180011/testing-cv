@@ -273,4 +273,5 @@ def _main() -> None:
 
 if __name__ == "__main__":
     _main()
+    # https://github.com/3b1b/manim/issues/1213 opencv issue
     # checking out code base
