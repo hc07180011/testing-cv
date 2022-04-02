@@ -53,11 +53,9 @@ def _embed(
 
 
 def _get_chunk_array(input_arr: np.array, chunk_size: int) -> list:
-    usable_vec = input_arr[:(
-        np.floor(len(input_arr)/chunk_size)*chunk_size).astype(int)]
-    i_pad = np.concatenate((usable_vec, np.array(
-        [input_arr[-1]]*(chunk_size-len(usable_vec) % chunk_size))))
-
+    # i_pad = np.pad(input_arr, (0, chunk_size-len(input_arr) %
+    #                chunk_size), 'constant')
+    i_pad = input_arr
     asymmetric_chunks = np.split(
         i_pad,
         list(range(
@@ -66,7 +64,9 @@ def _get_chunk_array(input_arr: np.array, chunk_size: int) -> list:
             chunk_size
         ))
     )
-    return np.array(asymmetric_chunks)
+    logging.info("DIVISION {}".format(i_pad.shape[0]/len(asymmetric_chunks)))
+    # return np.array(asymmetric_chunks).tolist()
+    return np.array(asymmetric_chunks[:-1]).tolist()
 
 
 def _preprocess(
@@ -104,72 +104,47 @@ def _preprocess(
 
     chunk_size = 30
 
-    video_embeddings_list_train = None
-    video_labels_list_train = list()
-
+    video_embeddings_list_train = tuple()
+    video_labels_list_train = tuple()
     logging.debug(
         "taking training chunks, length = {}".format(len(embedding_list_train))
     )
-
-    for idx, path in enumerate(tqdm.tqdm(embedding_list_train)):
+    for path in tqdm.tqdm(embedding_list_train):
         real_filename = encoding_filename_mapping[path.replace(".npy", "")]
 
         buf_embedding = np.load(os.path.join(data_dir, path))
 
-        if video_embeddings_list_train is None:
-            video_embeddings_list_train = tf.zeros(
-                (len(embedding_list_train)*(chunk_size+1), chunk_size, *buf_embedding.shape[1:]))
-            logging.info("allocated {}".format(
-                video_embeddings_list_train.shape))
-
-        chunk = _get_chunk_array(buf_embedding, chunk_size)
-        video_embeddings_list_train[idx*chunk.shape[0]:(
-            idx+1)*chunk.shape[0]] = chunk
-        # video_embeddings_list_train.extend(
-        #     _get_chunk_array(buf_embedding, chunk_size)
-        # )
+        video_embeddings_list_train = video_embeddings_list_train + \
+            (_get_chunk_array(buf_embedding, chunk_size),)
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
         buf_label = np.zeros(buf_embedding.shape[0]).astype(int)
         buf_label[flicker_idxs] = 1
-        video_labels_list_train.extend([
+        video_labels_list_train = video_labels_list_train + tuple(
             1 if sum(x) else 0
             for x in _get_chunk_array(buf_label, chunk_size)
-        ])
+        )
 
-    video_embeddings_list_test = None
-    video_labels_list_test = list()
-
+    video_embeddings_list_test = tuple()
+    video_labels_list_test = tuple()
     logging.debug(
         "taking testing chunks, length = {}".format(len(embedding_list_test))
     )
-
-    for idx, path in enumerate(tqdm.tqdm(embedding_list_test)):
+    for path in tqdm.tqdm(embedding_list_test):
         real_filename = encoding_filename_mapping[path.replace(".npy", "")]
 
         buf_embedding = np.load(os.path.join(data_dir, path))
 
-        if video_embeddings_list_test is None:
-            video_embeddings_list_test = tf.zeros(
-                (len(embedding_list_test)*(chunk_size+1), chunk_size, *buf_embedding.shape[1:]))
-            logging.info("allocated {}".format(
-                video_embeddings_list_test.shape))
-
-        chunk = _get_chunk_array(buf_embedding, chunk_size)
-        video_embeddings_list_test[idx*chunk.shape[0]:(
-            idx+1)*chunk.shape[0]] = chunk
-
-        # video_embeddings_list_test.extend(
-        #     _get_chunk_array(buf_embedding, chunk_size)
-        # )
+        video_embeddings_list_test = video_embeddings_list_test + \
+            (_get_chunk_array(buf_embedding, chunk_size),)
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
         buf_label = np.zeros(buf_embedding.shape[0]).astype(int)
         buf_label[flicker_idxs] = 1
-        video_labels_list_test.extend([
+        video_labels_list_test = video_labels_list_test + tuple(
             1 if sum(x) else 0
             for x in _get_chunk_array(buf_label, chunk_size)
-        ])
+        )
 
     X_train = np.array(video_embeddings_list_train)
     X_test = np.array(video_embeddings_list_test)
