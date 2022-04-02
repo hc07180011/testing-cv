@@ -13,8 +13,7 @@ from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
 from keras.models import Sequential
 from keras.layers import LSTM, Dense, Flatten, Bidirectional
-from keras.layers.convolutional_recurrent import ConvLSTM2D
-from keras.layers.convolutional import Conv1D
+
 
 from mypyfunc.keras import Model, InferenceModel
 from mypyfunc.logger import init_logger
@@ -43,8 +42,10 @@ def _embed(
 
         embeddings = list()
         while success:
-            embeddings.append(facenet.get_embedding(cv2.resize(
-                image, (200, 200)), batched=False)[0].flatten())
+            embeddings.append(facenet.get_embedding(
+                cv2.resize(image, (200, 200)), batched=False))
+            # embeddings.append(facenet.get_embedding(cv2.resize(
+            #     image, (200, 200)), batched=False)[0].flatten()) # where flattened spatial dimension
             success, image = vidcap.read()
 
         embeddings = np.array(embeddings)
@@ -182,14 +183,13 @@ def _oversampling(
 
 
 def _train(X_train: np.array, y_train: np.array) -> Model:
-    logging.info("LSTM input shape: {}".format(X_train.shape[1:]))
-
     buf = Sequential()
     buf.add(Bidirectional(LSTM(units=256, activation='reky'),
                           input_shape=(X_train.shape[1:])))
     buf.add(Dense(units=128, activation="relu"))
     buf.add(Flatten())
     buf.add(Dense(units=1, activation="sigmoid"))
+
     model = Model(
         model=buf,
         loss="binary_crossentropy",
@@ -264,3 +264,4 @@ def _main() -> None:
 if __name__ == "__main__":
     _main()
     # vimdiff ~/googlecv/train.py /home/henrychao/googlecv/train.py
+    # https://github.com/3b1b/manim/issues/1213 opencv issue
