@@ -53,9 +53,11 @@ def _embed(
 
 
 def _get_chunk_array(input_arr: np.array, chunk_size: int) -> list:
-    i_pad = np.pad(input_arr, (0, chunk_size-len(input_arr) %
-                   chunk_size), 'constant')
-    # i_pad = input_arr
+    usable_vec = input_arr[:(
+        np.floor(len(input_arr)/chunk_size)*chunk_size).astype(int)]
+    i_pad = np.concatenate((usable_vec, np.array(
+        [input_arr[-1]]*(chunk_size-len(usable_vec) % chunk_size))))
+
     asymmetric_chunks = np.split(
         i_pad,
         list(range(
@@ -64,9 +66,7 @@ def _get_chunk_array(input_arr: np.array, chunk_size: int) -> list:
             chunk_size
         ))
     )
-    logging.info("DIVISION {}".format(i_pad.shape[0]/len(asymmetric_chunks)))
-    return np.array(asymmetric_chunks).tolist()
-    # return np.array(asymmetric_chunks[:-1]).tolist()
+    return np.array(asymmetric_chunks)
 
 
 def _preprocess(
@@ -104,19 +104,30 @@ def _preprocess(
 
     chunk_size = 30
 
-    video_embeddings_list_train = list()
+    video_embeddings_list_train = None
     video_labels_list_train = list()
+
     logging.debug(
         "taking training chunks, length = {}".format(len(embedding_list_train))
     )
-    for path in tqdm.tqdm(embedding_list_train):
+
+    for idx, path in enumerate(tqdm.tqdm(embedding_list_train)):
         real_filename = encoding_filename_mapping[path.replace(".npy", "")]
 
         buf_embedding = np.load(os.path.join(data_dir, path))
 
-        video_embeddings_list_train.extend(
-            _get_chunk_array(buf_embedding, chunk_size)
-        )
+        if video_embeddings_list_train is None:
+            video_embeddings_list_train = tf.zeros(
+                (len(embedding_list_train)*(chunk_size+1), chunk_size, *buf_embedding.shape[1:]))
+            logging.info("allocated {}".format(
+                video_embeddings_list_train.shape))
+
+        chunk = _get_chunk_array(buf_embedding, chunk_size)
+        video_embeddings_list_train[idx*chunk.shape[0]:(
+            idx+1)*chunk.shape[0]] = chunk
+        # video_embeddings_list_train.extend(
+        #     _get_chunk_array(buf_embedding, chunk_size)
+        # )
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
         buf_label = np.zeros(buf_embedding.shape[0]).astype(int)
@@ -126,19 +137,31 @@ def _preprocess(
             for x in _get_chunk_array(buf_label, chunk_size)
         ])
 
-    video_embeddings_list_test = list()
+    video_embeddings_list_test = None
     video_labels_list_test = list()
+
     logging.debug(
         "taking testing chunks, length = {}".format(len(embedding_list_test))
     )
-    for path in tqdm.tqdm(embedding_list_test):
+
+    for idx, path in enumerate(tqdm.tqdm(embedding_list_test)):
         real_filename = encoding_filename_mapping[path.replace(".npy", "")]
 
         buf_embedding = np.load(os.path.join(data_dir, path))
 
-        video_embeddings_list_test.extend(
-            _get_chunk_array(buf_embedding, chunk_size)
-        )
+        if video_embeddings_list_test is None:
+            video_embeddings_list_test = tf.zeros(
+                (len(embedding_list_test)*(chunk_size+1), chunk_size, *buf_embedding.shape[1:]))
+            logging.info("allocated {}".format(
+                video_embeddings_list_test.shape))
+
+        chunk = _get_chunk_array(buf_embedding, chunk_size)
+        video_embeddings_list_test[idx*chunk.shape[0]:(
+            idx+1)*chunk.shape[0]] = chunk
+
+        # video_embeddings_list_test.extend(
+        #     _get_chunk_array(buf_embedding, chunk_size)
+        # )
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
         buf_label = np.zeros(buf_embedding.shape[0]).astype(int)
