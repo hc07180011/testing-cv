@@ -9,12 +9,11 @@ import tqdm
 import numpy as np
 import tensorflow as tf
 
-from tensorflow_addons.layers import AdaptiveMaxPooling3D
 from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
 from keras.models import Sequential
-from keras.layers import LSTM, Dense, Flatten, BatchNormalization
-from keras.layers.convolutional_recurrent import ConvLSTM3D
+from keras.layers import LSTM, Dense, Flatten, Bidirectional
+
 
 from mypyfunc.keras import Model, InferenceModel
 from mypyfunc.logger import init_logger
@@ -54,6 +53,27 @@ def _embed(
         np.save(os.path.join(output_dir, path), embeddings)
 
 
+def _get_chunk_array(input_arr: np.array, chunk_size: int) -> list:
+    if input_arr.size == 0:
+        return np.zeros(1859)
+
+    usable_vec = input_arr[:(
+        np.floor(len(input_arr)/chunk_size)*chunk_size).astype(int)]
+
+    i_pad = np.concatenate((usable_vec, np.array(
+        [input_arr[-1]]*(chunk_size-len(usable_vec) % chunk_size))))
+
+    asymmetric_chunks = np.split(
+        i_pad,
+        list(range(
+            chunk_size,
+            input_arr.shape[0] + 1,
+            chunk_size
+        ))
+    )
+    return np.array(asymmetric_chunks)
+
+
 def _preprocess(
     label_path: str,
     mapping_path: str,
@@ -87,25 +107,10 @@ def _preprocess(
         random_state=42
     )
 
-    def _get_chunk_array(input_arr: np.array, chunk_size: int) -> list:
-        asymmetric_chunks = np.split(
-            input_arr,
-            list(range(
-                chunk_size,
-                input_arr.shape[0] + 1,
-                chunk_size
-            ))
-        )
-        # TODO: should we take the last chunk?
-        # logging.info("# chunks: {}".format(len(asymmetric_chunks)))
-        # logging.info("1st chunks:{}".format(len(asymmetric_chunks[:-1])))
-        return np.array(asymmetric_chunks[:-1]).tolist()
-        # return np.array(asymmetric_chunks).tolist()
-
     chunk_size = 30
 
-    video_embeddings_list_train = list()
-    video_labels_list_train = list()
+    video_embeddings_list_train = tuple()
+    video_labels_list_train = tuple()
     logging.debug(
         "taking training chunks, length = {}".format(len(embedding_list_train))
     )
@@ -114,20 +119,20 @@ def _preprocess(
 
         buf_embedding = np.load(os.path.join(data_dir, path))
 
-        video_embeddings_list_train.extend(
-            _get_chunk_array(buf_embedding, chunk_size)
-        )
+        video_embeddings_list_train = video_embeddings_list_train + \
+            (_get_chunk_array(buf_embedding, chunk_size),)
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
-        buf_label = np.zeros(buf_embedding.shape[0]).astype(int)
+        buf_label = np.zeros(buf_embedding.shape[0]).astype(
+            int) if buf_embedding.shape[0] > 0 else np.zeros((1860))
         buf_label[flicker_idxs] = 1
-        video_labels_list_train.extend([
+        video_labels_list_train = video_labels_list_train + tuple(
             1 if sum(x) else 0
             for x in _get_chunk_array(buf_label, chunk_size)
-        ])
+        )
 
-    video_embeddings_list_test = list()
-    video_labels_list_test = list()
+    video_embeddings_list_test = tuple()
+    video_labels_list_test = tuple()
     logging.debug(
         "taking testing chunks, length = {}".format(len(embedding_list_test))
     )
@@ -136,18 +141,16 @@ def _preprocess(
 
         buf_embedding = np.load(os.path.join(data_dir, path))
 
-        video_embeddings_list_test.extend(
-            _get_chunk_array(buf_embedding, chunk_size)
-        )
+        video_embeddings_list_test = video_embeddings_list_test + \
+            (_get_chunk_array(buf_embedding, chunk_size),)
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
         buf_label = np.zeros(buf_embedding.shape[0]).astype(int)
         buf_label[flicker_idxs] = 1
-        video_labels_list_test.extend([
+        video_labels_list_test = video_labels_list_test + tuple(
             1 if sum(x) else 0
             for x in _get_chunk_array(buf_label, chunk_size)
-        ])
-        break
+        )
 
     X_train = np.array(video_embeddings_list_train)
     X_test = np.array(video_embeddings_list_test)
@@ -180,25 +183,12 @@ def _oversampling(
 
 
 def _train(X_train: np.array, y_train: np.array) -> Model:
-    logging.info("LSTM input shape: {}".format(X_train.shape[1:]))
-
-    buf = Sequential([
-        # LSTM(units=256, input_shape=(X_train.shape[1:])),
-        ConvLSTM3D(filters=64, kernel_size=(3, 3, 3),
-                   input_shape=X_train.shape[1:],
-                   padding='same', return_sequences=True),
-        # BatchNormalization(),
-        AdaptiveMaxPooling3D(output_size=(X_train.shape[1:-2])),
-        # ConvLSTM3D(filters=256, kernel_size=(3, 3, 3),
-        #            padding='same', return_sequences=True),
-        # AdaptiveMaxPooling3D(output_size=(30, 1, 6)),
-        Dense(units=128, activation="relu"),
-        AdaptiveMaxPooling3D(output_size=(X_train.shape[1:-2])),
-        Dense(units=64, activation="relu"),
-        AdaptiveMaxPooling3D(output_size=(X_train.shape[1:-2])),
-        Flatten(),
-        Dense(units=1, activation="sigmoid")
-    ])
+    buf = Sequential()
+    buf.add(Bidirectional(LSTM(units=256, activation='reky'),
+                          input_shape=(X_train.shape[1:])))
+    buf.add(Dense(units=128, activation="relu"))
+    buf.add(Flatten())
+    buf.add(Dense(units=1, activation="sigmoid"))
 
     model = Model(
         model=buf,
@@ -273,5 +263,5 @@ def _main() -> None:
 
 if __name__ == "__main__":
     _main()
+    # vimdiff ~/googlecv/train.py /home/henrychao/googlecv/train.py
     # https://github.com/3b1b/manim/issues/1213 opencv issue
-    # checking out code base

@@ -28,7 +28,7 @@ class MyMetrics:
             )
         )
         precision = true_positives / \
-                    (predicted_positives + tf.keras.backend.epsilon())
+            (predicted_positives + tf.keras.backend.epsilon())
         return precision
 
     def recall(self, y_true, y_pred):
@@ -43,14 +43,34 @@ class MyMetrics:
             )
         )
         recall = true_positives / \
-                    (possible_positives + tf.keras.backend.epsilon())
+            (possible_positives + tf.keras.backend.epsilon())
         return recall
 
     def f1(self, y_true, y_pred):
         precision = self.precision(y_true, y_pred)
         recall = self.recall(y_true, y_pred)
-        return 2 * ((precision * recall) / \
+        return 2 * ((precision * recall) /
                     (precision + recall + tf.keras.backend.epsilon()))
+
+    def auc(self, y_true, y_pred):
+        auc = tf.metrics.auc(y_true, y_pred)[1]
+        tf.keras.backend.get_session().run(tf.local_variables_initializer())
+        return auc
+
+    def specificity(self, y_true, y_pred):
+        """
+        param:
+        y_pred - Predicted labels
+        y_true - True labels 
+        Returns:
+        Specificity score
+        """
+        neg_y_true = 1 - y_true
+        neg_y_pred = 1 - y_pred
+        fp = tf.keras.backend.sum(neg_y_true * y_pred)
+        tn = tf.keras.backend.sum(neg_y_true * neg_y_pred)
+        specificity = tn / (tn + fp + tf.keras.backend.epsilon())
+        return specificity
 
 
 _my_metrics = MyMetrics()
@@ -64,10 +84,14 @@ class Model:
         loss: str,
         optimizer: tf.keras.optimizers,
         metrics: list = list((
-            "accuracy",
             _my_metrics.f1,
-            tf.keras.metrics.AUC()
-        )),
+            _my_metrics.auc,
+            tf.keras.metrics.Precision(),
+            tf.keras.metrics.Recall(),
+            _my_metrics.specificity,
+            tf.keras.metrics.SpecificityAtSensitivity(0.5),
+            tf.keras.metrics.SensitivityAtSpecificity(0.5),
+            'accuracy')),
         summary=True
     ) -> None:
         self.model = model
@@ -124,9 +148,13 @@ class InferenceModel:
         self,
         model_path: str,
         custom_objects: dict = dict({
-            "f1": _my_metrics.f1,
-            "auc": tf.keras.metrics.AUC()
-        })
+            'f1': _my_metrics.f1,
+            'auc': _my_metrics.auc,
+            'precision': tf.keras.metrics.Precision(),
+            'recall': tf.keras.metrics.Recall(),
+            'specificity': _my_metrics.specificity,
+            'spec_at_sen': tf.keras.metrics.SpecificityAtSensitivity(0.5),
+            'sen_at_spec': tf.keras.metrics.SensitivityAtSpecificity(0.5), })
     ) -> None:
         self.model = tf.keras.models.load_model(
             model_path,
@@ -136,6 +164,12 @@ class InferenceModel:
     def predict(self, X_test: np.array) -> np.array:
         y_pred = self.model.predict(X_test)
         return y_pred.flatten()
+
+    """
+    TO DO if needed plot 
+    tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+    specificity = tn / (tn+fp)
+    """
 
     def evaluate(self, y_true: np.array, y_pred: np.array) -> None:
         threshold_range = np.arange(0.1, 1.0, 0.001)
@@ -179,10 +213,3 @@ class InferenceModel:
             y_true,
             (y_pred > threshold_range[np.argmax(f1_scores)]).astype(int)
         ))
-
-
-def AdaptiveMaxPool2d(X, output_size):
-    batch_size, h, w, c = tf.keras.backend.int_shape(x)
-    stride = np.floor(h / output_size).astype(np.int32)
-    kernel_size = h - (output_size - 1) * stride
-    return tf.keras.layers.MaxPooling2D(pool_size=(kernel_size, kernel_size), strides=stride)(x)
