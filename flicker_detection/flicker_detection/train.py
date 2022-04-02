@@ -42,10 +42,8 @@ def _embed(
 
         embeddings = list()
         while success:
-            embeddings.append(facenet.get_embedding(
-                cv2.resize(image, (200, 200)), batched=False))
-            # embeddings.append(facenet.get_embedding(cv2.resize(
-            #     image, (200, 200)), batched=False)[0].flatten()) # where flattened spatial dimension
+            embeddings.append(facenet.get_embedding(cv2.resize(
+                image, (200, 200)), batched=False)[0].flatten())
             success, image = vidcap.read()
 
         embeddings = np.array(embeddings)
@@ -53,16 +51,14 @@ def _embed(
         np.save(os.path.join(output_dir, path), embeddings)
 
 
-def _get_chunk_array(input_arr: np.array, chunk_size: int) -> list:
+def _get_chunk_array(input_arr: np.array, chunk_size: int) -> np.array:
     if input_arr.size == 0:
-        return np.zeros(1859)
-
+        return np.zeros(1859, dtype=np.uint8).tolist()
     usable_vec = input_arr[:(
         np.floor(len(input_arr)/chunk_size)*chunk_size).astype(int)]
 
     i_pad = np.concatenate((usable_vec, np.array(
         [input_arr[-1]]*(chunk_size-len(usable_vec) % chunk_size))))
-
     asymmetric_chunks = np.split(
         i_pad,
         list(range(
@@ -71,7 +67,7 @@ def _get_chunk_array(input_arr: np.array, chunk_size: int) -> list:
             chunk_size
         ))
     )
-    return np.array(asymmetric_chunks)
+    return tuple(asymmetric_chunks)
 
 
 def _preprocess(
@@ -80,9 +76,18 @@ def _preprocess(
     data_dir: str,
     cache_path: str
 ) -> Tuple[np.array]:
+    """
+    can consider reducing precision of np.float32 to np.float16 to reduce memory consumption
 
+    abstract:
+    https://towardsdatascience.com/overcoming-data-preprocessing-bottlenecks-with-tensorflow-data-service-nvidia-dali-and-other-d6321917f851
+    cuda solution:
+    https://stackoverflow.com/questions/60996756/how-do-i-assign-a-numpy-int64-to-a-torch-cuda-floattensor
+    static memory allocation solution:
+    https://pytorch.org/docs/stable/generated/torch.zeros.html
+    """
     if os.path.exists("{}.npz".format(cache_path)):
-        __cache__ = np.load("{}.npz".format(cache_path))
+        __cache__ = np.load("{}.npz".format(cache_path), allow_pickle=True)
         return tuple((__cache__[k] for k in __cache__))
 
     pass_videos = list([
@@ -109,8 +114,8 @@ def _preprocess(
 
     chunk_size = 30
 
-    video_embeddings_list_train = tuple()
-    video_labels_list_train = tuple()
+    video_embeddings_list_train = ()
+    video_labels_list_train = ()
     logging.debug(
         "taking training chunks, length = {}".format(len(embedding_list_train))
     )
@@ -118,21 +123,23 @@ def _preprocess(
         real_filename = encoding_filename_mapping[path.replace(".npy", "")]
 
         buf_embedding = np.load(os.path.join(data_dir, path))
+        if buf_embedding.shape[0] == 0:
+            continue
 
         video_embeddings_list_train = video_embeddings_list_train + \
-            (_get_chunk_array(buf_embedding, chunk_size),)
+            (*_get_chunk_array(buf_embedding, chunk_size),)
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
         buf_label = np.zeros(buf_embedding.shape[0]).astype(
-            int) if buf_embedding.shape[0] > 0 else np.zeros((1860))
+            np.uint8) if buf_embedding.shape[0] > 0 else np.zeros(1859, dtype=int).tolist()
         buf_label[flicker_idxs] = 1
         video_labels_list_train = video_labels_list_train + tuple(
             1 if sum(x) else 0
             for x in _get_chunk_array(buf_label, chunk_size)
         )
 
-    video_embeddings_list_test = tuple()
-    video_labels_list_test = tuple()
+    video_embeddings_list_test = ()
+    video_labels_list_test = ()
     logging.debug(
         "taking testing chunks, length = {}".format(len(embedding_list_test))
     )
@@ -140,18 +147,19 @@ def _preprocess(
         real_filename = encoding_filename_mapping[path.replace(".npy", "")]
 
         buf_embedding = np.load(os.path.join(data_dir, path))
+        if buf_embedding.shape[0] == 0:
+            continue
 
         video_embeddings_list_test = video_embeddings_list_test + \
-            (_get_chunk_array(buf_embedding, chunk_size),)
+            (*_get_chunk_array(buf_embedding, chunk_size),)
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
-        buf_label = np.zeros(buf_embedding.shape[0]).astype(int)
+        buf_label = np.zeros(buf_embedding.shape[0]).astype(np.uint8)
         buf_label[flicker_idxs] = 1
         video_labels_list_test = video_labels_list_test + tuple(
             1 if sum(x) else 0
             for x in _get_chunk_array(buf_label, chunk_size)
         )
-
     X_train = np.array(video_embeddings_list_train)
     X_test = np.array(video_embeddings_list_test)
     y_train = np.array(video_labels_list_train)
@@ -196,7 +204,7 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
         optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
     )
     model.train(X_train, y_train, 1000, 0.1, 1024)
-    for k in list(("loss", "accuracy", "f1", "auc")):
+    for k in list(("loss", "accuracy", "f1", "auc", "specificity")):
         model.plot_history(k, title="{} - LSTM, Chunk, Oversampling".format(k))
 
     return model
