@@ -184,9 +184,9 @@ def _oversampling(
 
 def _train(X_train: np.array, y_train: np.array) -> Model:
     buf = Sequential()
-    buf.add(Bidirectional(LSTM(units=256, activation='reky'),
+    buf.add(Bidirectional(LSTM(units=256, activation='sigmoid'),
                           input_shape=(X_train.shape[1:])))
-    buf.add(Dense(units=128, activation="relu"))
+    buf.add(Dense(units=128, activation="sigmoid"))
     buf.add(Flatten())
     buf.add(Dense(units=1, activation="sigmoid"))
 
