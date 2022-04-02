@@ -53,9 +53,15 @@ def _embed(
 
 
 def _get_chunk_array(input_arr: np.array, chunk_size: int) -> list:
-    # i_pad = np.pad(input_arr, (0, chunk_size-len(input_arr) %
-    #                chunk_size), 'constant')
-    i_pad = input_arr
+    if input_arr.size == 0:
+        return np.zeros(1859)
+
+    usable_vec = input_arr[:(
+        np.floor(len(input_arr)/chunk_size)*chunk_size).astype(int)]
+
+    i_pad = np.concatenate((usable_vec, np.array(
+        [input_arr[-1]]*(chunk_size-len(usable_vec) % chunk_size))))
+
     asymmetric_chunks = np.split(
         i_pad,
         list(range(
@@ -64,9 +70,7 @@ def _get_chunk_array(input_arr: np.array, chunk_size: int) -> list:
             chunk_size
         ))
     )
-    logging.info("DIVISION {}".format(i_pad.shape[0]/len(asymmetric_chunks)))
-    # return np.array(asymmetric_chunks).tolist()
-    return np.array(asymmetric_chunks[:-1]).tolist()
+    return np.array(asymmetric_chunks)
 
 
 def _preprocess(
@@ -118,7 +122,8 @@ def _preprocess(
             (_get_chunk_array(buf_embedding, chunk_size),)
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
-        buf_label = np.zeros(buf_embedding.shape[0]).astype(int)
+        buf_label = np.zeros(buf_embedding.shape[0]).astype(
+            int) if buf_embedding.shape[0] > 0 else np.zeros((1860))
         buf_label[flicker_idxs] = 1
         video_labels_list_train = video_labels_list_train + tuple(
             1 if sum(x) else 0
