@@ -180,6 +180,15 @@ def _oversampling(
     y_train: np.array,
     method="SMOTE"
 ) -> Tuple[np.array]:
+    """
+    batched alternative:
+    https://imbalanced-learn.org/stable/references/generated/imblearn.keras.BalancedBatchGenerator.html
+    """
+    if os.path.exists("X_train.npy") and os.path.exists("y_train.npy"):
+        X_train, y_train = np.load("X_train.npy"), np.load("y_train.npy")
+        logging.info("{}{}".format(X_train.shape, y_train.shape))
+        return X_train, y_train
+
     sm = SMOTE(random_state=42)
     original_X_shape = X_train.shape
     X_train, y_train = sm.fit_resample(
@@ -187,8 +196,8 @@ def _oversampling(
         y_train
     )
     X_train = np.reshape(X_train, (-1,) + original_X_shape[1:])
-    np.save("X_train.npy",X_train)
-    np.save("y_train.npy",y_train)
+    np.save("X_train.npy", X_train)
+    np.save("y_train.npy", y_train)
     return (X_train, y_train)
 
 
@@ -251,13 +260,10 @@ def _main() -> None:
     logging.info("[Preprocessing] done.")
 
     logging.info("[Oversampling] Start ...")
-    if os.path.exists("X_train.npy") and os.path.exists("y_train.npy"):
-        X_train,y_train = np.load("X_train.npy"),np.load("y_train.npy")
-    else:
-        X_train, y_train = _oversampling(
-            X_train,
-            y_train
-        )
+    X_train, y_train = _oversampling(
+        X_train,
+        y_train
+    )
     logging.info("[Oversampling] done.")
 
     if args.train:

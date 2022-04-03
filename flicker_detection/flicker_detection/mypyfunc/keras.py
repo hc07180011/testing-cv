@@ -12,6 +12,14 @@ logging.getLogger("tensorflow").setLevel(logging.WARNING)
 
 
 class MyMetrics:
+    """
+    keras metrics api:
+    https://keras.io/api/metrics/
+    custom sensitivity specificity:
+    https://stackoverflow.com/questions/55640149/error-in-keras-when-i-want-to-calculate-the-sensitivity-and-specificity
+    custom auc:
+    https://stackoverflow.com/questions/41032551/how-to-compute-receiving-operating-characteristic-roc-and-auc-in-keras
+    """
 
     def __init__(self) -> None:
         pass
@@ -53,9 +61,7 @@ class MyMetrics:
                     (precision + recall + tf.keras.backend.epsilon()))
 
     def auc(self, y_true, y_pred):
-        auc = auc(y_true, y_pred)[1]
-        tf.keras.backend.get_session().run(tf.local_variables_initializer())
-        return auc
+        return tf.numpy_function(auc, (y_true, y_pred), tf.double)
 
     def specificity(self, y_true, y_pred):
         """
