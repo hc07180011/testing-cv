@@ -40,9 +40,9 @@ def _embed(
         vidcap = cv2.VideoCapture(os.path.join(video_data_dir, path))
         success, image = vidcap.read()
 
-        embeddings = list()
+        embeddings = ()
         while success:
-            embeddings.append(facenet.get_embedding(cv2.resize(
+            embeddings = embeddings + tuple(facenet.get_embedding(cv2.resize(
                 image, (200, 200)), batched=False)[0].flatten())
             success, image = vidcap.read()
 
@@ -187,6 +187,8 @@ def _oversampling(
         y_train
     )
     X_train = np.reshape(X_train, (-1,) + original_X_shape[1:])
+    np.save("X_train.npy",X_train)
+    np.save("y_train.npy",y_train)
     return (X_train, y_train)
 
 
@@ -249,10 +251,13 @@ def _main() -> None:
     logging.info("[Preprocessing] done.")
 
     logging.info("[Oversampling] Start ...")
-    X_train, y_train = _oversampling(
-        X_train,
-        y_train
-    )
+    if os.path.exists("X_train.npy") and os.path.exists("y_train.npy"):
+        X_train,y_train = np.load("X_train.npy"),np.load("y_train.npy")
+    else:
+        X_train, y_train = _oversampling(
+            X_train,
+            y_train
+        )
     logging.info("[Oversampling] done.")
 
     if args.train:
