@@ -61,7 +61,7 @@ class MyMetrics:
                     (precision + recall + tf.keras.backend.epsilon()))
 
     def auc(self, y_true, y_pred):
-        return tf.numpy_function(auc, (y_true, y_pred), tf.double)
+        return tf.py_function(auc, (y_true, y_pred), tf.double)
 
     def specificity(self, y_true, y_pred):
         """
@@ -91,7 +91,8 @@ class Model:
         optimizer: tf.keras.optimizers,
         metrics: list = list((
             _my_metrics.f1,
-            _my_metrics.auc,
+            # _my_metrics.auc,
+            tf.keras.metrics.AUC(),
             tf.keras.metrics.Precision(),
             tf.keras.metrics.Recall(),
             _my_metrics.specificity,
@@ -155,7 +156,8 @@ class InferenceModel:
         model_path: str,
         custom_objects: dict = dict({
             'f1': _my_metrics.f1,
-            'auc': _my_metrics.auc,
+            # 'auc': _my_metrics.auc,
+            'auc': tf.keras.metrics.AUC(),
             'precision': tf.keras.metrics.Precision(),
             'recall': tf.keras.metrics.Recall(),
             'specificity': _my_metrics.specificity,

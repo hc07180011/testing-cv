@@ -14,6 +14,10 @@ from tensorflow_addons.layers import AdaptiveMaxPooling3D
 
 
 class Facenet:
+    """
+    adaptive pooling sample:
+    https://ideone.com/cJoN3x
+    """
 
     def __init__(self) -> None:
 
@@ -38,7 +42,7 @@ class Facenet:
             output_size=(6, 6, 256))(output)
 
         self.__embedding = Model(base_cnn.input, adaptive_m, name="Embedding")
-        with open('embedding_summary.txt', 'w') as fh:
+        with open('models/embedding_summary.txt', 'w') as fh:
             self.__embedding.summary(print_fn=lambda x: fh.write(x + '\n'))
 
         for layer in base_cnn.layers[:-23]:
@@ -89,7 +93,7 @@ class Facenet:
             outputs=distances
         )
 
-        with open('siamese_summary.txt', 'w') as fh:
+        with open('models/siamese_summary.txt', 'w') as fh:
             siamese_network.summary(print_fn=lambda x: fh.write(x + '\n'))
 
         adaptive_0 = AdaptiveMaxPooling3D(
@@ -100,7 +104,7 @@ class Facenet:
         self.__siamese_model = SiameseModel(adaptive_siamese_network)
         self.__siamese_model.built = True
 
-        with open('adaptive_siamese_summary.txt', 'w') as fh:
+        with open('models/adaptive_siamese_summary.txt', 'w') as fh:
             self.__siamese_model.summary(print_fn=lambda x: fh.write(x + '\n'))
 
         model_base_dir = os.path.join("preprocessing", "embedding", "models")
