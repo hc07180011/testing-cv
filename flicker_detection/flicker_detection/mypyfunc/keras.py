@@ -53,7 +53,7 @@ class MyMetrics:
                     (precision + recall + tf.keras.backend.epsilon()))
 
     def auc(self, y_true, y_pred):
-        auc = tf.metrics.auc(y_true, y_pred)[1]
+        auc = auc(y_true, y_pred)[1]
         tf.keras.backend.get_session().run(tf.local_variables_initializer())
         return auc
 
