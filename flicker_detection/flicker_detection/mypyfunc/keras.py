@@ -90,15 +90,16 @@ class Model:
         loss: str,
         optimizer: tf.keras.optimizers,
         metrics: list = list((
+            "accuracy",
             _my_metrics.f1,
             # _my_metrics.auc,
             tf.keras.metrics.AUC(),
-            tf.keras.metrics.Precision(),
-            tf.keras.metrics.Recall(),
-            _my_metrics.specificity,
-            tf.keras.metrics.SpecificityAtSensitivity(0.5),
-            tf.keras.metrics.SensitivityAtSpecificity(0.5),
-            'accuracy')),
+            # tf.keras.metrics.Precision(),
+            # tf.keras.metrics.Recall(),
+            # _my_metrics.specificity,
+            # tf.keras.metrics.SpecificityAtSensitivity(0.5),
+            # tf.keras.metrics.SensitivityAtSpecificity(0.5),
+            )),
         summary=True
     ) -> None:
         self.model = model
@@ -158,11 +159,12 @@ class InferenceModel:
             'f1': _my_metrics.f1,
             # 'auc': _my_metrics.auc,
             'auc': tf.keras.metrics.AUC(),
-            'precision': tf.keras.metrics.Precision(),
-            'recall': tf.keras.metrics.Recall(),
-            'specificity': _my_metrics.specificity,
-            'spec_at_sen': tf.keras.metrics.SpecificityAtSensitivity(0.5),
-            'sen_at_spec': tf.keras.metrics.SensitivityAtSpecificity(0.5), })
+            # 'precision': tf.keras.metrics.Precision(),
+            # 'recall': tf.keras.metrics.Recall(),
+            # 'specificity': _my_metrics.specificity,
+            # 'spec_at_sen': tf.keras.metrics.SpecificityAtSensitivity(0.5),
+            # 'sen_at_spec': tf.keras.metrics.SensitivityAtSpecificity(0.5), 
+            })
     ) -> None:
         self.model = tf.keras.models.load_model(
             model_path,

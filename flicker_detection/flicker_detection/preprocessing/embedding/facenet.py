@@ -42,7 +42,7 @@ class Facenet:
             output_size=(6, 6, 256))(output)
 
         self.__embedding = Model(base_cnn.input, adaptive_m, name="Embedding")
-        with open('models/embedding_summary.txt', 'w') as fh:
+        with open('preprocessing\embedding\models\embedding_summary.txt', 'w') as fh:
             self.__embedding.summary(print_fn=lambda x: fh.write(x + '\n'))
 
         for layer in base_cnn.layers[:-23]:
@@ -53,7 +53,7 @@ class Facenet:
         )
 
         adapt_anchor = AdaptiveMaxPooling3D(
-            output_size=(200, 200, 3))(anchor_input)
+            output_size=self.__target_shape + (3,))(anchor_input)
         adapted_anchor = layers.Input(
             name="adapted_anchor", shape=adapt_anchor.shape, tensor=adapt_anchor)
 
@@ -62,7 +62,7 @@ class Facenet:
         )
 
         adapt_positive = AdaptiveMaxPooling3D(
-            output_size=(200, 200, 3))(positive_input)
+            output_size=self.__target_shape + (3,))(positive_input)
         adapted_positive = layers.Input(
             name="adapted_positive", shape=adapt_positive.shape, tensor=adapt_positive)
 
@@ -71,7 +71,7 @@ class Facenet:
         )
 
         adapt_negative = AdaptiveMaxPooling3D(
-            output_size=(200, 200, 3))(negative_input)
+            output_size=self.__target_shape + (3,))(negative_input)
         adapted_negative = layers.Input(
             name="adapted_negative", shape=adapt_negative.shape, tensor=adapt_negative)
 
@@ -93,7 +93,7 @@ class Facenet:
             outputs=distances
         )
 
-        with open('models/siamese_summary.txt', 'w') as fh:
+        with open('preprocessing\embedding\models\siamese_summary.txt', 'w') as fh:
             siamese_network.summary(print_fn=lambda x: fh.write(x + '\n'))
 
         adaptive_0 = AdaptiveMaxPooling3D(
@@ -104,7 +104,7 @@ class Facenet:
         self.__siamese_model = SiameseModel(adaptive_siamese_network)
         self.__siamese_model.built = True
 
-        with open('models/adaptive_siamese_summary.txt', 'w') as fh:
+        with open('preprocessing\embedding\models\siamese_summary.txt', 'w') as fh:
             self.__siamese_model.summary(print_fn=lambda x: fh.write(x + '\n'))
 
         model_base_dir = os.path.join("preprocessing", "embedding", "models")
