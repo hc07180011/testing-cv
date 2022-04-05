@@ -43,7 +43,7 @@ def _embed(
         embeddings = ()
         while success:
             embeddings = embeddings + tuple(facenet.get_embedding(cv2.resize(
-                image, (200, 200)), batched=False)[0].flatten())
+                image, (200, 200)), batched=False).flatten())
             success, image = vidcap.read()
 
         embeddings = np.array(embeddings)
@@ -51,23 +51,22 @@ def _embed(
         np.save(os.path.join(output_dir, path), embeddings)
 
 
-def _get_chunk_array(input_arr: np.array, chunk_size: int) -> np.array:
-    if input_arr.size == 0:
-        return np.zeros(1859, dtype=np.uint8).tolist()
-    usable_vec = input_arr[:(
-        np.floor(len(input_arr)/chunk_size)*chunk_size).astype(int)]
+def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
+    # usable_vec = input_arr[:(
+    #     np.floor(len(input_arr)/chunk_size)*chunk_size).astype(int)]
 
-    i_pad = np.concatenate((usable_vec, np.array(
-        [input_arr[-1]]*(chunk_size-len(usable_vec) % chunk_size))))
+    # i_pad = np.concatenate((usable_vec, np.array(
+    #     [input_arr[-1]]*(chunk_size-len(usable_vec) % chunk_size))))
     asymmetric_chunks = np.split(
-        i_pad,
+        # i_pad,
+        input_arr,
         list(range(
             chunk_size,
             input_arr.shape[0] + 1,
             chunk_size
         ))
     )
-    return tuple(asymmetric_chunks)
+    return tuple(asymmetric_chunks[:-1])
 
 
 def _preprocess(
@@ -131,7 +130,7 @@ def _preprocess(
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
         buf_label = np.zeros(buf_embedding.shape[0]).astype(
-            np.uint8) if buf_embedding.shape[0] > 0 else np.zeros(1859, dtype=int).tolist()
+            np.uint8) if buf_embedding.shape[0] > 0 else (0,)*(flicker_idxs+1)
         buf_label[flicker_idxs] = 1
         video_labels_list_train = video_labels_list_train + tuple(
             1 if sum(x) else 0
@@ -178,7 +177,6 @@ def _preprocess(
 def _oversampling(
     X_train: np.array,
     y_train: np.array,
-    method="SMOTE"
 ) -> Tuple[np.array]:
     """
     batched alternative:
@@ -188,6 +186,7 @@ def _oversampling(
         data_base_dir, "flicker_detection_model_architecture/X_train.npy")
     test_path = os.path.join(
         data_base_dir, "flicker_detection_model_architecture/y_train.npy")
+
     if os.path.exists(train_path) and os.path.exists(test_path):
         X_train, y_train = np.load(train_path), np.load(test_path)
         logging.info("{}{}".format(X_train.shape, y_train.shape))
@@ -207,9 +206,9 @@ def _oversampling(
 
 def _train(X_train: np.array, y_train: np.array) -> object:
     buf = Sequential()
-    buf.add(Bidirectional(LSTM(units=256, activation='sigmoid'),
+    buf.add(Bidirectional(LSTM(units=256, activation='relu'),
                           input_shape=(X_train.shape[1:])))
-    buf.add(Dense(units=128, activation="sigmoid"))
+    buf.add(Dense(units=128, activation="relu"))
     buf.add(Flatten())
     buf.add(Dense(units=1, activation="sigmoid"))
 
@@ -219,7 +218,7 @@ def _train(X_train: np.array, y_train: np.array) -> object:
         optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
     )
     model.train(X_train, y_train, 1000, 0.1, 1024)
-    for k in list(("loss", "accuracy", "f1", "auc", "specificity")):
+    for k in list(("loss", "accuracy", "f1", "auc")):
         model.plot_history(k, title="{} - LSTM, Chunk, Oversampling".format(k))
 
     return model
