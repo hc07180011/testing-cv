@@ -35,6 +35,7 @@ def _embed(
     facenet = Facenet()
     for path in tqdm.tqdm(os.listdir(video_data_dir)):
         if os.path.exists(os.path.join(output_dir, "{}.npy".format(path))):
+            logging.info("Processed {}".format(os.path.join(output_dir, "{}.npy".format(path))))
             continue
 
         vidcap = cv2.VideoCapture(os.path.join(video_data_dir, path))
@@ -60,7 +61,7 @@ def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
     asymmetric_chunks = np.split(
         # i_pad,
         input_arr,
-        list(range(
+        tuple(range(
             chunk_size,
             input_arr.shape[0] + 1,
             chunk_size
@@ -86,15 +87,15 @@ def _preprocess(
     https://pytorch.org/docs/stable/generated/torch.zeros.html
     """
     if os.path.exists("/{}.npz".format(cache_path)):
-        __cache__ = np.load("/{}.npz".format(cache_path), allow_pickle=True)
-        return tuple((__cache__[k] for k in __cache__))
+        __cache__ = np.load("/{}.npz".format(cache_path))
+        return tuple(__cache__[k] for k in __cache__)
 
-    pass_videos = list([
+    pass_videos = tuple((
         "0096.mp4", "0097.mp4", "0098.mp4",
         "0125.mp4", "0126.mp4", "0127.mp4",
         "0145.mp4", "0146.mp4", "0147.mp4",
         "0178.mp4", "0179.mp4", "0180.mp4"
-    ])
+    ))
     raw_labels = json.load(open(label_path, "r"))
     encoding_filename_mapping = json.load(open(mapping_path, "r"))
 
@@ -106,7 +107,7 @@ def _preprocess(
 
     embedding_list_train, embedding_list_test, _, _ = train_test_split(
         embedding_path_list,
-        list(range(len(embedding_path_list))),
+        tuple(range(len(embedding_path_list))),
         test_size=0.1,
         random_state=42
     )
@@ -126,7 +127,7 @@ def _preprocess(
             continue
 
         video_embeddings_list_train = video_embeddings_list_train + \
-            (*_get_chunk_array(buf_embedding, chunk_size),)
+            ((*_get_chunk_array(buf_embedding, chunk_size),),)
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
         buf_label = np.zeros(buf_embedding.shape[0]).astype(
@@ -150,7 +151,7 @@ def _preprocess(
             continue
 
         video_embeddings_list_test = video_embeddings_list_test + \
-            (*_get_chunk_array(buf_embedding, chunk_size),)
+            ((*_get_chunk_array(buf_embedding, chunk_size),),)
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
         buf_label = np.zeros(buf_embedding.shape[0]).astype(np.uint8)
@@ -159,6 +160,7 @@ def _preprocess(
             1 if sum(x) else 0
             for x in _get_chunk_array(buf_label, chunk_size)
         )
+
     X_train = np.array(video_embeddings_list_train)
     X_test = np.array(video_embeddings_list_test)
     y_train = np.array(video_labels_list_train)
@@ -182,25 +184,13 @@ def _oversampling(
     batched alternative:
     https://imbalanced-learn.org/stable/references/generated/imblearn.keras.BalancedBatchGenerator.html
     """
-    train_path = os.path.join(
-        data_base_dir, "flicker_detection_model_architecture/X_train.npy")
-    test_path = os.path.join(
-        data_base_dir, "flicker_detection_model_architecture/y_train.npy")
-
-    if os.path.exists(train_path) and os.path.exists(test_path):
-        X_train, y_train = np.load(train_path), np.load(test_path)
-        logging.info("{}{}".format(X_train.shape, y_train.shape))
-        return X_train, y_train
-
     sm = SMOTE(random_state=42)
     original_X_shape = X_train.shape
     X_train, y_train = sm.fit_resample(
-        np.reshape(X_train, (-1, np.prod(original_X_shape[1:]))),
+        np.reshape(X_train, (-1, np.prod(original_X_shape[1:]).astype(np.uint8))),
         y_train
     )
     X_train = np.reshape(X_train, (-1,) + original_X_shape[1:])
-    np.save("X_train.npy", X_train)
-    np.save("y_train.npy", y_train)
     return (X_train, y_train)
 
 
@@ -218,7 +208,7 @@ def _train(X_train: np.array, y_train: np.array) -> object:
         optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
     )
     model.train(X_train, y_train, 1000, 0.1, 1024)
-    for k in list(("loss", "accuracy", "f1", "auc")):
+    for k in tuple(("loss", "accuracy", "f1", "auc")):
         model.plot_history(k, title="{} - LSTM, Chunk, Oversampling".format(k))
 
     return model
