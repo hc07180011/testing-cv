@@ -92,10 +92,7 @@ def _preprocess(
             ))
         )
         # TODO: should we take the last chunk?
-        # logging.info("# chunks: {}".format(len(asymmetric_chunks)))
-        # logging.info("1st chunks:{}".format(len(asymmetric_chunks[:-1])))
         return np.array(asymmetric_chunks[:-1]).tolist()
-        # return np.array(asymmetric_chunks).tolist()
 
     chunk_size = 30
 
@@ -104,13 +101,15 @@ def _preprocess(
     logging.debug(
         "taking training chunks, length = {}".format(len(embedding_list_train))
     )
-    for path in tqdm.tqdm(embedding_list_train):
+    for idx,path in enumerate(tqdm.tqdm(embedding_list_train)):
         real_filename = encoding_filename_mapping[path.replace(".npy", "")]
 
         buf_embedding = np.load(os.path.join(data_dir, path))
 
+        train_chunk = _get_chunk_array(buf_embedding, chunk_size)
+        np.save("X_train_original_{}.npy".format(idx),train_chunk)
         video_embeddings_list_train.extend(
-            _get_chunk_array(buf_embedding, chunk_size)
+            train_chunk
         )
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
@@ -154,7 +153,7 @@ def _preprocess(
         X_test.shape, y_test.shape
     ))
 
-    np.savez(cache_path, X_train, X_test, y_train, y_test)
+    # np.savez(cache_path, X_train, X_test, y_train, y_test)
 
     return (X_train, X_test, y_train, y_test)
 
@@ -166,13 +165,7 @@ def _oversampling(
 ):  # -> tuple[np.array]:
     sm = SMOTE(random_state=42)
     original_X_shape = X_train.shape
-    # logging.info("original x shape: {}".format(
-    #     np.vstack((X_train, X_train)).T.shape))
-    # logging.info("original y shape: {}".format(y_train.shape))
-    # logging.info(X_train)
-    # logging.info(y_train)
     X_train, y_train = sm.fit_resample(
-        # np.vstack((X_train, X_train)).T,
         np.reshape(X_train, (-1, np.prod(original_X_shape[1:]))),
         y_train
     )
@@ -219,6 +212,11 @@ def _main() -> None:
         default=False,
         help="Whether to do testing"
     )
+    parser.add_argument(
+        "-o_sample", "--o_sample", action="store_true",
+        default=False,
+        help="Whether to over sample"
+    )
     args = parser.parse_args()
 
     init_logger()
@@ -238,13 +236,13 @@ def _main() -> None:
         os.path.join(cache_base_dir, "train_test")
     )
     logging.info("[Preprocessing] done.")
-
-    logging.info("[Oversampling] Start ...")
-    X_train, y_train = _oversampling(
-        X_train,
-        y_train
-    )
-    logging.info("[Oversampling] done.")
+    if args.o_sample:
+        logging.info("[Oversampling] Start ...")
+        X_train, y_train = _oversampling(
+            X_train,
+            y_train
+        )
+        logging.info("[Oversampling] done.")
 
     if args.train:
         logging.info("[Training] Start ...")
