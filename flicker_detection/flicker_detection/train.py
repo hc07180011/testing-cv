@@ -8,7 +8,6 @@ import tqdm
 import numpy as np
 import tensorflow as tf
 
-from tensorflow_addons.layers import AdaptiveMaxPooling3D
 from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
 from keras.models import Sequential
@@ -107,7 +106,7 @@ def _preprocess(
         buf_embedding = np.load(os.path.join(data_dir, path))
 
         train_chunk = _get_chunk_array(buf_embedding, chunk_size)
-        np.save("X_train_original_{}.npy".format(idx),train_chunk)
+        np.save(".cache\X_train_original_{}.npy".format(idx),train_chunk)
         video_embeddings_list_train.extend(
             train_chunk
         )
@@ -236,13 +235,13 @@ def _main() -> None:
         os.path.join(cache_base_dir, "train_test")
     )
     logging.info("[Preprocessing] done.")
-    if args.o_sample:
-        logging.info("[Oversampling] Start ...")
-        X_train, y_train = _oversampling(
-            X_train,
-            y_train
-        )
-        logging.info("[Oversampling] done.")
+    
+    logging.info("[Oversampling] Start ...")
+    X_train, y_train = _oversampling(
+        X_train,
+        y_train
+    )
+    logging.info("[Oversampling] done.")
 
     if args.train:
         logging.info("[Training] Start ...")
