@@ -133,10 +133,10 @@ def _preprocess(
             continue
 
         train_chunk = _get_chunk_array(buf_embedding, chunk_size)
-        np.save(".cache/X_train_{}.npy".format(idx),train_chunk)
-
-        video_embeddings_list_train = video_embeddings_list_train + \
-            (*train_chunk,)
+        np.save(".cache\X_train_original_{}.npy".format(idx),train_chunk)
+        video_embeddings_list_train.extend(
+            train_chunk
+        )
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
         buf_label = np.zeros(buf_embedding.shape[0]).astype(
@@ -179,6 +179,8 @@ def _preprocess(
         X_train.shape, y_train.shape,
         X_test.shape, y_test.shape
     ))
+
+    # np.savez(cache_path, X_train, X_test, y_train, y_test)
 
     np.save(".cache/y_train.npy",y_train)
     np.save(".cache/X_test.npy",X_test)
@@ -242,6 +244,11 @@ def _main() -> None:
         default=False,
         help="Whether to do testing"
     )
+    parser.add_argument(
+        "-o_sample", "--o_sample", action="store_true",
+        default=False,
+        help="Whether to over sample"
+    )
     args = parser.parse_args()
 
     init_logger()
@@ -262,7 +269,7 @@ def _main() -> None:
         # cache_base_dir
     )
     logging.info("[Preprocessing] done.")
-
+    
     logging.info("[Oversampling] Start ...")
     X_train, y_train = _oversampling(
         X_train,
