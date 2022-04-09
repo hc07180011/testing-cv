@@ -66,8 +66,6 @@ def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
             chunk_size
         ))
     )
-    # logging.info("NP {}".format(np.array(asymmetric_chunks[:-1])))
-    # logging.info("RAW {}".format(asymmetric_chunks[:-1]))
     # return tuple(map(tuple,asymmetric_chunks)) 
     return np.array(asymmetric_chunks[:-1]).tolist()
 
@@ -90,12 +88,9 @@ def _preprocess(
     static memory allocation solution:
     https://pytorch.org/docs/stable/generated/torch.zeros.html
     """
-    if os.path.exists(os.path.join(cache_path,"y_train.npy"))\
-        and os.path.exists(os.path.join(cache_path,"X_test.npy"))\
-            and os.path.exists(os.path.join(cache_path,"y_test.npy")):
-        return np.load("{}".format(os.path.join(cache_path,"\y_train.npy"))),\
-                 np.load("{}".format(os.path.join(cache_path,"\X_test.npy"))),\
-                     np.load("{}".format(os.path.join(cache_path,"\y_test.npy")))
+    if os.path.exists("{}.npy".format(cache_path)):
+        __cached__ = np.load("{}.npy".format(cache_path))
+        return tuple(__cached__[k] for k in __cached__)
 
     pass_videos = tuple([
         "0096.mp4", "0097.mp4", "0098.mp4",
@@ -121,8 +116,8 @@ def _preprocess(
 
     chunk_size = 30
 
-    video_embeddings_list_train = ()
-    video_labels_list_train = ()
+    video_embeddings_list_train = list()
+    video_labels_list_train = list()
     logging.debug(
         "taking training chunks, length = {}".format(len(embedding_list_train))
     )
@@ -140,15 +135,15 @@ def _preprocess(
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
         buf_label = np.zeros(buf_embedding.shape[0]).astype(
-            np.uint8) if buf_embedding.shape[0] > 0 else (0,)*(flicker_idxs+1)
+            np.uint8)
         buf_label[flicker_idxs] = 1
-        video_labels_list_train = video_labels_list_train + tuple(
+        video_labels_list_train.extend(
             1 if sum(x) else 0
             for x in _get_chunk_array(buf_label, chunk_size)
         )
 
-    video_embeddings_list_test = ()
-    video_labels_list_test = ()
+    video_embeddings_list_test = list()
+    video_labels_list_test = list()
     logging.debug(
         "taking testing chunks, length = {}".format(len(embedding_list_test))
     )
@@ -159,13 +154,12 @@ def _preprocess(
         if buf_embedding.shape[0] == 0:
             continue
 
-        video_embeddings_list_test = video_embeddings_list_test + \
-            (*_get_chunk_array(buf_embedding, chunk_size),)
+        video_embeddings_list_test.extend(_get_chunk_array(buf_embedding, chunk_size))
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
         buf_label = np.zeros(buf_embedding.shape[0]).astype(np.uint8)
         buf_label[flicker_idxs] = 1
-        video_labels_list_test = video_labels_list_test + tuple(
+        video_labels_list_test.extend(
             1 if sum(x) else 0
             for x in _get_chunk_array(buf_label, chunk_size)
         )
@@ -180,11 +174,7 @@ def _preprocess(
         X_test.shape, y_test.shape
     ))
 
-    # np.savez(cache_path, X_train, X_test, y_train, y_test)
-
-    np.save(".cache/y_train.npy",y_train)
-    np.save(".cache/X_test.npy",X_test)
-    np.save(".cache/y_test.npy",y_test)
+    np.savez(cache_path, X_test, y_train, y_test)
     return (X_train, X_test, y_train, y_test)
 
 
