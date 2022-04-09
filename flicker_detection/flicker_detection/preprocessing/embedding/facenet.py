@@ -10,9 +10,14 @@ from tensorflow.keras import optimizers
 from tensorflow.keras import Model
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.applications import resnet, mobilenet
+from tensorflow_addons.layers import AdaptiveMaxPooling3D
 
 
 class Facenet:
+    """
+    adaptive pooling sample:
+    https://ideone.com/cJoN3x
+    """
 
     def __init__(self) -> None:
 
@@ -28,9 +33,17 @@ class Facenet:
             include_top=False
         )
 
-        output = layers.Dense(256)(base_cnn.output)
+        adaptive_1 = AdaptiveMaxPooling3D(
+            output_size=(6, 6, 1024))(base_cnn.output)
 
-        self.__embedding = Model(base_cnn.input, output, name="Embedding")
+        output = layers.Dense(256)(adaptive_1)
+
+        adaptive_m = AdaptiveMaxPooling3D(
+            output_size=(6, 6, 256))(output)
+
+        self.__embedding = Model(base_cnn.input, adaptive_m, name="Embedding")
+        with open('preprocessing\embedding\models\embedding_summary.txt', 'w') as fh:
+            self.__embedding.summary(print_fn=lambda x: fh.write(x + '\n'))
 
         for layer in base_cnn.layers[:-23]:
             layer.trainable = False
@@ -38,12 +51,29 @@ class Facenet:
         anchor_input = layers.Input(
             name="anchor", shape=self.__target_shape + (3,)
         )
+
+        adapt_anchor = AdaptiveMaxPooling3D(
+            output_size=self.__target_shape + (3,))(anchor_input)
+        adapted_anchor = layers.Input(
+            name="adapted_anchor", shape=adapt_anchor.shape, tensor=adapt_anchor)
+
         positive_input = layers.Input(
             name="positive", shape=self.__target_shape + (3,)
         )
+
+        adapt_positive = AdaptiveMaxPooling3D(
+            output_size=self.__target_shape + (3,))(positive_input)
+        adapted_positive = layers.Input(
+            name="adapted_positive", shape=adapt_positive.shape, tensor=adapt_positive)
+
         negative_input = layers.Input(
             name="negative", shape=self.__target_shape + (3,)
         )
+
+        adapt_negative = AdaptiveMaxPooling3D(
+            output_size=self.__target_shape + (3,))(negative_input)
+        adapted_negative = layers.Input(
+            name="adapted_negative", shape=adapt_negative.shape, tensor=adapt_negative)
 
         distances = DistanceLayer()(
             self.__embedding(resnet.preprocess_input(anchor_input)),
@@ -53,15 +83,29 @@ class Facenet:
 
         siamese_network = Model(
             inputs=[
+                adapted_anchor,
+                adapted_positive,
+                adapted_negative,
                 anchor_input,
                 positive_input,
-                negative_input
+                negative_input,
             ],
             outputs=distances
         )
 
-        self.__siamese_model = SiameseModel(siamese_network)
+        with open('preprocessing\embedding\models\siamese_summary.txt', 'w') as fh:
+            siamese_network.summary(print_fn=lambda x: fh.write(x + '\n'))
+
+        adaptive_0 = AdaptiveMaxPooling3D(
+            output_size=(1024, 6, 6))(siamese_network.output)
+
+        adaptive_siamese_network = Model(siamese_network.input, adaptive_0)
+
+        self.__siamese_model = SiameseModel(adaptive_siamese_network)
         self.__siamese_model.built = True
+
+        with open('preprocessing\embedding\models\siamese_summary.txt', 'w') as fh:
+            self.__siamese_model.summary(print_fn=lambda x: fh.write(x + '\n'))
 
         model_base_dir = os.path.join("preprocessing", "embedding", "models")
 

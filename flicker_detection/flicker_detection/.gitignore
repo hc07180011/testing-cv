@@ -1,0 +1,7 @@
+*.jpeg
+*.png
+*.zip
+*.npy
+*.gif
+venv/*
+
