@@ -35,7 +35,6 @@ def _embed(
     facenet = Facenet()
     for path in tqdm.tqdm(os.listdir(video_data_dir)):
         if os.path.exists(os.path.join(output_dir, "{}.npy".format(path))):
-            logging.info("Processed {}".format(os.path.join(output_dir, "{}.npy".format(path))))
             continue
 
         vidcap = cv2.VideoCapture(os.path.join(video_data_dir, path))
@@ -43,8 +42,8 @@ def _embed(
 
         embeddings = ()
         while success:
-            embeddings = embeddings + tuple(facenet.get_embedding(cv2.resize(
-                image, (200, 200)), batched=False).flatten())
+            embeddings = embeddings + (facenet.get_embedding(cv2.resize(
+                image, (200, 200)), batched=False)[0].flatten(),)
             success, image = vidcap.read()
 
         embeddings = np.array(embeddings)
@@ -67,7 +66,10 @@ def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
             chunk_size
         ))
     )
-    return tuple(asymmetric_chunks[:-1])
+    # logging.info("NP {}".format(np.array(asymmetric_chunks[:-1])))
+    # logging.info("RAW {}".format(asymmetric_chunks[:-1]))
+    # return tuple(map(tuple,asymmetric_chunks)) 
+    return np.array(asymmetric_chunks[:-1]).tolist()
 
 
 def _preprocess(
@@ -78,7 +80,9 @@ def _preprocess(
 ) -> Tuple[np.array]:
     """
     can consider reducing precision of np.float32 to np.float16 to reduce memory consumption
-
+    
+    concurrent futures:
+    https://github.com/shayanalibhatti/Video-Augmentation-Code/blob/main/video_augmentation_code.py?fbclid=IwAR3BK544rvmKcNkuOEIM9fqTej4E28_74LfUlM5g7xeSCwduJbjndbjX5Dk
     abstract:
     https://towardsdatascience.com/overcoming-data-preprocessing-bottlenecks-with-tensorflow-data-service-nvidia-dali-and-other-d6321917f851
     cuda solution:
@@ -86,16 +90,19 @@ def _preprocess(
     static memory allocation solution:
     https://pytorch.org/docs/stable/generated/torch.zeros.html
     """
-    if os.path.exists("/{}.npz".format(cache_path)):
-        __cache__ = np.load("/{}.npz".format(cache_path))
-        return tuple(__cache__[k] for k in __cache__)
+    if os.path.exists(os.path.join(cache_path,"y_train.npy"))\
+        and os.path.exists(os.path.join(cache_path,"X_test.npy"))\
+            and os.path.exists(os.path.join(cache_path,"y_test.npy")):
+        return np.load("{}".format(os.path.join(cache_path,"\y_train.npy"))),\
+                 np.load("{}".format(os.path.join(cache_path,"\X_test.npy"))),\
+                     np.load("{}".format(os.path.join(cache_path,"\y_test.npy")))
 
-    pass_videos = tuple((
+    pass_videos = tuple([
         "0096.mp4", "0097.mp4", "0098.mp4",
         "0125.mp4", "0126.mp4", "0127.mp4",
         "0145.mp4", "0146.mp4", "0147.mp4",
         "0178.mp4", "0179.mp4", "0180.mp4"
-    ))
+    ])
     raw_labels = json.load(open(label_path, "r"))
     encoding_filename_mapping = json.load(open(mapping_path, "r"))
 
@@ -119,15 +126,17 @@ def _preprocess(
     logging.debug(
         "taking training chunks, length = {}".format(len(embedding_list_train))
     )
-    for path in tqdm.tqdm(embedding_list_train):
+    for idx,path in enumerate(tqdm.tqdm(embedding_list_train)):
         real_filename = encoding_filename_mapping[path.replace(".npy", "")]
-
         buf_embedding = np.load(os.path.join(data_dir, path))
         if buf_embedding.shape[0] == 0:
             continue
 
+        train_chunk = _get_chunk_array(buf_embedding, chunk_size)
+        np.save(".cache/X_train_{}.npy".format(idx),train_chunk)
+
         video_embeddings_list_train = video_embeddings_list_train + \
-            ((*_get_chunk_array(buf_embedding, chunk_size),),)
+            (*train_chunk,)
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
         buf_label = np.zeros(buf_embedding.shape[0]).astype(
@@ -151,7 +160,7 @@ def _preprocess(
             continue
 
         video_embeddings_list_test = video_embeddings_list_test + \
-            ((*_get_chunk_array(buf_embedding, chunk_size),),)
+            (*_get_chunk_array(buf_embedding, chunk_size),)
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
         buf_label = np.zeros(buf_embedding.shape[0]).astype(np.uint8)
@@ -171,8 +180,9 @@ def _preprocess(
         X_test.shape, y_test.shape
     ))
 
-    np.savez(cache_path, X_train, X_test, y_train, y_test)
-
+    np.save(".cache/y_train.npy",y_train)
+    np.save(".cache/X_test.npy",X_test)
+    np.save(".cache/y_test.npy",y_test)
     return (X_train, X_test, y_train, y_test)
 
 
@@ -187,7 +197,7 @@ def _oversampling(
     sm = SMOTE(random_state=42)
     original_X_shape = X_train.shape
     X_train, y_train = sm.fit_resample(
-        np.reshape(X_train, (-1, np.prod(original_X_shape[1:]).astype(np.uint8))),
+        np.reshape(X_train, (-1, np.prod(original_X_shape[1:]).astype(int))),
         y_train
     )
     X_train = np.reshape(X_train, (-1,) + original_X_shape[1:])
@@ -208,7 +218,7 @@ def _train(X_train: np.array, y_train: np.array) -> object:
         optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
     )
     model.train(X_train, y_train, 1000, 0.1, 1024)
-    for k in tuple(("loss", "accuracy", "f1", "auc")):
+    for k in ("accuracy","f1","auc_2"):
         model.plot_history(k, title="{} - LSTM, Chunk, Oversampling".format(k))
 
     return model
@@ -249,6 +259,7 @@ def _main() -> None:
         os.path.join(data_base_dir, "mapping.json"),
         os.path.join(data_base_dir, "embedding"),
         os.path.join(cache_base_dir, "train_test")
+        # cache_base_dir
     )
     logging.info("[Preprocessing] done.")
 
