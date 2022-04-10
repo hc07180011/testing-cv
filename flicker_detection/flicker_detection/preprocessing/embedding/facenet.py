@@ -53,7 +53,7 @@ class Facenet:
         )
 
         adapt_anchor = AdaptiveMaxPooling3D(
-            output_size=(200, 200, 3))(anchor_input)
+            output_size=self.__target_shape + (3,))(anchor_input)
         adapted_anchor = layers.Input(
             name="adapted_anchor", shape=adapt_anchor.shape, tensor=adapt_anchor)
 
@@ -62,7 +62,7 @@ class Facenet:
         )
 
         adapt_positive = AdaptiveMaxPooling3D(
-            output_size=(200, 200, 3))(positive_input)
+            output_size=self.__target_shape + (3,))(positive_input)
         adapted_positive = layers.Input(
             name="adapted_positive", shape=adapt_positive.shape, tensor=adapt_positive)
 
@@ -71,7 +71,7 @@ class Facenet:
         )
 
         adapt_negative = AdaptiveMaxPooling3D(
-            output_size=(200, 200, 3))(negative_input)
+            output_size=self.__target_shape + (3,))(negative_input)
         adapted_negative = layers.Input(
             name="adapted_negative", shape=adapt_negative.shape, tensor=adapt_negative)
 
@@ -128,7 +128,7 @@ class Facenet:
                                               interpolation=cv2.INTER_CUBIC) for image in images])
         image_tensor = tf.convert_to_tensor(resized_images, np.float32)
         return self.__embedding(resnet.preprocess_input(image_tensor)).numpy()
-
+        # the fuck its just using resnet.......
 
 class DistanceLayer(layers.Layer):
 
