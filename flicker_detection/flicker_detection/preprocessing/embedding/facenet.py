@@ -41,6 +41,9 @@ class Facenet:
         adaptive_m = AdaptiveMaxPooling3D(
             output_size=(6, 6, 256))(output)
 
+        """
+        add another layer of adaptive pooling after this "__embedding" is the model XD
+        """
         self.__embedding = Model(base_cnn.input, adaptive_m, name="Embedding")
         with open('preprocessing\embedding\models\embedding_summary.txt', 'w') as fh:
             self.__embedding.summary(print_fn=lambda x: fh.write(x + '\n'))
@@ -128,7 +131,7 @@ class Facenet:
                                               interpolation=cv2.INTER_CUBIC) for image in images])
         image_tensor = tf.convert_to_tensor(resized_images, np.float32)
         return self.__embedding(resnet.preprocess_input(image_tensor)).numpy()
-        # the fuck its just using resnet.......
+        # Why go back to numpy?!
 
 class DistanceLayer(layers.Layer):
 
