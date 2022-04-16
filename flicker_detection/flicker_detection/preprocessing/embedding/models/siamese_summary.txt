@@ -1,0 +1,53 @@
+Model: "model"
+__________________________________________________________________________________________________
+ Layer (type)                   Output Shape         Param #     Connected to                     
+==================================================================================================
+ anchor (InputLayer)            [(None, 200, 200, 3  0           []                               
+                                )]                                                                
+                                                                                                  
+ positive (InputLayer)          [(None, 200, 200, 3  0           []                               
+                                )]                                                                
+                                                                                                  
+ negative (InputLayer)          [(None, 200, 200, 3  0           []                               
+                                )]                                                                
+                                                                                                  
+ tf.__operators__.getitem (Slic  (None, 200, 200, 3)  0          ['anchor[0][0]']                 
+ ingOpLambda)                                                                                     
+                                                                                                  
+ tf.__operators__.getitem_1 (Sl  (None, 200, 200, 3)  0          ['positive[0][0]']               
+ icingOpLambda)                                                                                   
+                                                                                                  
+ tf.__operators__.getitem_2 (Sl  (None, 200, 200, 3)  0          ['negative[0][0]']               
+ icingOpLambda)                                                                                   
+                                                                                                  
+ tf.nn.bias_add (TFOpLambda)    (None, 200, 200, 3)  0           ['tf.__operators__.getitem[0][0]'
+                                                                 ]                                
+                                                                                                  
+ tf.nn.bias_add_1 (TFOpLambda)  (None, 200, 200, 3)  0           ['tf.__operators__.getitem_1[0][0
+                                                                 ]']                              
+                                                                                                  
+ tf.nn.bias_add_2 (TFOpLambda)  (None, 200, 200, 3)  0           ['tf.__operators__.getitem_2[0][0
+                                                                 ]']                              
+                                                                                                  
+ Embedding (Functional)         (None, 6, 6, 256)    3491264     ['tf.nn.bias_add[0][0]',         
+                                                                  'tf.nn.bias_add_1[0][0]',       
+                                                                  'tf.nn.bias_add_2[0][0]']       
+                                                                                                  
+ adapted_anchor (InputLayer)    [(None, 200, 200, 3  0           []                               
+                                )]                                                                
+                                                                                                  
+ adapted_positive (InputLayer)  [(None, 200, 200, 3  0           []                               
+                                )]                                                                
+                                                                                                  
+ adapted_negative (InputLayer)  [(None, 200, 200, 3  0           []                               
+                                )]                                                                
+                                                                                                  
+ distance_layer (DistanceLayer)  ((None, 6, 6),      0           ['Embedding[0][0]',              
+                                 (None, 6, 6))                    'Embedding[1][0]',              
+                                                                  'Embedding[2][0]']              
+                                                                                                  
+==================================================================================================
+Total params: 3,491,264
+Trainable params: 2,388,224
+Non-trainable params: 1,103,040
+__________________________________________________________________________________________________
