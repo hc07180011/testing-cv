@@ -184,12 +184,8 @@ def _oversampling(
     batched alternative:
     https://imbalanced-learn.org/stable/references/generated/imblearn.keras.BalancedBatchGenerator.html
     """
-    train_path = os.path.join(
-        data_base_dir, "flicker_detection_model_architecture/X_train.npy")
-    test_path = os.path.join(
-        data_base_dir, "flicker_detection_model_architecture/y_train.npy")
-    if os.path.exists(train_path) and os.path.exists(test_path):
-        X_train, y_train = np.load(train_path), np.load(test_path)
+    if os.path.exists("X_train.npy") and os.path.exists("y_train.npy"):
+        X_train, y_train = np.load("X_train.npy"), np.load("y_train.npy")
         logging.info("{}{}".format(X_train.shape, y_train.shape))
         return X_train, y_train
 
@@ -205,7 +201,7 @@ def _oversampling(
     return (X_train, y_train)
 
 
-def _train(X_train: np.array, y_train: np.array) -> object:
+def _train(X_train: np.array, y_train: np.array) -> Model:
     buf = Sequential()
     buf.add(Bidirectional(LSTM(units=256, activation='sigmoid'),
                           input_shape=(X_train.shape[1:])))
