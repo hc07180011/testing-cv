@@ -24,9 +24,6 @@ def init_logger() -> None:
     ch.setLevel(logging.DEBUG)
     ch.setFormatter(formatter)
 
-    sys.stdin.reconfigure(encoding="utf-8")
-    sys.stdout.reconfigure(encoding="utf-8")
-
     logger.addHandler(ch)
 
     logging.info("Initializing ok.")

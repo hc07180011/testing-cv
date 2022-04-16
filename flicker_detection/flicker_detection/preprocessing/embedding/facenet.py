@@ -41,15 +41,7 @@ class Facenet:
         self.__embedding = Model(
             output.input, output, name="Embedding")
 
-<<<<<<< HEAD
         with open('models/embedding_summary.txt', 'w') as fh:
-=======
-        """
-        add another layer of adaptive pooling after this "__embedding" is the model XD
-        """
-        self.__embedding = Model(base_cnn.input, adaptive_m, name="Embedding")
-        with open('preprocessing\embedding\models\embedding_summary.txt', 'w') as fh:
->>>>>>> 05d440242b9b44c5441bb5ff1825625acc7cd6c4
             self.__embedding.summary(print_fn=lambda x: fh.write(x + '\n'))
 
         for layer in base_cnn.layers[:-23]:
@@ -59,38 +51,14 @@ class Facenet:
             name="anchor", shape=self.__target_shape + (3,)
         )
 
-<<<<<<< HEAD
-=======
-        adapt_anchor = AdaptiveMaxPooling3D(
-            output_size=self.__target_shape + (3,))(anchor_input)
-        adapted_anchor = layers.Input(
-            name="adapted_anchor", shape=adapt_anchor.shape, tensor=adapt_anchor)
-
->>>>>>> 05d440242b9b44c5441bb5ff1825625acc7cd6c4
         positive_input = layers.Input(
             name="positive", shape=self.__target_shape + (3,)
         )
 
-<<<<<<< HEAD
-=======
-        adapt_positive = AdaptiveMaxPooling3D(
-            output_size=self.__target_shape + (3,))(positive_input)
-        adapted_positive = layers.Input(
-            name="adapted_positive", shape=adapt_positive.shape, tensor=adapt_positive)
-
->>>>>>> 05d440242b9b44c5441bb5ff1825625acc7cd6c4
         negative_input = layers.Input(
             name="negative", shape=self.__target_shape + (3,)
         )
 
-<<<<<<< HEAD
-=======
-        adapt_negative = AdaptiveMaxPooling3D(
-            output_size=self.__target_shape + (3,))(negative_input)
-        adapted_negative = layers.Input(
-            name="adapted_negative", shape=adapt_negative.shape, tensor=adapt_negative)
-
->>>>>>> 05d440242b9b44c5441bb5ff1825625acc7cd6c4
         distances = DistanceLayer()(
             self.__embedding(resnet.preprocess_input(anchor_input)),
             self.__embedding(resnet.preprocess_input(positive_input)),
@@ -142,7 +110,6 @@ class Facenet:
         image_tensor = tf.convert_to_tensor(resized_images, np.float32)
         # return self.__siamese_model(resnet.preprocess_input(image_tensor)).numpy()
         return self.__embedding(resnet.preprocess_input(image_tensor)).numpy()
-<<<<<<< HEAD
 
     def adaptive_mobilenet(self):
         base_cnn = mobilenet.MobileNet(
@@ -170,9 +137,6 @@ class Facenet:
             new_model.summary(print_fn=lambda x: fh.write(x + '\n'))
         return new_model
 
-=======
-        # Why go back to numpy?!
->>>>>>> 05d440242b9b44c5441bb5ff1825625acc7cd6c4
 
 class DistanceLayer(layers.Layer):
 
