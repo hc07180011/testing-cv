@@ -52,11 +52,9 @@ def _embed(
 
 
 def _get_chunk_array(input_arr: np.array, chunk_size: int) -> np.array:
-    if input_arr.size == 0:
-        return np.zeros(1859, dtype=np.uint8).tolist()
     usable_vec = input_arr[:(
         np.floor(len(input_arr)/chunk_size)*chunk_size).astype(int)]
-
+    # add zeros
     i_pad = np.concatenate((usable_vec, np.array(
         [input_arr[-1]]*(chunk_size-len(usable_vec) % chunk_size))))
     asymmetric_chunks = np.split(
@@ -67,7 +65,8 @@ def _get_chunk_array(input_arr: np.array, chunk_size: int) -> np.array:
             chunk_size
         ))
     )
-    return tuple(asymmetric_chunks)
+    # return tuple(asymmetric_chunks)
+    return tuple(map(tuple,asymmetric_chunks))
 
 
 def _preprocess(
@@ -86,8 +85,8 @@ def _preprocess(
     static memory allocation solution:
     https://pytorch.org/docs/stable/generated/torch.zeros.html
     """
-    if os.path.exists("{}.npz".format(cache_path)):
-        __cache__ = np.load("{}.npz".format(cache_path), allow_pickle=True)
+    if os.path.exists("/{}.npz".format(cache_path)):
+        __cache__ = np.load("/{}.npz".format(cache_path), allow_pickle=True)
         return tuple((__cache__[k] for k in __cache__))
 
     pass_videos = list([
@@ -178,17 +177,13 @@ def _preprocess(
 def _oversampling(
     X_train: np.array,
     y_train: np.array,
-    method="SMOTE"
 ) -> Tuple[np.array]:
     """
     batched alternative:
     https://imbalanced-learn.org/stable/references/generated/imblearn.keras.BalancedBatchGenerator.html
     """
-    if os.path.exists("X_train.npy") and os.path.exists("y_train.npy"):
-        X_train, y_train = np.load("X_train.npy"), np.load("y_train.npy")
-        logging.info("{}{}".format(X_train.shape, y_train.shape))
-        return X_train, y_train
-
+    if os.path.exists(".cache/over_sampled_X_train.npy") and os.path.exists(".cache/over_sampled_X_train.npy"):
+        return np.load(".cache/over_sampled_X_train.npy"), np.load(".cache/over_sampled_y_train.npy")
     sm = SMOTE(random_state=42)
     original_X_shape = X_train.shape
     X_train, y_train = sm.fit_resample(
@@ -196,16 +191,16 @@ def _oversampling(
         y_train
     )
     X_train = np.reshape(X_train, (-1,) + original_X_shape[1:])
-    np.save("X_train.npy", X_train)
-    np.save("y_train.npy", y_train)
+    np.save(".cache/over_sampled_X_train.npy", X_train)
+    np.save(".cache/over_sampled_y_train.npy", X_train)
     return (X_train, y_train)
 
 
 def _train(X_train: np.array, y_train: np.array) -> Model:
     buf = Sequential()
-    buf.add(Bidirectional(LSTM(units=256, activation='sigmoid'),
+    buf.add(Bidirectional(LSTM(units=256, activation='relu'),
                           input_shape=(X_train.shape[1:])))
-    buf.add(Dense(units=128, activation="sigmoid"))
+    buf.add(Dense(units=128, activation="relu"))
     buf.add(Flatten())
     buf.add(Dense(units=1, activation="sigmoid"))
 
