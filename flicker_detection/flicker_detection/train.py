@@ -6,8 +6,11 @@ from argparse import ArgumentParser
 
 import cv2
 import tqdm
+import random as rn
 import numpy as np
 import tensorflow as tf
+from tensorflow.compat.v1.keras import backend as K
+from tensorflow.keras.applications import resnet, mobilenet, vgg16, InceptionResNetV2, InceptionV3
 
 from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
@@ -17,7 +20,8 @@ from keras.layers import LSTM, Dense, Flatten, Bidirectional
 
 from mypyfunc.keras import Model, InferenceModel
 from mypyfunc.logger import init_logger
-from preprocessing.embedding.facenet import Facenet
+from mypyfunc.seed import seedEverything
+from preprocessing.embedding.facenet import Backbone
 
 
 data_base_dir = "data"
@@ -32,7 +36,9 @@ def _embed(
 ) -> None:
     os.makedirs(output_dir, exist_ok=True)
 
-    facenet = Facenet()
+    facenet = Backbone()
+    facenet.adaptive_extractor(mobilenet.MobileNet)
+
     for path in tqdm.tqdm(os.listdir(video_data_dir)):
         if os.path.exists(os.path.join(output_dir, "{}.npy".format(path))):
             continue
@@ -40,18 +46,21 @@ def _embed(
         vidcap = cv2.VideoCapture(os.path.join(video_data_dir, path))
         success, image = vidcap.read()
 
-        embeddings = ()
+        embeddings = None
         while success:
-            embeddings = embeddings + tuple(facenet.get_embedding(cv2.resize(
-                image, (200, 200)), batched=False)[0].flatten())
+            emb = tf.reshape(facenet.get_embedding(cv2.resize(
+                image, (200, 200)), batched=False), [-1])
+
+            embeddings = emb if embeddings is None else tf.concat(
+                (embeddings, emb), axis=0)
+
             success, image = vidcap.read()
 
-        embeddings = np.array(embeddings)
+        tf.io.write_file(os.path.join(output_dir, path),
+                         tf.strings.as_string(embeddings, shape=[None]))
 
-        np.save(os.path.join(output_dir, path), embeddings)
 
-
-def _get_chunk_array(input_arr: np.array, chunk_size: int) -> np.array:
+def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
     usable_vec = input_arr[:(
         np.floor(len(input_arr)/chunk_size)*chunk_size).astype(int)]
     # add zeros
@@ -74,6 +83,8 @@ def _preprocess(
     mapping_path: str,
     data_dir: str,
     cache_path: str
+
+
 ) -> Tuple[np.array]:
     """
     can consider reducing precision of np.float32 to np.float16 to reduce memory consumption
@@ -106,7 +117,7 @@ def _preprocess(
 
     embedding_list_train, embedding_list_test, _, _ = train_test_split(
         embedding_path_list,
-        list(range(len(embedding_path_list))),
+        tuple(range(len(embedding_path_list))),
         test_size=0.1,
         random_state=42
     )
@@ -129,8 +140,7 @@ def _preprocess(
             (*_get_chunk_array(buf_embedding, chunk_size),)
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
-        buf_label = np.zeros(buf_embedding.shape[0]).astype(
-            np.uint8) if buf_embedding.shape[0] > 0 else np.zeros(1859, dtype=int).tolist()
+        buf_label = np.zeros(buf_embedding.shape[0]).astype(np.uint8)
         buf_label[flicker_idxs] = 1
         video_labels_list_train = video_labels_list_train + tuple(
             1 if sum(x) else 0
@@ -149,7 +159,7 @@ def _preprocess(
         if buf_embedding.shape[0] == 0:
             continue
 
-        video_embeddings_list_test = video_embeddings_list_test + \
+        video_embeddings_list_test = video_embeddings_list_test +\
             (*_get_chunk_array(buf_embedding, chunk_size),)
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
@@ -223,6 +233,26 @@ def _test(model_path: str, X_test: np.array, y_test: np.array) -> None:
 
 
 def _main() -> None:
+    DEFAULT_RANDOM_SEED = 12345
+    os.environ['PYTHONHASHSEED'] = '0'
+
+    seedEverything(DEFAULT_RANDOM_SEED)
+
+    np.random.seed(DEFAULT_RANDOM_SEED)
+
+    rn.seed(DEFAULT_RANDOM_SEED)
+
+    gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
+    session_conf = tf.compat.v1.ConfigProto(
+        intra_op_parallelism_threads=1, inter_op_parallelism_threads=1, gpu_options=gpu_options)
+
+    tf.random.set_seed(DEFAULT_RANDOM_SEED)
+
+    sess = tf.compat.v1.Session(
+        graph=tf.compat.v1.get_default_graph(), config=session_conf)
+
+    K.set_session(sess)
+
     parser = ArgumentParser()
     parser.add_argument(
         "-train", "--train", action="store_true",
