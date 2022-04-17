@@ -1,8 +1,6 @@
-# basic random seed
-import tensorflow as tf
-import torch
 import os
-import random
+import torch
+import random as rn
 import numpy as np
 
 DEFAULT_RANDOM_SEED = 2021
@@ -35,9 +33,34 @@ def seedEverything(seed=DEFAULT_RANDOM_SEED):
     seedTorch(seed)
 
 
+def reset_random_seeds(seed=12345):
+    import os
+    # *IMPORANT*: Have to do this line *before* importing tensorflow
+    os.environ['PYTHONHASHSEED'] = str(seed)
+
+    import random as rn
+    import numpy as np
+    import os
+    import tensorflow as tf
+    from tensorflow.compat.v1.keras import backend as K
+
+    tf.random.set_seed(seed)
+    np.random.seed(seed)
+    rn.seed(seed)
+
+    gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
+    session_conf = tf.compat.v1.ConfigProto(
+        intra_op_parallelism_threads=1, inter_op_parallelism_threads=1, gpu_options=gpu_options)
+
+    sess = tf.compat.v1.Session(
+        graph=tf.compat.v1.get_default_graph(), config=session_conf)
+
+    K.set_session(sess)
+
+
 if __name__ == "__main__":
     seedEverything()
-    import random as rn
+    os.environ['PYTHONHASHSEED'] = '0'
 
     # The below is necessary in Python 3.2.3 onwards to
     # have reproducible behavior for certain hash-based operations.
@@ -45,9 +68,8 @@ if __name__ == "__main__":
     # https://docs.python.org/3.4/using/cmdline.html#envvar-PYTHONHASHSEED
     # https://github.com/fchollet/keras/issues/2280#issuecomment-306959926
 
-    import os
-    os.environ['PYTHONHASHSEED'] = '0'
-
+    import tensorflow as tf
+    from tensorflow.compat.v1.keras import backend as K
     # The below is necessary for starting Numpy generated random numbers
     # in a well-defined initial state.
 
@@ -74,4 +96,4 @@ if __name__ == "__main__":
 
     sess = tf.compat.v1.Session(
         graph=tf.compat.v1.get_default_graph(), config=session_conf)
-    tf.compat.v1.keras.backend.set_session(sess)
+    K.set_session(sess)
