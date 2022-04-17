@@ -30,7 +30,7 @@ class Backbone:
         resized_images = np.array([cv2.resize(image, dsize=self.__target_shape,
                                               interpolation=cv2.INTER_CUBIC) for image in images])
         image_tensor = tf.convert_to_tensor(resized_images, np.float32)
-        return self.__embedding(resnet.preprocess_input(image_tensor))
+        return self.__embedding(resnet.preprocess_input(image_tensor)).numpy()
 
     def adaptive_extractor(self, extractor: Model) -> Model:
         base_cnn = extractor(
