@@ -36,8 +36,9 @@ def _embed(
 ) -> None:
     os.makedirs(output_dir, exist_ok=True)
 
-    facenet = Backbone()
-    facenet.adaptive_extractor(mobilenet.MobileNet)
+    feature_extractor = Backbone()
+    # just change extractor to try different
+    feature_extractor.adaptive_extractor(mobilenet.MobileNet)
 
     for path in tqdm.tqdm(os.listdir(video_data_dir)):
         if os.path.exists(os.path.join(output_dir, "{}.npy".format(path))):
@@ -46,18 +47,15 @@ def _embed(
         vidcap = cv2.VideoCapture(os.path.join(video_data_dir, path))
         success, image = vidcap.read()
 
-        embeddings = None
+        embeddings = ()
         while success:
-            emb = tf.reshape(facenet.get_embedding(cv2.resize(
-                image, (200, 200)), batched=False), [-1])
-
-            embeddings = emb if embeddings is None else tf.concat(
-                (embeddings, emb), axis=0)
-
+            embeddings = embeddings + tuple(feature_extractor.get_embedding(cv2.resize(
+                image, (200, 200)), batched=False).flatten())
             success, image = vidcap.read()
 
-        tf.io.write_file(os.path.join(output_dir, path),
-                         tf.strings.as_string(embeddings, shape=[None]))
+        embeddings = np.array(embeddings)
+
+        np.save(os.path.join(output_dir, path), embeddings)
 
 
 def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
@@ -74,7 +72,6 @@ def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
             chunk_size
         ))
     )
-    # return tuple(asymmetric_chunks)
     return tuple(map(tuple, asymmetric_chunks))
 
 
