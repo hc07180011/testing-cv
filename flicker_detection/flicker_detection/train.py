@@ -1,27 +1,22 @@
+from preprocessing.embedding.backbone import Backbone
+from mypyfunc.logger import init_logger
+from mypyfunc.keras import Model, InferenceModel
+from argparse import ArgumentParser
+from typing import Tuple
+from keras.layers import LSTM, Dense, Flatten, Bidirectional
+from keras.models import Sequential
+from imblearn.over_sampling import SMOTE
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.applications import resnet, mobilenet, vgg16, InceptionResNetV2, InceptionV3
+import tensorflow as tf
+import numpy as np
+import tqdm
+import cv2
+import logging
 import os
 import json
-import logging
-from typing import Tuple
-from argparse import ArgumentParser
-
-import cv2
-import tqdm
-import random as rn
-import numpy as np
-import tensorflow as tf
-from tensorflow.compat.v1.keras import backend as K
-from tensorflow.keras.applications import resnet, mobilenet, vgg16, InceptionResNetV2, InceptionV3
-
-from sklearn.model_selection import train_test_split
-from imblearn.over_sampling import SMOTE
-from keras.models import Sequential
-from keras.layers import LSTM, Dense, Flatten, Bidirectional
-
-
-from mypyfunc.keras import Model, InferenceModel
-from mypyfunc.logger import init_logger
-from mypyfunc.seed import seedEverything
-from preprocessing.embedding.facenet import Backbone
+from mypyfunc.seed import reset_random_seeds
+reset_random_seeds()
 
 
 data_base_dir = "data"
@@ -230,26 +225,6 @@ def _test(model_path: str, X_test: np.array, y_test: np.array) -> None:
 
 
 def _main() -> None:
-    DEFAULT_RANDOM_SEED = 12345
-    os.environ['PYTHONHASHSEED'] = '0'
-
-    seedEverything(DEFAULT_RANDOM_SEED)
-
-    np.random.seed(DEFAULT_RANDOM_SEED)
-
-    rn.seed(DEFAULT_RANDOM_SEED)
-
-    gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
-    session_conf = tf.compat.v1.ConfigProto(
-        intra_op_parallelism_threads=1, inter_op_parallelism_threads=1, gpu_options=gpu_options)
-
-    tf.random.set_seed(DEFAULT_RANDOM_SEED)
-
-    sess = tf.compat.v1.Session(
-        graph=tf.compat.v1.get_default_graph(), config=session_conf)
-
-    K.set_session(sess)
-
     parser = ArgumentParser()
     parser.add_argument(
         "-train", "--train", action="store_true",
