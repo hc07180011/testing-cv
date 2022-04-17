@@ -1,3 +1,6 @@
+
+from tensorflow.keras.applications import resnet, mobilenet, vgg16, InceptionResNetV2, InceptionV3
+import tensorflow as tf
 from preprocessing.embedding.backbone import Backbone
 from mypyfunc.logger import init_logger
 from mypyfunc.keras import Model, InferenceModel
@@ -7,17 +10,14 @@ from keras.layers import LSTM, Dense, Flatten, Bidirectional
 from keras.models import Sequential
 from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import train_test_split
-from tensorflow.keras.applications import resnet, mobilenet, vgg16, InceptionResNetV2, InceptionV3
-import tensorflow as tf
-import numpy as np
-import tqdm
-import cv2
-import logging
-import os
 import json
+import os
+import logging
+import cv2
+import tqdm
+import numpy as np
 from mypyfunc.seed import reset_random_seeds
 reset_random_seeds()
-
 
 data_base_dir = "data"
 os.makedirs(data_base_dir, exist_ok=True)
