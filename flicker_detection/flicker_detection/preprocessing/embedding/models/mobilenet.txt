@@ -27,6 +27,9 @@ _________________________________________________________________
                                                                  
  conv_pad_2 (ZeroPadding2D)  (None, 101, 101, 64)      0         
                                                                  
+ adaptive_max_pooling3d (Ada  (None, 101, 101, 64)     0         
+ ptiveMaxPooling3D)                                              
+                                                                 
  conv_dw_2 (DepthwiseConv2D)  (None, 50, 50, 64)       576       
                                                                  
  conv_dw_2_bn (BatchNormaliz  (None, 50, 50, 64)       256       
@@ -49,6 +52,9 @@ _________________________________________________________________
  conv_dw_3_relu (ReLU)       (None, 50, 50, 128)       0         
                                                                  
  conv_pw_3 (Conv2D)          (None, 50, 50, 128)       16384     
+                                                                 
+ adaptive_max_pooling3d_1 (A  (None, 50, 50, 128)      0         
+ daptiveMaxPooling3D)                                            
                                                                  
  conv_pw_3_bn (BatchNormaliz  (None, 50, 50, 128)      512       
  ation)                                                          
@@ -73,8 +79,8 @@ _________________________________________________________________
                                                                  
  conv_dw_5 (DepthwiseConv2D)  (None, 25, 25, 256)      2304      
                                                                  
- adaptive_max_pooling3d (Ada  (None, 25, 25, 256)      0         
- ptiveMaxPooling3D)                                              
+ adaptive_max_pooling3d_2 (A  (None, 25, 25, 256)      0         
+ daptiveMaxPooling3D)                                            
                                                                  
  conv_dw_5_bn (BatchNormaliz  (None, 25, 25, 256)      1024      
  ation)                                                          
@@ -98,6 +104,9 @@ _________________________________________________________________
  conv_dw_6_relu (ReLU)       (None, 12, 12, 256)       0         
                                                                  
  conv_pw_6 (Conv2D)          (None, 12, 12, 512)       131072    
+                                                                 
+ adaptive_max_pooling3d_3 (A  (None, 12, 12, 512)      0         
+ daptiveMaxPooling3D)                                            
                                                                  
  conv_pw_6_bn (BatchNormaliz  (None, 12, 12, 512)      2048      
  ation)                                                          
@@ -123,6 +132,9 @@ _________________________________________________________________
  conv_dw_8_bn (BatchNormaliz  (None, 12, 12, 512)      2048      
  ation)                                                          
                                                                  
+ adaptive_max_pooling3d_4 (A  (None, 12, 12, 512)      0         
+ daptiveMaxPooling3D)                                            
+                                                                 
  conv_dw_8_relu (ReLU)       (None, 12, 12, 512)       0         
                                                                  
  conv_pw_8 (Conv2D)          (None, 12, 12, 512)       262144    
@@ -146,7 +158,7 @@ _________________________________________________________________
                                                                  
  conv_pw_9_relu (ReLU)       (None, 12, 12, 512)       0         
                                                                  
- adaptive_max_pooling3d_1 (A  (None, 12, 12, 512)      0         
+ adaptive_max_pooling3d_5 (A  (None, 12, 12, 512)      0         
  daptiveMaxPooling3D)                                            
                                                                  
  conv_dw_10 (DepthwiseConv2D  (None, 12, 12, 512)      4608      
@@ -174,6 +186,9 @@ _________________________________________________________________
                                                                  
  conv_pw_11 (Conv2D)         (None, 12, 12, 512)       262144    
                                                                  
+ adaptive_max_pooling3d_6 (A  (None, 12, 12, 512)      0         
+ daptiveMaxPooling3D)                                            
+                                                                 
  conv_pw_11_bn (BatchNormali  (None, 12, 12, 512)      2048      
  zation)                                                         
                                                                  
@@ -199,6 +214,9 @@ _________________________________________________________________
  conv_dw_13 (DepthwiseConv2D  (None, 6, 6, 1024)       9216      
  )                                                               
                                                                  
+ adaptive_max_pooling3d_7 (A  (None, 6, 6, 1024)       0         
+ daptiveMaxPooling3D)                                            
+                                                                 
  conv_dw_13_bn (BatchNormali  (None, 6, 6, 1024)       4096      
  zation)                                                         
                                                                  
@@ -210,9 +228,6 @@ _________________________________________________________________
  zation)                                                         
                                                                  
  conv_pw_13_relu (ReLU)      (None, 6, 6, 1024)        0         
-                                                                 
- adaptive_max_pooling3d_2 (A  (None, 6, 6, 1024)       0         
- daptiveMaxPooling3D)                                            
                                                                  
  dense (Dense)               (None, 6, 6, 256)         262400    
                                                                  
