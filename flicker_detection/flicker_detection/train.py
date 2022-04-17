@@ -1,23 +1,21 @@
 
-from tensorflow.keras.applications import resnet, mobilenet, vgg16, InceptionResNetV2, InceptionV3
-import tensorflow as tf
-from preprocessing.embedding.backbone import Backbone
-from mypyfunc.logger import init_logger
-from mypyfunc.keras import Model, InferenceModel
-from argparse import ArgumentParser
-from typing import Tuple
-from keras.layers import LSTM, Dense, Flatten, Bidirectional
-from keras.models import Sequential
-from imblearn.over_sampling import SMOTE
+
 from sklearn.model_selection import train_test_split
+from imblearn.over_sampling import SMOTE
+from keras.models import Sequential
+from keras.layers import LSTM, Dense, Flatten, Bidirectional
+from typing import Tuple
+from argparse import ArgumentParser
+from mypyfunc.keras import Model, InferenceModel
+from mypyfunc.logger import init_logger
 import json
 import os
 import logging
-import cv2
 import tqdm
 import numpy as np
 from mypyfunc.seed import reset_random_seeds
 reset_random_seeds()
+
 
 data_base_dir = "data"
 os.makedirs(data_base_dir, exist_ok=True)
@@ -25,32 +23,32 @@ cache_base_dir = ".cache"
 os.makedirs(cache_base_dir, exist_ok=True)
 
 
-def _embed(
-    video_data_dir: str,
-    output_dir: str
-) -> None:
-    os.makedirs(output_dir, exist_ok=True)
+# def _embed(
+#     video_data_dir: str,
+#     output_dir: str
+# ) -> None:
+#     os.makedirs(output_dir, exist_ok=True)
 
-    feature_extractor = Backbone()
-    # just change extractor to try different
-    feature_extractor.adaptive_extractor(mobilenet.MobileNet)
+#     feature_extractor = Backbone()
+#     # just change extractor to try different
+#     feature_extractor.adaptive_extractor(mobilenet.MobileNet)
 
-    for path in tqdm.tqdm(os.listdir(video_data_dir)):
-        if os.path.exists(os.path.join(output_dir, "{}.npy".format(path))):
-            continue
+#     for path in tqdm.tqdm(os.listdir(video_data_dir)):
+#         if os.path.exists(os.path.join(output_dir, "{}.npy".format(path))):
+#             continue
 
-        vidcap = cv2.VideoCapture(os.path.join(video_data_dir, path))
-        success, image = vidcap.read()
+#         vidcap = cv2.VideoCapture(os.path.join(video_data_dir, path))
+#         success, image = vidcap.read()
 
-        embeddings = ()
-        while success:
-            embeddings = embeddings + tuple(feature_extractor.get_embedding(cv2.resize(
-                image, (200, 200)), batched=False).flatten())
-            success, image = vidcap.read()
+#         embeddings = ()
+#         while success:
+#             embeddings = embeddings + tuple(feature_extractor.get_embedding(cv2.resize(
+#                 image, (200, 200)), batched=False).flatten())
+#             success, image = vidcap.read()
 
-        embeddings = np.array(embeddings)
+#         embeddings = np.array(embeddings)
 
-        np.save(os.path.join(output_dir, path), embeddings)
+#         np.save(os.path.join(output_dir, path), embeddings)
 
 
 def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
@@ -199,6 +197,10 @@ def _oversampling(
 
 
 def _train(X_train: np.array, y_train: np.array) -> Model:
+    """
+    https://www.tensorflow.org/guide/keras/writing_a_training_loop_from_scratch
+    """
+    import tensorflow as tf
     buf = Sequential()
     buf.add(Bidirectional(LSTM(units=256, activation='relu'),
                           input_shape=(X_train.shape[1:])))
@@ -240,17 +242,17 @@ def _main() -> None:
 
     init_logger()
 
-    logging.info("[Embedding] Start ...")
-    _embed(
-        os.path.join(data_base_dir, "flicker-detection"),
-        os.path.join(data_base_dir, "embedding")
-    )
-    logging.info("[Embedding] done.")
+    # logging.info("[Embedding] Start ...")
+    # _embed(
+    #     os.path.join(data_base_dir, "flicker-detection"),
+    #     os.path.join(data_base_dir, "embedding")
+    # )
+    # logging.info("[Embedding] done.")
 
     logging.info("[Preprocessing] Start ...")
     X_train, X_test, y_train, y_test = _preprocess(
         os.path.join(data_base_dir, "label.json"),
-        os.path.join(data_base_dir, "mapping.json"),
+        os.path.join(data_base_dir, "mapping_aug_data.json"),
         os.path.join(data_base_dir, "embedding"),
         os.path.join(cache_base_dir, "train_test")
     )

@@ -33,6 +33,9 @@ class Backbone:
         return self.__embedding(resnet.preprocess_input(image_tensor)).numpy()
 
     def adaptive_extractor(self, extractor: Model) -> Model:
+        """
+        https://stackoverflow.com/questions/58660613/how-to-add-another-layer-on-a-pre-loaded-network
+        """
         base_cnn = extractor(
             weights="imagenet",
             input_shape=self.__target_shape + (3,),

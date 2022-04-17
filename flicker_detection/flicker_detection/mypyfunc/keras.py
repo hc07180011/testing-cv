@@ -126,7 +126,7 @@ class Model:
         model: tf.keras.models.Sequential,
         loss: str,
         optimizer: tf.keras.optimizers,
-        metrics=tuple(
+        metrics=tuple((
             "accuracy",
             precision,
             recall,
@@ -137,7 +137,7 @@ class Model:
             negative_predictive_value,
             matthews_correlation_coefficient,
             equal_error_rate
-        ),
+        )),
         summary=True
     ) -> None:
         self.model = model
