@@ -1,9 +1,9 @@
+import os
 import logging
-
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
-
+import seaborn as sns
 from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score, precision_recall_curve, roc_curve, auc, roc_auc_score
 from tensorflow.keras import backend as K
 
@@ -126,7 +126,7 @@ class Model:
         model: tf.keras.models.Sequential,
         loss: str,
         optimizer: tf.keras.optimizers,
-        metrics=tuple((
+        metrics=tuple(
             "accuracy",
             precision,
             recall,
@@ -137,7 +137,7 @@ class Model:
             negative_predictive_value,
             matthews_correlation_coefficient,
             equal_error_rate
-        )),
+        ),
         summary=True
     ) -> None:
         self.model = model
@@ -214,7 +214,7 @@ class InferenceModel:
         y_pred = self.model.predict(X_test)
         return y_pred.flatten()
 
-    def evaluate(self, y_true: np.array, y_pred: np.array) -> None:
+    def evaluate(self, y_true: np.array, y_pred: np.array, plots_folder="plots/") -> None:
         threshold_range = np.arange(0.1, 1.0, 0.001)
 
         f1_scores = list()
@@ -228,6 +228,7 @@ class InferenceModel:
             np.max(f1_scores), threshold_range[np.argmax(f1_scores)]
         ))
 
+        # plot ROC Curve
         fpr, tpr, thresholds = roc_curve(y_true, y_pred)
         plt.plot([0, 1], [0, 1], linestyle="dashed")
         plt.plot(fpr, tpr, marker="o")
@@ -243,6 +244,7 @@ class InferenceModel:
         plt.savefig(os.path.join(plots_folder, "roc_curve.png"))
         plt.close()
 
+        # plot PR Curve
         precision, recall, thresholds = precision_recall_curve(y_true, y_pred)
         plt.plot([0, 1], [0, 0], linestyle="dashed")
         plt.plot(recall, precision, marker="o")
@@ -254,8 +256,17 @@ class InferenceModel:
         plt.ylabel("Precision")
         plt.title("Precision-recall Curve")
         plt.savefig(os.path.join(plots_folder, "pc_curve.png"))
+        plt.close()
 
-        print(confusion_matrix(
+        # plot Confusion Matrix
+        cm = confusion_matrix(
             y_true,
             (y_pred > threshold_range[np.argmax(f1_scores)]).astype(int)
-        ))
+        )
+        fig = plt.figure()
+        ax = fig.add_subplot()
+        sns.heatmap(cm, annot=True, fmt='g', ax=ax)
+        ax.set_xlabel('Predicted')
+        ax.set_ylabel('Actual')
+        ax.set_title('Confusion Matrix')
+        fig.savefig(os.path.join(plots_folder, "confusion_matrix.png"))
