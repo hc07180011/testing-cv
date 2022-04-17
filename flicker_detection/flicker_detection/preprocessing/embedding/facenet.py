@@ -1,3 +1,4 @@
+from email.mime import base
 import os
 import cv2
 import json
@@ -25,19 +26,20 @@ class Facenet:
 
         np.random.seed(0)
 
-        base_cnn = mobilenet.MobileNet(
-            weights="imagenet",
-            input_shape=self.__target_shape + (3,),
-            include_top=False
-        )
+        # base_cnn = mobilenet.MobileNet(
+        #     weights="imagenet",
+        #     input_shape=self.__target_shape + (3,),
+        #     include_top=False
+        # )
+        base_cnn = self.adaptive_mobilenet()
 
         adaptive_1 = AdaptiveMaxPooling3D(
-            output_size=(6, 6, 1024))(base_cnn.output)
+            output_size=base_cnn.output.shape[1:])(base_cnn.output)
 
         output = layers.Dense(256)(adaptive_1)
 
-        adaptive_m = AdaptiveMaxPooling3D(
-            output_size=(6, 6, 256))(output)
+        self.__embedding = Model(
+            output.input, output, name="Embedding")
 
         """
         add another layer of adaptive pooling after this "__embedding" is the model XD
@@ -53,28 +55,13 @@ class Facenet:
             name="anchor", shape=self.__target_shape + (3,)
         )
 
-        adapt_anchor = AdaptiveMaxPooling3D(
-            output_size=self.__target_shape + (3,))(anchor_input)
-        adapted_anchor = layers.Input(
-            name="adapted_anchor", shape=adapt_anchor.shape, tensor=adapt_anchor)
-
         positive_input = layers.Input(
             name="positive", shape=self.__target_shape + (3,)
         )
 
-        adapt_positive = AdaptiveMaxPooling3D(
-            output_size=self.__target_shape + (3,))(positive_input)
-        adapted_positive = layers.Input(
-            name="adapted_positive", shape=adapt_positive.shape, tensor=adapt_positive)
-
         negative_input = layers.Input(
             name="negative", shape=self.__target_shape + (3,)
         )
-
-        adapt_negative = AdaptiveMaxPooling3D(
-            output_size=self.__target_shape + (3,))(negative_input)
-        adapted_negative = layers.Input(
-            name="adapted_negative", shape=adapt_negative.shape, tensor=adapt_negative)
 
         distances = DistanceLayer()(
             self.__embedding(resnet.preprocess_input(anchor_input)),
@@ -84,9 +71,6 @@ class Facenet:
 
         siamese_network = Model(
             inputs=[
-                adapted_anchor,
-                adapted_positive,
-                adapted_negative,
                 anchor_input,
                 positive_input,
                 negative_input,
@@ -98,9 +82,9 @@ class Facenet:
             siamese_network.summary(print_fn=lambda x: fh.write(x + '\n'))
 
         adaptive_0 = AdaptiveMaxPooling3D(
-            output_size=(1024, 6, 6))(siamese_network.output)
+            output_size=siamese_network.output.shape[1:])(siamese_network.output)
 
-        adaptive_siamese_network = Model(siamese_network.input, adaptive_0)
+        adaptive_siamese_network = Model(adaptive_0.input, adaptive_0)
 
         self.__siamese_model = SiameseModel(adaptive_siamese_network)
         self.__siamese_model.built = True
@@ -128,8 +112,34 @@ class Facenet:
         resized_images = np.array([cv2.resize(image, dsize=self.__target_shape,
                                               interpolation=cv2.INTER_CUBIC) for image in images])
         image_tensor = tf.convert_to_tensor(resized_images, np.float32)
+        # return self.__siamese_model(resnet.preprocess_input(image_tensor)).numpy()
         return self.__embedding(resnet.preprocess_input(image_tensor)).numpy()
-        # Why go back to numpy?!
+
+    def adaptive_mobilenet(self):
+        base_cnn = mobilenet.MobileNet(
+            weights="imagenet", input_shape=self.__target_shape + (3,), include_top=False)
+
+        base_cnn.trainable = False
+
+        new_model = None
+        for idx, layer in enumerate(base_cnn.layers[1:]):
+            layer.trainable = False
+            if new_model is None:
+                input = layer(base_cnn.layers[idx].output)
+                new_model = Model(base_cnn.input, input)
+                continue
+            if idx % 30 == 0:
+                # layer.trainable = True
+                input = AdaptiveMaxPooling3D(
+                    output_size=new_model.output.shape[1:])(new_model.output)
+                new_model = Model(new_model.input, input)
+
+            input = layer(new_model.output)
+            new_model = Model(new_model.input, input)
+
+        with open('base_cnn.txt', 'w') as fh:
+            new_model.summary(print_fn=lambda x: fh.write(x + '\n'))
+        return new_model
 
 
 class DistanceLayer(layers.Layer):
