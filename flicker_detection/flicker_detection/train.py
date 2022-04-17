@@ -66,7 +66,7 @@ def _get_chunk_array(input_arr: np.array, chunk_size: int) -> np.array:
         ))
     )
     # return tuple(asymmetric_chunks)
-    return tuple(map(tuple,asymmetric_chunks))
+    return tuple(map(tuple, asymmetric_chunks))
 
 
 def _preprocess(

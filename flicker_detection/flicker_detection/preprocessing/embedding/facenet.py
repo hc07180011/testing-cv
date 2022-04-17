@@ -6,9 +6,7 @@ import tensorflow as tf
 
 from tensorflow.keras import metrics
 from tensorflow.keras import layers
-from tensorflow.keras import optimizers
 from tensorflow.keras import Model
-from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.applications import resnet, mobilenet
 from tensorflow_addons.layers import AdaptiveMaxPooling3D
 
@@ -45,7 +43,7 @@ class Facenet:
         add another layer of adaptive pooling after this "__embedding" is the model XD
         """
         self.__embedding = Model(base_cnn.input, adaptive_m, name="Embedding")
-        with open('preprocessing\embedding\models\embedding_summary.txt', 'w') as fh:
+        with open('preprocessing/embedding/models/embedding_summary.txt', 'w') as fh:
             self.__embedding.summary(print_fn=lambda x: fh.write(x + '\n'))
 
         for layer in base_cnn.layers[:-23]:
@@ -96,7 +94,7 @@ class Facenet:
             outputs=distances
         )
 
-        with open('preprocessing\embedding\models\siamese_summary.txt', 'w') as fh:
+        with open('preprocessing/embedding/models/siamese_summary.txt', 'w') as fh:
             siamese_network.summary(print_fn=lambda x: fh.write(x + '\n'))
 
         adaptive_0 = AdaptiveMaxPooling3D(
@@ -107,7 +105,7 @@ class Facenet:
         self.__siamese_model = SiameseModel(adaptive_siamese_network)
         self.__siamese_model.built = True
 
-        with open('preprocessing\embedding\models\siamese_adaptive_summary.txt', 'w') as fh:
+        with open('preprocessing/embedding/models/siamese_adaptive_summary.txt', 'w') as fh:
             self.__siamese_model.summary(print_fn=lambda x: fh.write(x + '\n'))
 
         model_base_dir = os.path.join("preprocessing", "embedding", "models")
@@ -132,6 +130,7 @@ class Facenet:
         image_tensor = tf.convert_to_tensor(resized_images, np.float32)
         return self.__embedding(resnet.preprocess_input(image_tensor)).numpy()
         # Why go back to numpy?!
+
 
 class DistanceLayer(layers.Layer):
 
