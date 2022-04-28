@@ -6,6 +6,7 @@
 *.mp4*
 *.avi*
 *.npz
+*.tfrecords
 data/embedding/
 data/embedding/*
 venv/*
