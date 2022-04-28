@@ -8,31 +8,27 @@ from tensorflow.keras.applications import resnet
 from tensorflow_addons.layers import AdaptiveMaxPooling3D
 
 
-class Backbone:
+class BaseCNN:
     """
     adaptive pooling sample:
     https://ideone.com/cJoN3x
     """
 
     def __init__(self) -> None:
-
-        super().__init__()
-
         self.__target_shape = (200, 200)
         self.__embedding = None
         np.random.seed(0)
+        tf.get_logger().setLevel('INFO')
 
     def get_embedding(self, images: np.ndarray, batched=True) -> np.ndarray:
-        assert (not batched) or len(
-            images.shape) == 4, "images should be an array of image with shape (width, height, 3)"
         if not batched:
-            images = np.array([images, ])
-        resized_images = np.array([cv2.resize(image, dsize=self.__target_shape,
-                                              interpolation=cv2.INTER_CUBIC) for image in images])
-        image_tensor = tf.convert_to_tensor(resized_images, np.float32)
-        return self.__embedding(resnet.preprocess_input(image_tensor)).numpy()
+            images = np.expand_dims(images, axis=0)
+        resized_images = tf.image.resize(
+            images, self.__target_shape, tf.image.ResizeMethod.NEAREST_NEIGHBOR)
 
-    def adaptive_extractor(self, extractor: Model) -> Model:
+        return self.__embedding.predict(resnet.preprocess_input(resized_images))
+
+    def adaptive_extractor(self, extractor: Model, frequency: int) -> Model:
         """
         https://stackoverflow.com/questions/58660613/how-to-add-another-layer-on-a-pre-loaded-network
         """
@@ -50,7 +46,7 @@ class Backbone:
                 input = layer(base_cnn.layers[idx].output)
                 new_model = Model(base_cnn.input, input)
                 continue
-            if idx % 10 == 0:
+            if idx % frequency == 0:
                 input = AdaptiveMaxPooling3D(
                     output_size=new_model.output.shape[1:])(new_model.output)
                 new_model = Model(new_model.input, input)
@@ -64,5 +60,7 @@ class Backbone:
             new_model.input, output, name="Embedding")
 
         with open('preprocessing/embedding/models/feature_extractor.txt', 'w') as fh:
+            tf.keras.utils.plot_model(
+                self.__embedding, 'preprocessing/embedding/models/feature_extractor.png', show_shapes=True)
             self.__embedding.summary(print_fn=lambda x: fh.write(x + '\n'))
         return self.__embedding

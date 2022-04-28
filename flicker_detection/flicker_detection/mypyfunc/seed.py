@@ -34,13 +34,10 @@ def seedEverything(seed=DEFAULT_RANDOM_SEED):
 
 
 def reset_random_seeds(seed=12345):
-    """
-    https://stackoverflow.com/questions/60058588/tesnorflow-2-0-tf-random-set-seed-not-working-since-i-am-getting-different-resul
-    """
     import os
     # *IMPORANT*: Have to do this line *before* importing tensorflow
     os.environ['PYTHONHASHSEED'] = str(seed)
-
+    os.environ['TF_DETERMINISTIC_OPS'] = str(seed)
     import random as rn
     import numpy as np
     import os

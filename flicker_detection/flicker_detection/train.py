@@ -1,5 +1,10 @@
 
 
+import json
+import os
+import logging
+import tqdm
+import numpy as np
 from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
 from keras.models import Sequential
@@ -8,47 +13,11 @@ from typing import Tuple
 from argparse import ArgumentParser
 from mypyfunc.keras import Model, InferenceModel
 from mypyfunc.logger import init_logger
-import json
-import os
-import logging
-import tqdm
-import numpy as np
-from mypyfunc.seed import reset_random_seeds
-reset_random_seeds()
-
 
 data_base_dir = "data"
 os.makedirs(data_base_dir, exist_ok=True)
 cache_base_dir = ".cache"
 os.makedirs(cache_base_dir, exist_ok=True)
-
-
-# def _embed(
-#     video_data_dir: str,
-#     output_dir: str
-# ) -> None:
-#     os.makedirs(output_dir, exist_ok=True)
-
-#     feature_extractor = Backbone()
-#     # just change extractor to try different
-#     feature_extractor.adaptive_extractor(mobilenet.MobileNet)
-
-#     for path in tqdm.tqdm(os.listdir(video_data_dir)):
-#         if os.path.exists(os.path.join(output_dir, "{}.npy".format(path))):
-#             continue
-
-#         vidcap = cv2.VideoCapture(os.path.join(video_data_dir, path))
-#         success, image = vidcap.read()
-
-#         embeddings = ()
-#         while success:
-#             embeddings = embeddings + tuple(feature_extractor.get_embedding(cv2.resize(
-#                 image, (200, 200)), batched=False).flatten())
-#             success, image = vidcap.read()
-
-#         embeddings = np.array(embeddings)
-
-#         np.save(os.path.join(output_dir, path), embeddings)
 
 
 def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
@@ -73,8 +42,6 @@ def _preprocess(
     mapping_path: str,
     data_dir: str,
     cache_path: str
-
-
 ) -> Tuple[np.array]:
     """
     can consider reducing precision of np.float32 to np.float16 to reduce memory consumption
@@ -119,15 +86,16 @@ def _preprocess(
     logging.debug(
         "taking training chunks, length = {}".format(len(embedding_list_train))
     )
-    for path in tqdm.tqdm(embedding_list_train):
+    for idx, path in enumerate(tqdm.tqdm(embedding_list_train)):
         real_filename = encoding_filename_mapping[path.replace(".npy", "")]
 
         buf_embedding = np.load(os.path.join(data_dir, path))
         if buf_embedding.shape[0] == 0:
             continue
 
-        video_embeddings_list_train = video_embeddings_list_train + \
-            (*_get_chunk_array(buf_embedding, chunk_size),)
+        batch = _get_chunk_array(buf_embedding, chunk_size)
+        np.save(f".cache/X_train_{idx}", batch)
+        video_embeddings_list_train = video_embeddings_list_train + (*batch,)
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
         buf_label = np.zeros(buf_embedding.shape[0]).astype(np.uint8)
@@ -169,7 +137,7 @@ def _preprocess(
         X_test.shape, y_test.shape
     ))
 
-    np.savez(cache_path, X_train, X_test, y_train, y_test)
+    np.savez(cache_path, X_test, y_train, y_test)
 
     return (X_train, X_test, y_train, y_test)
 
@@ -227,6 +195,10 @@ def _test(model_path: str, X_test: np.array, y_test: np.array) -> None:
 
 
 def _main() -> None:
+    import tensorflow as tf
+    tf.keras.utils.set_random_seed(12345)
+    tf.config.experimental.enable_op_determinism()
+
     parser = ArgumentParser()
     parser.add_argument(
         "-train", "--train", action="store_true",
@@ -241,13 +213,6 @@ def _main() -> None:
     args = parser.parse_args()
 
     init_logger()
-
-    # logging.info("[Embedding] Start ...")
-    # _embed(
-    #     os.path.join(data_base_dir, "flicker-detection"),
-    #     os.path.join(data_base_dir, "embedding")
-    # )
-    # logging.info("[Embedding] done.")
 
     logging.info("[Preprocessing] Start ...")
     X_train, X_test, y_train, y_test = _preprocess(
