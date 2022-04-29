@@ -68,7 +68,7 @@ class BaseCNN:
 
 class Serializer:
     def __init__(self) -> None:
-        self.data = {}
+        self.data = None
         self.filename = None
 
     def _bytes_feature(self, value):
@@ -91,6 +91,7 @@ class Serializer:
     def parse_batch(self, batch: np.ndarray, n_batch: int, filename: str = "images") -> None:
         # define the dictionary -- the structure -- of our single example
         if self.filename is None:
+            self.data = {}
             self.filename = filename
         self.data["batch_{}".format(n_batch)] = self._bytes_feature(
             self.serialize_array(batch))
@@ -105,7 +106,7 @@ class Serializer:
         self.writer.write(embedding.SerializeToString())
 
     def done_writing(self):
-        self.data = {}
+        self.data = None
         self.filename = None
         self.writer.close()
         gc.collect()
