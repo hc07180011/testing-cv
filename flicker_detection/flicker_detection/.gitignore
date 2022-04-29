@@ -10,4 +10,6 @@
 data/embedding/
 data/embedding/*
 venv/*
+TFRecords/
+TFRecords/*
 
