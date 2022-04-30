@@ -1,5 +1,7 @@
 import logging
+import json
 import gc
+from re import S
 import numpy as np
 import tensorflow as tf
 
@@ -18,15 +20,26 @@ class BaseCNN:
     def __init__(self) -> None:
         self.__target_shape = (200, 200)
         self.__embedding = None
+        self.strategy = tf.distribute.MirroredStrategy(["GPU:0", "GPU:1"])
         np.random.seed(0)
         tf.get_logger().setLevel('INFO')
 
     def get_embedding(self, images: np.ndarray, batched=True) -> np.ndarray:
         if not batched:
             images = np.expand_dims(images, axis=0)
-        resized_images = tf.image.resize(
-            images, self.__target_shape, tf.image.ResizeMethod.NEAREST_NEIGHBOR)
-        return self.__embedding.predict(resnet.preprocess_input(resized_images))
+        with self.strategy.scope():
+            resized_images = tf.image.resize(
+                images, self.__target_shape, tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+            return self.__embedding.predict(resnet.preprocess_input(resized_images))
+
+    def extractor(self, extractor: Model, weights: str = "imagenet", pooling: str = "Max") -> Model:
+        self.__embedding = extractor(
+            weights=weights,
+            input_shape=self.__target_shape + (3,),
+            include_top=False,
+            pooling=pooling
+        )
+        return self.__embedding
 
     def adaptive_extractor(self, extractor: Model, frequency: int, weights: str = "imagenet", pooling: str = "Max") -> Model:
         """
@@ -70,6 +83,7 @@ class Serializer:
     def __init__(self) -> None:
         self.data = None
         self.filename = None
+        self.schema = {}
 
     def _bytes_feature(self, value):
         """Returns a bytes_list from a string / byte."""
@@ -93,6 +107,9 @@ class Serializer:
         if self.filename is None:
             self.data = {}
             self.filename = filename
+            self.schema[self.filename] = []
+
+        self.schema[self.filename].append("batch_{}".format(n_batch))
         self.data["batch_{}".format(n_batch)] = self._bytes_feature(
             self.serialize_array(batch))
 
@@ -108,5 +125,11 @@ class Serializer:
     def done_writing(self):
         self.data = None
         self.filename = None
+
         self.writer.close()
+        self.writer = None
         gc.collect()
+
+    def get_schema(self):
+        with open('data/schema.json', 'w') as fh:
+            json.dump(self.schema, fh)

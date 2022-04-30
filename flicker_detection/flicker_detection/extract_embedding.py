@@ -29,7 +29,7 @@ def _embed(
     feature_extractor.adaptive_extractor(mobilenet.MobileNet, frequency=10)
 
     for path in tqdm.tqdm(os.listdir(video_data_dir)):
-        if os.path.exists(os.path.join(output_dir, "{}.tfrecords".format(path))):
+        if os.path.exists(os.path.join(output_dir, "/{}.tfrecords".format(path))):
             continue
 
         vidcap = cv2.VideoCapture(os.path.join(video_data_dir, path))
@@ -48,8 +48,11 @@ def _embed(
             success, batched_image[frame_count+1] = vidcap.read()
             frame_count += int(success)
 
+        serializer.parse_batch(feature_extractor.get_embedding(
+            batched_image, batched=True).flatten(), n_batch=n_batch, filename=os.path.join(output_dir, path))
         serializer.write_to_tfr()
         serializer.done_writing()
+        serializer.get_schema()
         logging.info("Done extracting - {}".format(path))
 
 
@@ -57,7 +60,13 @@ def preprocessing(
     label_path: str,
     mapping_path: str,
     data_dir: str,
+    cache_path: str,
 ) -> Tuple[np.ndarray, np.ndarray]:
+
+    if os.path.exists("{}.npz".format(cache_path)):
+        __cache__ = np.load("{}.npz".format(cache_path), allow_pickle=True)
+        return tuple(__cache__[k] for k in __cache__)
+
     pass_videos = (
         "0096.mp4", "0097.mp4", "0098.mp4",
         "0125.mp4", "0126.mp4", "0127.mp4",
@@ -66,11 +75,10 @@ def preprocessing(
     )
     raw_labels = json.load(open(label_path, "r"))
     encoding_filename_mapping = json.load(open(mapping_path, "r"))
-    # logging.info("{}".format(encoding_filename_mapping))
     embedding_path_list = sorted([
         x for x in os.listdir(data_dir)
-        if x.split(".tfrecords")[0] not in pass_videos
-        and encoding_filename_mapping[x.replace(".tfrecords", "")] in raw_labels
+        if x.split(".npy")[0] not in pass_videos
+        and encoding_filename_mapping[x.replace(".npy", "")] in raw_labels
     ])
 
     embedding_list_train, embedding_list_test, _, _ = train_test_split(
@@ -79,10 +87,23 @@ def preprocessing(
         test_size=0.1,
         random_state=42
     )
-    # logging.info("{}".format(embedding_list_train))
-    # logging.info("{}".format(embedding_list_test))
-    # logging.info("{}".format(raw_labels))
+
+    np.savez(cache_path, embedding_list_train, embedding_list_test)
+
     return np.asarray(embedding_list_train), np.asarray(embedding_list_test)
+
+
+def extract_testing(
+    data_dir: str,
+    cache_path: str,
+):
+    np.random.seed(0)
+    embedding_list_test = np.load("{}.npz".format(
+        cache_path), allow_pickle=True)["arr_1"]
+    testing = tf.data.TFRecordDataset(embedding_list_test)
+    for testing_record in testing.take(10):
+        print(testing_record)
+    pass
 
 
 def main():
@@ -108,11 +129,14 @@ def main():
         os.path.join(data_base_dir, "label.json"),
         os.path.join(data_base_dir, "mapping_aug_data.json"),
         os.path.join(data_base_dir, "TFRecords"),  # or embedding
-
+        os.path.join(cache_base_dir, "train_test")
     )
     logging.info("[Preprocessing] done.")
 
-    np.savez(os.path.join(cache_base_dir, "train_test"), emb_train, emb_test)
+    # extract_testing(
+    #     os.path.join(data_base_dir, "embedding"),
+    #     os.path.join(cache_base_dir, "train_test")
+    # )
 
 
 if __name__ == "__main__":
