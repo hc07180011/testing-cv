@@ -1,0 +1,5 @@
+data/TFRecords/*
+data/TFRecords/
+data/0099.mp4.tfrecords
+data/data_augment/*
+data/data_augment/

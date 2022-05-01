@@ -7,7 +7,7 @@ import cv2
 import tqdm
 import numpy as np
 import tensorflow as tf
-
+from typing import Tuple
 from tensorflow_addons.layers import AdaptiveMaxPooling3D
 from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
@@ -41,7 +41,8 @@ def _embed(
 
         embeddings = list()
         while success:
-            embeddings.append(facenet.get_embedding(cv2.resize(image, (200, 200)), batched=False)[0].flatten())
+            embeddings.append(facenet.get_embedding(cv2.resize(
+                image, (200, 200)), batched=False)[0].flatten())
             success, image = vidcap.read()
 
         embeddings = np.array(embeddings)
@@ -54,7 +55,7 @@ def _preprocess(
     mapping_path: str,
     data_dir: str,
     cache_path: str
-):  # -> tuple[np.array]:
+) -> Tuple[np.array]:
 
     if os.path.exists("{}.npz".format(cache_path)):
         __cache__ = np.load("{}.npz".format(cache_path))
@@ -92,10 +93,7 @@ def _preprocess(
             ))
         )
         # TODO: should we take the last chunk?
-        # logging.info("# chunks: {}".format(len(asymmetric_chunks)))
-        # logging.info("1st chunks:{}".format(len(asymmetric_chunks[:-1])))
         return np.array(asymmetric_chunks[:-1]).tolist()
-        # return np.array(asymmetric_chunks).tolist()
 
     chunk_size = 30
 
@@ -163,16 +161,10 @@ def _oversampling(
     X_train: np.array,
     y_train: np.array,
     method="SMOTE"
-):  # -> tuple[np.array]:
+) -> Tuple[np.array]:
     sm = SMOTE(random_state=42)
     original_X_shape = X_train.shape
-    # logging.info("original x shape: {}".format(
-    #     np.vstack((X_train, X_train)).T.shape))
-    # logging.info("original y shape: {}".format(y_train.shape))
-    # logging.info(X_train)
-    # logging.info(y_train)
     X_train, y_train = sm.fit_resample(
-        # np.vstack((X_train, X_train)).T,
         np.reshape(X_train, (-1, np.prod(original_X_shape[1:]))),
         y_train
     )
