@@ -57,8 +57,8 @@ def _preprocess(
     cache_path: str
 ) -> Tuple[np.array]:
 
-    if os.path.exists("{}.npz".format(cache_path)):
-        __cache__ = np.load("{}.npz".format(cache_path))
+    if os.path.exists("/{}.npz".format(cache_path)):
+        __cache__ = np.load("/{}.npz".format(cache_path), allow_pickle=True)
         return tuple((__cache__[k] for k in __cache__))
 
     pass_videos = list([
@@ -140,7 +140,6 @@ def _preprocess(
             1 if sum(x) else 0
             for x in _get_chunk_array(buf_label, chunk_size)
         ])
-        break
 
     X_train = np.array(video_embeddings_list_train)
     X_test = np.array(video_embeddings_list_test)
@@ -151,6 +150,10 @@ def _preprocess(
         X_train.shape, y_train.shape,
         X_test.shape, y_test.shape
     ))
+    # logging.debug("ok. got training: {}/{}, testing: {}/{}".format(
+    #     type(X_train), type(y_train),
+    #     type(X_test), type(y_test)
+    # ))
 
     np.savez(cache_path, X_train, X_test, y_train, y_test)
 
@@ -160,7 +163,6 @@ def _preprocess(
 def _oversampling(
     X_train: np.array,
     y_train: np.array,
-    method="SMOTE"
 ) -> Tuple[np.array]:
     sm = SMOTE(random_state=42)
     original_X_shape = X_train.shape
@@ -173,8 +175,6 @@ def _oversampling(
 
 
 def _train(X_train: np.array, y_train: np.array) -> Model:
-    logging.info("LSTM input shape: {}".format(X_train.shape[1:]))
-
     buf = Sequential()
     buf.add(LSTM(units=256, input_shape=(X_train.shape[1:])))
     buf.add(Dense(units=128, activation="relu"))
@@ -200,6 +200,9 @@ def _test(model_path: str, X_test: np.array, y_test: np.array) -> None:
 
 
 def _main() -> None:
+    tf.keras.utils.set_random_seed(12345)
+    tf.config.experimental.enable_op_determinism()
+
     parser = ArgumentParser()
     parser.add_argument(
         "-train", "--train", action="store_true",
