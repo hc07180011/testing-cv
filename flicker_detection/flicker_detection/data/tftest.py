@@ -15,9 +15,6 @@ def decode_fn(record_bytes):
         # Data
         record_bytes,
         schema
-        # Schema
-        # {"x": tf.io.FixedLenFeature([], dtype=tf.float32),
-        #  "y": tf.io.FixedLenFeature([], dtype=tf.float32)}
     )
 
 
