@@ -8,16 +8,15 @@ import tqdm
 import numpy as np
 import tensorflow as tf
 from typing import Tuple
-from tensorflow_addons.layers import AdaptiveMaxPooling3D
 from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
 from keras.models import Sequential
 from keras.layers import LSTM, Dense, Flatten
 
-from mypyfunc.keras import Model, InferenceModel
+from mypyfunc.custom import Model, InferenceModel
 from mypyfunc.logger import init_logger
 from preprocessing.embedding.facenet import Facenet
-
+from mypyfunc.transformers import Transformers
 
 data_base_dir = "data"
 os.makedirs(data_base_dir, exist_ok=True)
@@ -57,8 +56,8 @@ def _preprocess(
     cache_path: str
 ) -> Tuple[np.array]:
 
-    if os.path.exists("/{}.npz".format(cache_path)):
-        __cache__ = np.load("/{}.npz".format(cache_path), allow_pickle=True)
+    if os.path.exists("{}.npz".format(cache_path)):
+        __cache__ = np.load("{}.npz".format(cache_path), allow_pickle=True)
         return tuple((__cache__[k] for k in __cache__))
 
     pass_videos = list([
@@ -150,10 +149,6 @@ def _preprocess(
         X_train.shape, y_train.shape,
         X_test.shape, y_test.shape
     ))
-    # logging.debug("ok. got training: {}/{}, testing: {}/{}".format(
-    #     type(X_train), type(y_train),
-    #     type(X_test), type(y_test)
-    # ))
 
     np.savez(cache_path, X_train, X_test, y_train, y_test)
 
@@ -175,20 +170,30 @@ def _oversampling(
 
 
 def _train(X_train: np.array, y_train: np.array) -> Model:
-    buf = Sequential()
-    buf.add(LSTM(units=256, input_shape=(X_train.shape[1:])))
-    buf.add(Dense(units=128, activation="relu"))
-    buf.add(Flatten())
-    buf.add(Dense(units=1, activation="sigmoid"))
 
-    model = Model(
-        model=buf,
+    # buf = Sequential()
+    # buf.add(LSTM(units=256, input_shape=(X_train.shape[1:])))
+    # buf.add(Dense(units=128, activation="relu"))
+    # buf.add(Flatten())
+    # buf.add(Dense(units=1, activation="sigmoid"))
+
+    # model = Model(
+    #     # model=transformers(X_train),
+    #     model=buf,
+    #     loss="binary_crossentropy",
+    #     optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
+    # )
+    strategy = tf.distribute.MirroredStrategy()
+    model = Transformers(
+        X_train,
         loss="binary_crossentropy",
         optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
+        strategy=strategy,
     )
     model.train(X_train, y_train, 1000, 0.1, 1024)
     for k in list(("loss", "accuracy", "f1", "auc")):
-        model.plot_history(k, title="{} - LSTM, Chunk, Oversampling".format(k))
+        model.plot_history(
+            k, title="{} - LSTM, Chunk, Oversampling".format(k))
 
     return model
 
@@ -234,12 +239,13 @@ def _main() -> None:
     )
     logging.info("[Preprocessing] done.")
 
-    logging.info("[Oversampling] Start ...")
-    X_train, y_train = _oversampling(
-        X_train,
-        y_train
-    )
-    logging.info("[Oversampling] done.")
+    # TODO fix me
+    # logging.info("[Oversampling] Start ...")
+    # X_train, y_train = _oversampling(
+    #     X_train,
+    #     y_train
+    # )
+    # logging.info("[Oversampling] done.")
 
     if args.train:
         logging.info("[Training] Start ...")

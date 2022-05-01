@@ -11,49 +11,43 @@ logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("tensorflow").setLevel(logging.WARNING)
 
 
-class MyMetrics:
-
-    def __init__(self) -> None:
-        pass
-
-    def precision(self, y_true, y_pred):
-        true_positives = tf.keras.backend.sum(
-            tf.keras.backend.round(
-                tf.keras.backend.clip(y_true * y_pred, 0, 1)
-            )
+def precision(y_true, y_pred):
+    true_positives = tf.keras.backend.sum(
+        tf.keras.backend.round(
+            tf.keras.backend.clip(y_true * y_pred, 0, 1)
         )
-        predicted_positives = tf.keras.backend.sum(
-            tf.keras.backend.round(
-                tf.keras.backend.clip(y_pred, 0, 1)
-            )
+    )
+    predicted_positives = tf.keras.backend.sum(
+        tf.keras.backend.round(
+            tf.keras.backend.clip(y_pred, 0, 1)
         )
-        precision = true_positives / \
-                    (predicted_positives + tf.keras.backend.epsilon())
-        return precision
+    )
+    precision = true_positives / \
+        (predicted_positives + tf.keras.backend.epsilon())
+    return precision
 
-    def recall(self, y_true, y_pred):
-        true_positives = tf.keras.backend.sum(
-            tf.keras.backend.round(
-                tf.keras.backend.clip(y_true * y_pred, 0, 1)
-            )
+
+def recall(y_true, y_pred):
+    true_positives = tf.keras.backend.sum(
+        tf.keras.backend.round(
+            tf.keras.backend.clip(y_true * y_pred, 0, 1)
         )
-        possible_positives = tf.keras.backend.sum(
-            tf.keras.backend.round(
-                tf.keras.backend.clip(y_true, 0, 1)
-            )
+    )
+    possible_positives = tf.keras.backend.sum(
+        tf.keras.backend.round(
+            tf.keras.backend.clip(y_true, 0, 1)
         )
-        recall = true_positives / \
-                    (possible_positives + tf.keras.backend.epsilon())
-        return recall
-
-    def f1(self, y_true, y_pred):
-        precision = self.precision(y_true, y_pred)
-        recall = self.recall(y_true, y_pred)
-        return 2 * ((precision * recall) / \
-                    (precision + recall + tf.keras.backend.epsilon()))
+    )
+    recall = true_positives / \
+        (possible_positives + tf.keras.backend.epsilon())
+    return recall
 
 
-_my_metrics = MyMetrics()
+def f1(y_true, y_pred):
+    p = precision(y_true, y_pred)
+    r = recall(y_true, y_pred)
+    return 2 * ((p * r) /
+                (p + r + tf.keras.backend.epsilon()))
 
 
 class Model:
@@ -65,11 +59,12 @@ class Model:
         optimizer: tf.keras.optimizers,
         metrics: list = list((
             "accuracy",
-            _my_metrics.f1,
+            f1,
             tf.keras.metrics.AUC()
         )),
-        summary=True
+        summary=True,
     ) -> None:
+
         self.model = model
         self.model.compile(
             loss=loss,
@@ -124,7 +119,7 @@ class InferenceModel:
         self,
         model_path: str,
         custom_objects: dict = dict({
-            "f1": _my_metrics.f1,
+            "f1": f1,
             "auc": tf.keras.metrics.AUC()
         })
     ) -> None:
@@ -179,10 +174,3 @@ class InferenceModel:
             y_true,
             (y_pred > threshold_range[np.argmax(f1_scores)]).astype(int)
         ))
-
-
-def AdaptiveMaxPool2d(X, output_size):
-    batch_size, h, w, c = tf.keras.backend.int_shape(x)
-    stride = np.floor(h / output_size).astype(np.int32)
-    kernel_size = h - (output_size - 1) * stride
-    return tf.keras.layers.MaxPooling2D(pool_size=(kernel_size, kernel_size), strides=stride)(x)
