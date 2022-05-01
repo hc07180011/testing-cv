@@ -1,5 +1,3 @@
-
-
 import json
 import os
 import logging
@@ -97,7 +95,7 @@ def _preprocess(
         np.save(f".cache/X_train_{idx}", batch)
         video_embeddings_list_train = video_embeddings_list_train + (*batch,)
 
-        flicker_idxs = np.array(raw_labels[real_filename]) - 1
+        flicker_idxs = np.array(raw_labels[real_filename]) - 1  # this line
         buf_label = np.zeros(buf_embedding.shape[0]).astype(np.uint8)
         buf_label[flicker_idxs] = 1
         video_labels_list_train = video_labels_list_train + tuple(
