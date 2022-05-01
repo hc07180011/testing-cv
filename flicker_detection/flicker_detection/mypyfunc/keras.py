@@ -11,6 +11,10 @@ from tensorflow.keras import backend as K
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("tensorflow").setLevel(logging.WARNING)
 
+
+plots_folder = "../plots"
+os.makedirs(plots_folder, exist_ok=True)
+
 """
 keras metrics api:
 https://keras.io/api/metrics/

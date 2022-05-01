@@ -10,6 +10,7 @@ from keras.layers import LSTM, Dense, Flatten, Bidirectional
 from typing import Tuple
 from argparse import ArgumentParser
 from mypyfunc.keras import Model, InferenceModel
+from mypyfunc.transformers import transformers, PositionalEmbedding, TransformerEncoder
 from mypyfunc.logger import init_logger
 
 data_base_dir = "data"
@@ -51,8 +52,8 @@ def _preprocess(
     static memory allocation solution:
     https://pytorch.org/docs/stable/generated/torch.zeros.html
     """
-    if os.path.exists("/{}.npz".format(cache_path)):
-        __cache__ = np.load("/{}.npz".format(cache_path), allow_pickle=True)
+    if os.path.exists("{}.npz".format(cache_path)):
+        __cache__ = np.load("{}.npz".format(cache_path), allow_pickle=True)
         return tuple((__cache__[k] for k in __cache__))
 
     pass_videos = list([
@@ -148,8 +149,6 @@ def _oversampling(
     batched alternative:
     https://imbalanced-learn.org/stable/references/generated/imblearn.keras.BalancedBatchGenerator.html
     """
-    if os.path.exists(".cache/over_sampled_X_train.npy") and os.path.exists(".cache/over_sampled_X_train.npy"):
-        return np.load(".cache/over_sampled_X_train.npy"), np.load(".cache/over_sampled_y_train.npy")
     sm = SMOTE(random_state=42)
     original_X_shape = X_train.shape
     X_train, y_train = sm.fit_resample(
@@ -157,8 +156,6 @@ def _oversampling(
         y_train
     )
     X_train = np.reshape(X_train, (-1,) + original_X_shape[1:])
-    np.save(".cache/over_sampled_X_train.npy", X_train)
-    np.save(".cache/over_sampled_y_train.npy", X_train)
     return (X_train, y_train)
 
 
@@ -167,21 +164,26 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
     https://www.tensorflow.org/guide/keras/writing_a_training_loop_from_scratch
     """
     import tensorflow as tf
-    buf = Sequential()
-    buf.add(Bidirectional(LSTM(units=256, activation='relu'),
-                          input_shape=(X_train.shape[1:])))
-    buf.add(Dense(units=128, activation="relu"))
-    buf.add(Flatten())
-    buf.add(Dense(units=1, activation="sigmoid"))
+    mirrored_strategy = tf.distribute.MirroredStrategy()
 
-    model = Model(
-        model=buf,
-        loss="binary_crossentropy",
-        optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
-    )
-    model.train(X_train, y_train, 1000, 0.1, 1024)
-    for k in list(("loss", "accuracy", "f1", "auc", "specificity")):
-        model.plot_history(k, title="{} - LSTM, Chunk, Oversampling".format(k))
+    with mirrored_strategy.scope():
+        buf = Sequential()
+        buf.add(Bidirectional(LSTM(units=256, activation='relu'),
+                              input_shape=(X_train.shape[1:])))
+        buf.add(Dense(units=128, activation="relu"))
+        buf.add(Flatten())
+        buf.add(Dense(units=1, activation="sigmoid"))
+
+        model = Model(
+            model=transformers(X_train),
+            # model=buf,
+            loss="binary_crossentropy",
+            optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
+        )
+        model.train(X_train, y_train, 1000, 0.1, 1024)
+        for k in list(("loss", "accuracy", "f1", "auc", "specificity")):
+            model.plot_history(
+                k, title="{} - LSTM, Chunk, Oversampling".format(k))
 
     return model
 
