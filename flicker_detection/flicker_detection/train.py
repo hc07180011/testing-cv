@@ -170,30 +170,33 @@ def _oversampling(
 
 
 def _train(X_train: np.array, y_train: np.array) -> Model:
+    tf.keras.utils.set_random_seed(12345)
+    tf.config.experimental.enable_op_determinism()
+    mirrored_strategy = tf.distribute.MirroredStrategy()
+    with mirrored_strategy.scope():
+        buf = Sequential()
+        buf.add(LSTM(units=256, input_shape=(X_train.shape[1:])))
+        buf.add(Dense(units=128, activation="relu"))
+        buf.add(Flatten())
+        buf.add(Dense(units=1, activation="sigmoid"))
 
-    # buf = Sequential()
-    # buf.add(LSTM(units=256, input_shape=(X_train.shape[1:])))
-    # buf.add(Dense(units=128, activation="relu"))
-    # buf.add(Flatten())
-    # buf.add(Dense(units=1, activation="sigmoid"))
-
-    # model = Model(
-    #     # model=transformers(X_train),
-    #     model=buf,
+        model = Model(
+            # model=transformers(X_train),
+            model=buf,
+            loss="binary_crossentropy",
+            optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
+        )
+    # strategy = tf.distribute.MirroredStrategy()
+    # model = Transformers(
+    #     X_train,
     #     loss="binary_crossentropy",
     #     optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
+    #     strategy=strategy,
     # )
-    strategy = tf.distribute.MirroredStrategy()
-    model = Transformers(
-        X_train,
-        loss="binary_crossentropy",
-        optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
-        strategy=strategy,
-    )
-    model.train(X_train, y_train, 1000, 0.1, 1024)
-    for k in list(("loss", "accuracy", "f1", "auc")):
-        model.plot_history(
-            k, title="{} - LSTM, Chunk, Oversampling".format(k))
+        model.train(X_train, y_train, 1000, 0.1, 1024)
+        for k in list(("loss", "accuracy", "f1")):
+            model.plot_history(
+                k, title="{} - LSTM, Chunk, Oversampling".format(k))
 
     return model
 
@@ -205,9 +208,6 @@ def _test(model_path: str, X_test: np.array, y_test: np.array) -> None:
 
 
 def _main() -> None:
-    tf.keras.utils.set_random_seed(12345)
-    tf.config.experimental.enable_op_determinism()
-
     parser = ArgumentParser()
     parser.add_argument(
         "-train", "--train", action="store_true",
@@ -240,12 +240,12 @@ def _main() -> None:
     logging.info("[Preprocessing] done.")
 
     # TODO fix me
-    # logging.info("[Oversampling] Start ...")
-    # X_train, y_train = _oversampling(
-    #     X_train,
-    #     y_train
-    # )
-    # logging.info("[Oversampling] done.")
+    logging.info("[Oversampling] Start ...")
+    X_train, y_train = _oversampling(
+        X_train,
+        y_train
+    )
+    logging.info("[Oversampling] done.")
 
     if args.train:
         logging.info("[Training] Start ...")

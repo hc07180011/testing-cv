@@ -58,10 +58,11 @@ class Transformers:
             loss: str,
             optimizer: tf.keras.optimizers,
             strategy: tf.distribute.Strategy,
-            metrics: tuple = (
-            "accuracy", f1,
-            # tf.keras.metrics.AUC()
-            ),
+            metrics: tuple,
+            # metrics: tuple = (
+            # "accuracy", f1,
+            # # tf.keras.metrics.AUC()
+            # ),
     ) -> None:
         self.strategy = strategy
         self.loss = loss

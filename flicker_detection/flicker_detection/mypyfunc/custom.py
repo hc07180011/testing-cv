@@ -60,7 +60,7 @@ class Model:
         metrics: list = list((
             "accuracy",
             f1,
-            tf.keras.metrics.AUC()
+            # tf.keras.metrics.AUC()
         )),
         summary=True,
     ) -> None:
@@ -120,7 +120,7 @@ class InferenceModel:
         model_path: str,
         custom_objects: dict = dict({
             "f1": f1,
-            "auc": tf.keras.metrics.AUC()
+            # "auc": tf.keras.metrics.AUC()
         })
     ) -> None:
         self.model = tf.keras.models.load_model(
