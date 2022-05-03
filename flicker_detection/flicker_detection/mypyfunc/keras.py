@@ -12,9 +12,6 @@ logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("tensorflow").setLevel(logging.WARNING)
 
 
-plots_folder = "../plots"
-os.makedirs(plots_folder, exist_ok=True)
-
 """
 keras metrics api:
 https://keras.io/api/metrics/
@@ -130,18 +127,17 @@ class Model:
         model: tf.keras.models.Sequential,
         loss: str,
         optimizer: tf.keras.optimizers,
-        metrics=tuple((
-            "accuracy",
-            precision,
-            recall,
+        metrics=(
+            # precision,
+            # recall,
             f1,
             # auroc,
-            fbeta,
-            specificity,
-            negative_predictive_value,
-            matthews_correlation_coefficient,
-            equal_error_rate
-        )),
+            # fbeta,
+            # specificity,
+            # negative_predictive_value,
+            # matthews_correlation_coefficient,
+            # equal_error_rate
+        ),
         summary=True
     ) -> None:
         self.model = model
@@ -150,6 +146,8 @@ class Model:
             optimizer=optimizer,
             metrics=metrics
         )
+        self.plots_folder = "../plots/"
+        os.makedirs(self.plots_folder, exist_ok=True)
         if summary:
             print(self.model.summary())
 
@@ -188,7 +186,7 @@ class Model:
         plt.ylabel("{}".format(key))
         if title:
             plt.title("{}".format(title))
-        plt.savefig(plots_folder+"{}.png".format(key))
+        plt.savefig("{}.png".format(os.path.join(self.plots_folder, key)))
         plt.close()
 
 
@@ -198,15 +196,15 @@ class InferenceModel:
         self,
         model_path: str,
         custom_objects: dict = {
-            "precision": precision,
-            "recall": recall,
+            # "precision": precision,
+            # "recall": recall,
             "f1": f1,
             # "auroc":auroc,
-            "fbeta": fbeta,
-            "specificity": specificity,
-            "negative_predictive_value": negative_predictive_value,
-            "matthews_correlation_coefficient": matthews_correlation_coefficient,
-            "equal_error_rate": equal_error_rate
+            # "fbeta": fbeta,
+            # "specificity": specificity,
+            # "negative_predictive_value": negative_predictive_value,
+            # "matthews_correlation_coefficient": matthews_correlation_coefficient,
+            # "equal_error_rate": equal_error_rate
         }
     ) -> None:
         self.model = tf.keras.models.load_model(
@@ -224,13 +222,6 @@ class InferenceModel:
         f1_scores = list()
         for lambda_ in threshold_range:
             f1_scores.append(f1_score(y_true, (y_pred > lambda_).astype(int)))
-
-        # print("Max f1: {:.4f}, at thres = {:.4f}".format(
-        #     np.max(f1_scores), threshold_range[np.argmax(f1_scores)]
-        # ))
-        logging.info("Max f1: {:.4f}, at thres = {:.4f}".format(
-            np.max(f1_scores), threshold_range[np.argmax(f1_scores)]
-        ))
 
         # plot ROC Curve
         fpr, tpr, thresholds = roc_curve(y_true, y_pred)
@@ -262,6 +253,9 @@ class InferenceModel:
         plt.savefig(os.path.join(plots_folder, "pc_curve.png"))
         plt.close()
 
+        logging.info("Max f1: {:.4f}, at thres = {:.4f}".format(
+            np.max(f1_scores), threshold_range[np.argmax(f1_scores)]
+        ))
         # plot Confusion Matrix
         cm = confusion_matrix(
             y_true,
@@ -272,5 +266,6 @@ class InferenceModel:
         sns.heatmap(cm, annot=True, fmt='g', ax=ax)
         ax.set_xlabel('Predicted')
         ax.set_ylabel('Actual')
-        ax.set_title('Confusion Matrix')
+        ax.set_title('{}'.format(np.max(f1_scores),
+                     threshold_range[np.argmax(f1_scores)]))
         fig.savefig(os.path.join(plots_folder, "confusion_matrix.png"))

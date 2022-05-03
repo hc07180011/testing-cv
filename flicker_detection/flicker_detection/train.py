@@ -22,9 +22,8 @@ os.makedirs(cache_base_dir, exist_ok=True)
 def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
     usable_vec = input_arr[:(
         np.floor(len(input_arr)/chunk_size)*chunk_size).astype(int)]
-    # add zeros
     i_pad = np.concatenate((usable_vec, np.array(
-        [input_arr[-1]]*(chunk_size-len(usable_vec) % chunk_size))))
+        [np.zeros(input_arr[-1].shape)]*(chunk_size-len(usable_vec) % chunk_size))))
     asymmetric_chunks = np.split(
         i_pad,
         list(range(
@@ -52,16 +51,16 @@ def _preprocess(
     static memory allocation solution:
     https://pytorch.org/docs/stable/generated/torch.zeros.html
     """
-    if os.path.exists("{}.npz".format(cache_path)):
-        __cache__ = np.load("{}.npz".format(cache_path), allow_pickle=True)
+    if os.path.exists("/{}.npz".format(cache_path)):
+        __cache__ = np.load("/{}.npz".format(cache_path), allow_pickle=True)
         return tuple((__cache__[k] for k in __cache__))
 
-    pass_videos = list([
+    pass_videos = (
         "0096.mp4", "0097.mp4", "0098.mp4",
         "0125.mp4", "0126.mp4", "0127.mp4",
         "0145.mp4", "0146.mp4", "0147.mp4",
         "0178.mp4", "0179.mp4", "0180.mp4"
-    ])
+    )
     raw_labels = json.load(open(label_path, "r"))
     encoding_filename_mapping = json.load(open(mapping_path, "r"))
 
@@ -78,14 +77,14 @@ def _preprocess(
         random_state=42
     )
 
-    chunk_size = 30
+    chunk_size = 24  # batch sizes must be even number
 
     video_embeddings_list_train = ()
     video_labels_list_train = ()
     logging.debug(
         "taking training chunks, length = {}".format(len(embedding_list_train))
     )
-    for idx, path in enumerate(tqdm.tqdm(embedding_list_train)):
+    for path in tqdm.tqdm(embedding_list_train):
         real_filename = encoding_filename_mapping[path.replace(".npy", "")]
 
         buf_embedding = np.load(os.path.join(data_dir, path))
@@ -93,7 +92,6 @@ def _preprocess(
             continue
 
         batch = _get_chunk_array(buf_embedding, chunk_size)
-        np.save(f".cache/X_train_{idx}", batch)
         video_embeddings_list_train = video_embeddings_list_train + (*batch,)
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1  # this line
@@ -136,7 +134,7 @@ def _preprocess(
         X_test.shape, y_test.shape
     ))
 
-    np.savez(cache_path, X_test, y_train, y_test)
+    np.savez(cache_path, X_train, X_test, y_train, y_test)
 
     return (X_train, X_test, y_train, y_test)
 
@@ -170,18 +168,22 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
         buf = Sequential()
         buf.add(Bidirectional(LSTM(units=256, activation='relu'),
                               input_shape=(X_train.shape[1:])))
+        # buf.add(LSTM(units=256, input_shape=(X_train.shape[1:])))
         buf.add(Dense(units=128, activation="relu"))
         buf.add(Flatten())
         buf.add(Dense(units=1, activation="sigmoid"))
 
         model = Model(
-            model=transformers(X_train),
-            # model=buf,
+            # model=transformers(X_train.shape[1:]),
+            model=buf,
             loss="binary_crossentropy",
-            optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
+            optimizer=tf.keras.optimizers.Adam(learning_rate=1e-6),
         )
         model.train(X_train, y_train, 1000, 0.1, 1024)
-        for k in list(("loss", "accuracy", "f1", "auc", "specificity")):
+        for k in ("loss", "accuracy", "precision",
+                  "recall", "f1", "fbeta", "specificity",
+                  "negative_predictive_value",
+                  "matthews_correlation_coefficient", "equal_error_rate"):
             model.plot_history(
                 k, title="{} - LSTM, Chunk, Oversampling".format(k))
 
@@ -223,20 +225,23 @@ def _main() -> None:
     )
     logging.info("[Preprocessing] done.")
 
-    logging.info("[Oversampling] Start ...")
-    X_train, y_train = _oversampling(
-        X_train,
-        y_train
-    )
-    logging.info("[Oversampling] done.")
-
     if args.train:
+        logging.info("[Oversampling] Start ...")
+        X_train, y_train = _oversampling(
+            X_train,
+            y_train
+        )
+        logging.info("[Oversampling] done.")
+
         logging.info("[Training] Start ...")
         _ = _train(
             X_train,
             y_train
         )
         logging.info("[Training] done.")
+
+    logging.info("{}".format(X_train.shape))
+    logging.info("{}".format(y_test.shape))
 
     if args.test:
         logging.info("[Testing] Start ...")

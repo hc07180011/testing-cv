@@ -33,23 +33,29 @@ def _embed(
             continue
 
         vidcap = cv2.VideoCapture(os.path.join(video_data_dir, path))
-        success, image = vidcap.read()
-
-        batched_image = np.zeros((batch_size+1,) + image.shape)
-        batched_image[0] = image
-        frame_count, n_batch = 1, 0
-        while success:
+        h, w, total_frames, frame_count, n_batch = int(vidcap.get(
+            4)), int(vidcap.get(3)), int(vidcap.get(7)), 0, 0
+        b_frames = np.zeros((batch_size, h, w, 3))
+        embedding = ()
+        while (1):
             if frame_count == batch_size:
-                serializer.parse_batch(feature_extractor.get_embedding(
-                    batched_image, batched=True).flatten(), n_batch=n_batch, filename=os.path.join(output_dir, path))
-                frame_count, n_batch = 0, n_batch+1
-                batched_image = np.zeros((batch_size+1,) + image.shape)
+                embedding += (feature_extractor.get_embedding(
+                    b_frames, batched=True).flatten(),)
+                # serializer.parse_batch(feature_extractor.get_embedding(
+                #     batched_image, batched=True).flatten(), n_batch=n_batch, filename=os.path.join(output_dir, path))
+                # frame_count, n_batch = 0, n_batch+1
+                frame_count = 0
+                n_batch += 1
+                b_frames = np.zeros((batch_size, h, w, 3))
 
-            success, batched_image[frame_count+1] = vidcap.read()
+            success, b_frames[frame_count+1] = vidcap.read()
             frame_count += int(success)
 
-        serializer.parse_batch(feature_extractor.get_embedding(
-            batched_image, batched=True).flatten(), n_batch=n_batch, filename=os.path.join(output_dir, path))
+        embedding += (feature_extractor.get_embedding(
+            b_frames, batched=True).flatten(),)
+
+        serializer.parse_batch(embedding, n_batch=n_batch,
+                               filename=os.path.join(output_dir, path))
         serializer.write_to_tfr()
         serializer.done_writing()
         serializer.get_schema()
@@ -58,42 +64,28 @@ def _embed(
 
 def np_embed(
     video_data_dir: str,
-    output_dir: str,
-    batch_size: int = 32,
+    output_dir: str
 ) -> None:
     os.makedirs(output_dir, exist_ok=True)
 
-    feature_extractor = BaseCNN()
-    # just change extractor to try different
-    feature_extractor.adaptive_extractor(mobilenet.MobileNet, frequency=10)
-
+    facenet = BaseCNN()
+    facenet.adaptive_extractor(mobilenet.MobileNet, frequency=10)
     for path in tqdm.tqdm(os.listdir(video_data_dir)):
-        if os.path.exists(os.path.join(output_dir, "{}.npy".format(path))):
+        if os.path.exists(os.path.join(output_dir, "/{}.npy".format(path))):
             continue
 
         vidcap = cv2.VideoCapture(os.path.join(video_data_dir, path))
-        h, w, total_frames, frame_count, b_count = int(vidcap.get(
-            4)), int(vidcap.get(3)), int(vidcap.get(7)), 0, 0
-        b_frames = np.zeros((batch_size, h, w, 3))
-        while (1):
-            if frame_count == batch_size:
-                emb = feature_extractor.get_embedding(
-                    b_frames, batched=True).flatten()
-                tf.io.write_file(os.path.join(output_dir, "{}_{}.npy".format(
-                    b_count, path)), emb.astype(np.float32).tobytes())
-                frame_count = 0
-                b_count += 1
-                b_frames = np.zeros((batch_size, h, w, 3))
+        success, image = vidcap.read()
 
-            success, b_frames[frame_count] = vidcap.read()
-            frame_count += int(success)
+        embeddings = list()
+        while success:
+            embeddings.append(facenet.get_embed_cpu(cv2.resize(
+                image, (200, 200)), batched=False)[0].flatten())
+            success, image = vidcap.read()
 
-        emb = feature_extractor.get_embedding(
-            b_frames, batched=True).flatten()
-        tf.io.write_file(os.path.join(output_dir, "{}_{}.npy".format(
-            b_count, path)), emb.astype(np.float32).tobytes())
+        embeddings = np.array(embeddings)
 
-        logging.info("Done extracting - {}".format(path))
+        np.save(os.path.join(output_dir, path), embeddings)
 
 
 def preprocessing(
@@ -161,20 +153,20 @@ def main():
     init_logger()
 
     logging.info("[Embedding] Start ...")
-    _embed(
+    np_embed(
         os.path.join(data_base_dir, "flicker-detection"),
-        os.path.join(data_base_dir, "batched_np")
+        os.path.join(data_base_dir, "embedding")
     )
     logging.info("[Embedding] done.")
 
-    logging.info("[Preprocessing] Start ...")
-    emb_train, emb_test = preprocessing(
-        os.path.join(data_base_dir, "label.json"),
-        os.path.join(data_base_dir, "mapping_aug_data.json"),
-        os.path.join(data_base_dir, "batched_np"),  # or embedding
-        os.path.join(cache_base_dir, "train_test")
-    )
-    logging.info("[Preprocessing] done.")
+    # logging.info("[Preprocessing] Start ...")
+    # emb_train, emb_test = preprocessing(
+    #     os.path.join(data_base_dir, "label.json"),
+    #     os.path.join(data_base_dir, "mapping_aug_data.json"),
+    #     os.path.join(data_base_dir, "embedding"),  # or embedding
+    #     os.path.join(cache_base_dir, "train_test")
+    # )
+    # logging.info("[Preprocessing] done.")
 
     # extract_testing(
     #     os.path.join(data_base_dir, "embedding"),
