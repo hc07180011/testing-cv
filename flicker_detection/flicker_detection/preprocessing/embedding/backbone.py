@@ -1,4 +1,4 @@
-import logging
+import cv2
 import json
 import gc
 from re import S
@@ -20,7 +20,7 @@ class BaseCNN:
     def __init__(self) -> None:
         self.__target_shape = (200, 200)
         self.__embedding = None
-        self.strategy = tf.distribute.MirroredStrategy(["GPU:0", "GPU:1"])
+        self.strategy = tf.distribute.MirroredStrategy()
         np.random.seed(0)
         tf.get_logger().setLevel('INFO')
 
@@ -31,6 +31,14 @@ class BaseCNN:
             resized_images = tf.image.resize(
                 images, self.__target_shape, tf.image.ResizeMethod.NEAREST_NEIGHBOR)
             return self.__embedding.predict(resnet.preprocess_input(resized_images))
+
+    def get_embed_cpu(self, images: np.ndarray, batched=True) -> np.ndarray:
+        if not batched:
+            images = np.array([images, ])
+        resized_images = np.array([cv2.resize(image, dsize=self.__target_shape,
+                                              interpolation=cv2.INTER_CUBIC) for image in images])
+        image_tensor = tf.convert_to_tensor(resized_images, np.float32)
+        return self.__embedding(resnet.preprocess_input(image_tensor)).numpy()
 
     def extractor(self, extractor: Model, weights: str = "imagenet", pooling: str = "Max") -> Model:
         self.__embedding = extractor(

@@ -50,12 +50,12 @@ class TransformerEncoder(layers.Layer):
         return self.layernorm_2(proj_input + proj_output)
 
 
-def transformers(X_train: np.array) -> Model:
+def transformers(input_shape: tuple) -> Model:
     sequence_length = 20
     embed_dim = 9216
     dense_dim = 4
     num_heads = 1
-    inputs = tf.keras.Input(shape=X_train.shape[1:])
+    inputs = tf.keras.Input(shape=input_shape)
     x = PositionalEmbedding(
         sequence_length, embed_dim, name="frame_position_embedding"
     )(inputs)
