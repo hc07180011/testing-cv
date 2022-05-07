@@ -4,116 +4,14 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import seaborn as sns
+from typing import Tuple
 from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score, precision_recall_curve, roc_curve, auc, roc_auc_score
-from tensorflow.keras import backend as K
-
-
+from keras.models import Sequential
+from keras.layers import LSTM, Dense, Flatten, Bidirectional, Dropout, GlobalMaxPooling1D
+from transformers import PositionalEmbedding, TransformerEncoder
+from custom_eval import f1
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("tensorflow").setLevel(logging.WARNING)
-
-
-"""
-keras metrics api:
-https://keras.io/api/metrics/
-custom sensitivity specificity:
-https://stackoverflow.com/questions/55640149/error-in-keras-when-i-want-to-calculate-the-sensitivity-and-specificity
-custom auc:
-https://stackoverflow.com/questions/41032551/how-to-compute-receiving-operating-characteristic-roc-and-auc-in-keras
-"""
-
-
-def recall(y_true, y_pred):
-    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
-    possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
-    recall_keras = true_positives / (possible_positives + K.epsilon())
-    return recall_keras
-
-
-def precision(y_true, y_pred):
-    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
-    predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
-    precision_keras = true_positives / (predicted_positives + K.epsilon())
-    return precision_keras
-
-
-def specificity(y_true, y_pred):
-    tn = K.sum(K.round(K.clip((1 - y_true) * (1 - y_pred), 0, 1)))
-    fp = K.sum(K.round(K.clip((1 - y_true) * y_pred, 0, 1)))
-    return tn / (tn + fp + K.epsilon())
-
-
-def negative_predictive_value(y_true, y_pred):
-    tn = K.sum(K.round(K.clip((1 - y_true) * (1 - y_pred), 0, 1)))
-    fn = K.sum(K.round(K.clip(y_true * (1 - y_pred), 0, 1)))
-    return tn / (tn + fn + K.epsilon())
-
-
-def f1(y_true, y_pred):
-    p = precision(y_true, y_pred)
-    r = recall(y_true, y_pred)
-    return 2 * ((p * r) / (p + r + K.epsilon()))
-
-# TODO
-
-
-def auroc(y_true, y_pred):
-    """
-    https://www.codegrepper.com/code-examples/python/auc+callback+keras
-    """
-    if tf.math.count_nonzero(y_true) == 0:
-        return tf.cast(0.0, tf.float32)
-    return tf.numpy_function(roc_auc_score, (y_true, y_pred), tf.float32)
-
-
-def fbeta(y_true, y_pred, beta=2):
-    y_pred = K.clip(y_pred, 0, 1)
-
-    tp = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)), axis=1)
-    fp = K.sum(K.round(K.clip(y_pred - y_true, 0, 1)), axis=1)
-    fn = K.sum(K.round(K.clip(y_true - y_pred, 0, 1)), axis=1)
-
-    p = tp / (tp + fp + K.epsilon())
-    r = tp / (tp + fn + K.epsilon())
-
-    num = (1 + beta ** 2) * (p * r)
-    den = (beta ** 2 * p + r + K.epsilon())
-    return K.mean(num / den)
-
-
-def matthews_correlation_coefficient(y_true, y_pred):
-    tp = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
-    tn = K.sum(K.round(K.clip((1 - y_true) * (1 - y_pred), 0, 1)))
-    fp = K.sum(K.round(K.clip((1 - y_true) * y_pred, 0, 1)))
-    fn = K.sum(K.round(K.clip(y_true * (1 - y_pred), 0, 1)))
-
-    num = tp * tn - fp * fn
-    den = (tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)
-    return num / K.sqrt(den + K.epsilon())
-
-
-def equal_error_rate(y_true, y_pred):
-    n_imp = tf.math.count_nonzero(
-        tf.equal(y_true, 0), dtype=tf.float32) + tf.constant(K.epsilon())
-    n_gen = tf.math.count_nonzero(
-        tf.equal(y_true, 1), dtype=tf.float32) + tf.constant(K.epsilon())
-
-    scores_imp = tf.boolean_mask(y_pred, tf.equal(y_true, 0))
-    scores_gen = tf.boolean_mask(y_pred, tf.equal(y_true, 1))
-
-    loop_vars = (tf.constant(0.0), tf.constant(1.0), tf.constant(0.0))
-    def cond(t, fpr, fnr): return tf.greater_equal(fpr, fnr)
-
-    def body(t, fpr, fnr): return (
-        t + 0.001,
-        tf.divide(tf.math.count_nonzero(tf.greater_equal(
-            scores_imp, t), dtype=tf.float32), n_imp),
-        tf.divide(tf.math.count_nonzero(
-            tf.less(scores_gen, t), dtype=tf.float32), n_gen)
-    )
-    t, fpr, fnr = tf.while_loop(cond, body, loop_vars, back_prop=False)
-    eer = (fpr + fnr) / 2
-
-    return eer
 
 
 class Model:
@@ -124,32 +22,73 @@ class Model:
 
     def __init__(
         self,
-        model: tf.keras.models.Sequential,
-        loss: str,
-        optimizer: tf.keras.optimizers,
-        metrics=(
-            # precision,
-            # recall,
-            f1,
-            # auroc,
-            # fbeta,
-            # specificity,
-            # negative_predictive_value,
-            # matthews_correlation_coefficient,
-            # equal_error_rate
-        ),
-        summary=True
+        summary: bool = True,
+        plots_folder: str = "plots/"
     ) -> None:
+        self.summary = summary
+        self.plots_folder = plots_folder
+        os.makedirs(self.plots_folder, exist_ok=True)
+
+    def compile(
+            self,
+            model: tf.keras.models.Sequential,
+            loss: str,
+            optimizer: tf.keras.optimizers,
+            metrics=[
+                # precision,
+                # recall,
+                f1,
+                # auroc,
+                # fbeta,
+                # specificity,
+                # negative_predictive_value,
+                # matthews_correlation_coefficient,
+                # equal_error_rate
+            ],):
         self.model = model
         self.model.compile(
             loss=loss,
             optimizer=optimizer,
             metrics=metrics
         )
-        self.plots_folder = "../plots/"
-        os.makedirs(self.plots_folder, exist_ok=True)
-        if summary:
-            print(self.model.summary())
+        if self.summary:
+            with open('preprocessing/embedding/models/flicker_detection.txt', 'w') as fh:
+                self.model.summary(print_fn=lambda x: fh.write(x + '\n'))
+
+    def LSTM(self, input_shape: Tuple) -> tf.keras.models.Sequential:
+        buf = Sequential()
+        buf.add(LSTM(units=256, input_shape=(input_shape)))
+        buf.add(Dense(units=128, activation="relu"))
+        buf.add(Flatten())
+        buf.add(Dense(units=1, activation="sigmoid"))
+        return buf
+
+    def BiLSTM(self, input_shape: Tuple) -> tf.keras.models.Sequential:
+        buf = Sequential()
+        buf.add(Bidirectional(LSTM(units=256, activation='relu'),
+                              input_shape=(input_shape)))
+
+        buf.add(Dense(units=128, activation="relu"))
+        buf.add(Flatten())
+        buf.add(Dense(units=1, activation="sigmoid"))
+        return buf
+
+    def transformers(self, input_shape: Tuple) -> Model:
+        sequence_length = 20
+        embed_dim = 9216
+        dense_dim = 4
+        num_heads = 1
+        inputs = tf.keras.Input(shape=input_shape)
+        x = PositionalEmbedding(
+            sequence_length, embed_dim, name="frame_position_embedding"
+        )(inputs)
+        x = TransformerEncoder(embed_dim, dense_dim, num_heads,
+                               name="transformer_layer")(x)
+        x = GlobalMaxPooling1D()(x)
+        x = Dropout(0.5)(x)
+        outputs = Dense(1, activation="sigmoid")(x)
+        model = tf.keras.Model(inputs, outputs)
+        return model
 
     def train(
         self,
@@ -266,6 +205,7 @@ class InferenceModel:
         sns.heatmap(cm, annot=True, fmt='g', ax=ax)
         ax.set_xlabel('Predicted')
         ax.set_ylabel('Actual')
-        ax.set_title('{}'.format(np.max(f1_scores),
-                     threshold_range[np.argmax(f1_scores)]))
+        ax.set_title("Max f1: {:.4f}, at thres = {:.4f}".format(
+            np.max(f1_scores), threshold_range[np.argmax(f1_scores)]
+        ))
         fig.savefig(os.path.join(plots_folder, "confusion_matrix.png"))
