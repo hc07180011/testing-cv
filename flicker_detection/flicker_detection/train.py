@@ -3,6 +3,7 @@ import os
 import logging
 import tqdm
 import numpy as np
+import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
 from keras.models import Sequential
@@ -53,7 +54,7 @@ def _preprocess(
     """
     if os.path.exists("/{}.npz".format(cache_path)):
         __cache__ = np.load("/{}.npz".format(cache_path), allow_pickle=True)
-        return tuple((__cache__[k] for k in __cache__))
+        return tuple(__cache__[k] for k in __cache__)
 
     pass_videos = (
         "0096.mp4", "0097.mp4", "0098.mp4",
@@ -77,7 +78,7 @@ def _preprocess(
         random_state=42
     )
 
-    chunk_size = 24  # batch sizes must be even number
+    chunk_size = 4  # batch sizes must be even number
 
     video_embeddings_list_train = ()
     video_labels_list_train = ()
@@ -161,29 +162,27 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
     """
     https://www.tensorflow.org/guide/keras/writing_a_training_loop_from_scratch
     """
-    import tensorflow as tf
     mirrored_strategy = tf.distribute.MirroredStrategy()
 
     with mirrored_strategy.scope():
-        buf = Sequential()
-        buf.add(Bidirectional(LSTM(units=256, activation='relu'),
-                              input_shape=(X_train.shape[1:])))
-        # buf.add(LSTM(units=256, input_shape=(X_train.shape[1:])))
-        buf.add(Dense(units=128, activation="relu"))
-        buf.add(Flatten())
-        buf.add(Dense(units=1, activation="sigmoid"))
+        # buf = Sequential()
+        # buf.add(Bidirectional(LSTM(units=256, activation='relu'),
+        #                       input_shape=(X_train.shape[1:])))
 
-        model = Model(
-            # model=transformers(X_train.shape[1:]),
-            model=buf,
-            loss="binary_crossentropy",
-            optimizer=tf.keras.optimizers.Adam(learning_rate=1e-6),
-        )
+        # buf.add(LSTM(units=256, input_shape=(X_train.shape[1:])))
+        # buf.add(Dense(units=128, activation="relu"))
+        # buf.add(Flatten())
+        # buf.add(Dense(units=1, activation="sigmoid"))
+
+        model = Model()
+        model.compile(model=model.BiLSTM(
+            X_train.shape[1:]), loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5))
         model.train(X_train, y_train, 1000, 0.1, 1024)
-        for k in ("loss", "accuracy", "precision",
-                  "recall", "f1", "fbeta", "specificity",
-                  "negative_predictive_value",
-                  "matthews_correlation_coefficient", "equal_error_rate"):
+        # for k in ("loss", "precision",
+        #           "recall", "f1", "fbeta", "specificity",
+        #           "negative_predictive_value",
+        #           "matthews_correlation_coefficient", "equal_error_rate"):
+        for k in ("loss", "f1"):
             model.plot_history(
                 k, title="{} - LSTM, Chunk, Oversampling".format(k))
 
@@ -197,9 +196,12 @@ def _test(model_path: str, X_test: np.array, y_test: np.array) -> None:
 
 
 def _main() -> None:
-    import tensorflow as tf
     tf.keras.utils.set_random_seed(12345)
     tf.config.experimental.enable_op_determinism()
+    configproto = tf.compat.v1.ConfigProto()
+    configproto.gpu_options.allow_growth = True
+    sess = tf.compat.v1.Session(config=configproto)
+    tf.compat.v1.keras.backend.set_session(sess)
 
     parser = ArgumentParser()
     parser.add_argument(
@@ -220,18 +222,18 @@ def _main() -> None:
     X_train, X_test, y_train, y_test = _preprocess(
         os.path.join(data_base_dir, "label.json"),
         os.path.join(data_base_dir, "mapping_aug_data.json"),
-        os.path.join(data_base_dir, "embedding"),
+        os.path.join(data_base_dir, "embedding_original"),
         os.path.join(cache_base_dir, "train_test")
     )
     logging.info("[Preprocessing] done.")
 
     if args.train:
-        logging.info("[Oversampling] Start ...")
-        X_train, y_train = _oversampling(
-            X_train,
-            y_train
-        )
-        logging.info("[Oversampling] done.")
+        # logging.info("[Oversampling] Start ...")
+        # X_train, y_train = _oversampling(
+        #     X_train,
+        #     y_train
+        # )
+        # logging.info("[Oversampling] done.")
 
         logging.info("[Training] Start ...")
         _ = _train(
@@ -239,9 +241,6 @@ def _main() -> None:
             y_train
         )
         logging.info("[Training] done.")
-
-    logging.info("{}".format(X_train.shape))
-    logging.info("{}".format(y_test.shape))
 
     if args.test:
         logging.info("[Testing] Start ...")
