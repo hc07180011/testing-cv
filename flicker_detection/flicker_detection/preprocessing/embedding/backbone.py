@@ -18,6 +18,10 @@ class BaseCNN:
     """
     tf.keras.utils.set_random_seed(12345)
     tf.config.experimental.enable_op_determinism()
+    configproto = tf.compat.v1.ConfigProto()
+    configproto.gpu_options.allow_growth = True
+    sess = tf.compat.v1.Session(config=configproto)
+    tf.compat.v1.keras.backend.set_session(sess)
 
     def __init__(self) -> None:
         self.__target_shape = (200, 200)
@@ -35,7 +39,7 @@ class BaseCNN:
 
     def get_embed_cpu(self, images: np.ndarray, batched=True) -> np.ndarray:
         if not batched:
-            images = np.array([images, ])
+            images = np. expand_dims(images, axis=0)
         resized_images = np.array([cv2.resize(image, dsize=self.__target_shape,
                                               interpolation=cv2.INTER_CUBIC) for image in images])
         image_tensor = tf.convert_to_tensor(resized_images, np.float32)

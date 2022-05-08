@@ -1,6 +1,5 @@
-import numpy as np
 import tensorflow as tf
-from tensorflow.keras import layers, Model
+from keras import layers
 
 
 class PositionalEmbedding(layers.Layer):
@@ -48,21 +47,3 @@ class TransformerEncoder(layers.Layer):
         proj_input = self.layernorm_1(inputs + attention_output)
         proj_output = self.dense_proj(proj_input)
         return self.layernorm_2(proj_input + proj_output)
-
-
-def transformers(input_shape: tuple) -> Model:
-    sequence_length = 20
-    embed_dim = 9216
-    dense_dim = 4
-    num_heads = 1
-    inputs = tf.keras.Input(shape=input_shape)
-    x = PositionalEmbedding(
-        sequence_length, embed_dim, name="frame_position_embedding"
-    )(inputs)
-    x = TransformerEncoder(embed_dim, dense_dim, num_heads,
-                           name="transformer_layer")(x)
-    x = layers.GlobalMaxPooling1D()(x)
-    x = layers.Dropout(0.5)(x)
-    outputs = layers.Dense(1, activation="sigmoid")(x)
-    model = tf.keras.Model(inputs, outputs)
-    return model

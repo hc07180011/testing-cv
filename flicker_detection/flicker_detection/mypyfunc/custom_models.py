@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from typing import Tuple
 from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score, precision_recall_curve, roc_curve, auc, roc_auc_score
-from keras.models import Sequential
-from keras.layers import LSTM, Dense, Flatten, Bidirectional, Dropout, GlobalMaxPooling1D
-from transformers import PositionalEmbedding, TransformerEncoder
-from custom_eval import f1
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Flatten, Bidirectional, Dropout, GlobalMaxPooling1D
+from mypyfunc.transformers import TransformerEncoder, PositionalEmbedding
+
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("tensorflow").setLevel(logging.WARNING)
 
@@ -30,11 +30,14 @@ class Model:
         os.makedirs(self.plots_folder, exist_ok=True)
 
     def compile(
-            self,
-            model: tf.keras.models.Sequential,
-            loss: str,
-            optimizer: tf.keras.optimizers,
-            metrics=[
+        self,
+        model: tf.keras.models.Sequential,
+        loss: str,
+        optimizer: tf.keras.optimizers,
+        metrics: tuple,
+    ):
+        """
+        metrics=[
                 # precision,
                 # recall,
                 f1,
@@ -44,7 +47,8 @@ class Model:
                 # negative_predictive_value,
                 # matthews_correlation_coefficient,
                 # equal_error_rate
-            ],):
+            ]
+        """
         self.model = model
         self.model.compile(
             loss=loss,
@@ -73,7 +77,7 @@ class Model:
         buf.add(Dense(units=1, activation="sigmoid"))
         return buf
 
-    def transformers(self, input_shape: Tuple) -> Model:
+    def transformers(self, input_shape: Tuple) -> tf.keras.Model:
         sequence_length = 20
         embed_dim = 9216
         dense_dim = 4
@@ -134,18 +138,21 @@ class InferenceModel:
     def __init__(
         self,
         model_path: str,
-        custom_objects: dict = {
-            # "precision": precision,
-            # "recall": recall,
-            "f1": f1,
-            # "auroc":auroc,
-            # "fbeta": fbeta,
-            # "specificity": specificity,
-            # "negative_predictive_value": negative_predictive_value,
-            # "matthews_correlation_coefficient": matthews_correlation_coefficient,
-            # "equal_error_rate": equal_error_rate
-        }
+        custom_objects: dict,
     ) -> None:
+        """
+        = {
+                # "precision": precision,
+                # "recall": recall,
+                "f1": f1,
+                # "auroc":auroc,
+                # "fbeta": fbeta,
+                # "specificity": specificity,
+                # "negative_predictive_value": negative_predictive_value,
+                # "matthews_correlation_coefficient": matthews_correlation_coefficient,
+                # "equal_error_rate": equal_error_rate
+            }
+        """
         self.model = tf.keras.models.load_model(
             model_path,
             custom_objects=custom_objects

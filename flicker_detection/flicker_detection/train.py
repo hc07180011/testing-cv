@@ -6,13 +6,11 @@ import numpy as np
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
-from keras.models import Sequential
-from keras.layers import LSTM, Dense, Flatten, Bidirectional
 from typing import Tuple
 from argparse import ArgumentParser
-from mypyfunc.keras import Model, InferenceModel
-from mypyfunc.transformers import transformers, PositionalEmbedding, TransformerEncoder
+from mypyfunc.custom_models import Model, InferenceModel
 from mypyfunc.logger import init_logger
+from mypyfunc.custom_eval import f1
 
 data_base_dir = "data"
 os.makedirs(data_base_dir, exist_ok=True)
@@ -78,7 +76,7 @@ def _preprocess(
         random_state=42
     )
 
-    chunk_size = 4  # batch sizes must be even number
+    chunk_size = 32  # batch sizes must be even number
 
     video_embeddings_list_train = ()
     video_labels_list_train = ()
@@ -163,21 +161,17 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
     https://www.tensorflow.org/guide/keras/writing_a_training_loop_from_scratch
     """
     mirrored_strategy = tf.distribute.MirroredStrategy()
-
+    logging.info(
+        "Training shape{}/{}".format(X_train.shape[1:], y_train.shape))
     with mirrored_strategy.scope():
-        # buf = Sequential()
-        # buf.add(Bidirectional(LSTM(units=256, activation='relu'),
-        #                       input_shape=(X_train.shape[1:])))
-
-        # buf.add(LSTM(units=256, input_shape=(X_train.shape[1:])))
-        # buf.add(Dense(units=128, activation="relu"))
-        # buf.add(Flatten())
-        # buf.add(Dense(units=1, activation="sigmoid"))
-
         model = Model()
-        model.compile(model=model.BiLSTM(
-            X_train.shape[1:]), loss="binary_crossentropy", optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5))
-        model.train(X_train, y_train, 1000, 0.1, 1024)
+        model.compile(
+            model=model.LSTM(X_train.shape[1:]),
+            loss="binary_crossentropy",
+            optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
+            metrics=(f1)
+        )
+        model.train(X_train, y_train, 1000, 0.1, 1024)  # 1024
         # for k in ("loss", "precision",
         #           "recall", "f1", "fbeta", "specificity",
         #           "negative_predictive_value",
@@ -190,7 +184,7 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
 
 
 def _test(model_path: str, X_test: np.array, y_test: np.array) -> None:
-    model = InferenceModel(model_path)
+    model = InferenceModel(model_path, {"f1", f1})
     y_pred = model.predict(X_test)
     model.evaluate(y_test, y_pred)
 
@@ -228,12 +222,12 @@ def _main() -> None:
     logging.info("[Preprocessing] done.")
 
     if args.train:
-        # logging.info("[Oversampling] Start ...")
-        # X_train, y_train = _oversampling(
-        #     X_train,
-        #     y_train
-        # )
-        # logging.info("[Oversampling] done.")
+        logging.info("[Oversampling] Start ...")
+        X_train, y_train = _oversampling(
+            X_train,
+            y_train
+        )
+        logging.info("[Oversampling] done.")
 
         logging.info("[Training] Start ...")
         _ = _train(

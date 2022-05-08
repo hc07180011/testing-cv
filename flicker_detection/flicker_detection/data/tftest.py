@@ -14,15 +14,13 @@ def decode_fn(record_bytes, key):
 
 if __name__ == "__main__":
 
-    example_path = "TFRecords/0099.mp4.tfrecords"
+    example_path = "TFRecords/0060.mp4.tfrecords"
     np.random.seed(0)
     ds = tf.data.TFRecordDataset(example_path).map(
-        lambda byte: decode_fn(byte, "data/TFRecords/0099.mp4"))
+        lambda byte: decode_fn(byte, "0060.mp4"))
     record = ds.get_single_element()
-    # tensor = tf.io.parse_tensor(
-    #     record['data/TFRecords/0099.mp4'], out_type=tf.float32)
-    # print(type(tensor))
+    print(record.shape)
     dataset = tf.data.Dataset.from_tensor_slices(
         record).padded_batch(batch_size=32)
-    it = iter(dataset)
-    print(next(it).shape)
+    for batch in dataset:
+        print(batch.shape)
