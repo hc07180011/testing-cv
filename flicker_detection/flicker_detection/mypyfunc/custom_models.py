@@ -25,6 +25,7 @@ class Model:
         summary: bool = True,
         plots_folder: str = "plots/"
     ) -> None:
+        self.model_path = None
         self.summary = summary
         self.plots_folder = plots_folder
         os.makedirs(self.plots_folder, exist_ok=True)
@@ -35,20 +36,7 @@ class Model:
         loss: str,
         optimizer: tf.keras.optimizers,
         metrics: tuple,
-    ):
-        """
-        metrics=[
-                # precision,
-                # recall,
-                f1,
-                # auroc,
-                # fbeta,
-                # specificity,
-                # negative_predictive_value,
-                # matthews_correlation_coefficient,
-                # equal_error_rate
-            ]
-        """
+    ) -> None:
         self.model = model
         self.model.compile(
             loss=loss,
@@ -105,6 +93,8 @@ class Model:
         monitor: str = "val_f1",
         mode: str = "max"
     ) -> None:
+        if self.model_path is None:
+            self.model_path = model_path
         self.history = self.model.fit(
             X_train, y_train,
             epochs=epochs,
@@ -140,19 +130,6 @@ class InferenceModel:
         model_path: str,
         custom_objects: dict,
     ) -> None:
-        """
-        = {
-                # "precision": precision,
-                # "recall": recall,
-                "f1": f1,
-                # "auroc":auroc,
-                # "fbeta": fbeta,
-                # "specificity": specificity,
-                # "negative_predictive_value": negative_predictive_value,
-                # "matthews_correlation_coefficient": matthews_correlation_coefficient,
-                # "equal_error_rate": equal_error_rate
-            }
-        """
         self.model = tf.keras.models.load_model(
             model_path,
             custom_objects=custom_objects
