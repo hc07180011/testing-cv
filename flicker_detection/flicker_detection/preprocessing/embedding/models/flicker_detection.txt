@@ -2,17 +2,16 @@ Model: "sequential"
 _________________________________________________________________
  Layer (type)                Output Shape              Param #   
 =================================================================
- bidirectional (Bidirectiona  (None, 512)              19400704  
- l)                                                              
+ lstm (LSTM)                 (None, 256)               9700352   
                                                                  
- dense (Dense)               (None, 128)               65664     
+ dense (Dense)               (None, 128)               32896     
                                                                  
  flatten (Flatten)           (None, 128)               0         
                                                                  
  dense_1 (Dense)             (None, 1)                 129       
                                                                  
 =================================================================
-Total params: 19,466,497
-Trainable params: 19,466,497
+Total params: 9,733,377
+Trainable params: 9,733,377
 Non-trainable params: 0
 _________________________________________________________________

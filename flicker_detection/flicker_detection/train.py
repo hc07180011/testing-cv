@@ -10,7 +10,7 @@ from typing import Tuple
 from argparse import ArgumentParser
 from mypyfunc.custom_models import Model, InferenceModel
 from mypyfunc.logger import init_logger
-from mypyfunc.custom_eval import f1
+from mypyfunc.custom_eval import f1, precision, recall, specificity, fbeta, negative_predictive_value, matthews_correlation_coefficient, equal_error_rate
 
 data_base_dir = "data"
 os.makedirs(data_base_dir, exist_ok=True)
@@ -50,8 +50,8 @@ def _preprocess(
     static memory allocation solution:
     https://pytorch.org/docs/stable/generated/torch.zeros.html
     """
-    if os.path.exists("/{}.npz".format(cache_path)):
-        __cache__ = np.load("/{}.npz".format(cache_path), allow_pickle=True)
+    if os.path.exists("{}.npz".format(cache_path)):
+        __cache__ = np.load("{}.npz".format(cache_path), allow_pickle=True)
         return tuple(__cache__[k] for k in __cache__)
 
     pass_videos = (
@@ -76,7 +76,7 @@ def _preprocess(
         random_state=42
     )
 
-    chunk_size = 32  # batch sizes must be even number
+    chunk_size = 4  # batch sizes must be even number
 
     video_embeddings_list_train = ()
     video_labels_list_train = ()
@@ -160,31 +160,54 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
     """
     https://www.tensorflow.org/guide/keras/writing_a_training_loop_from_scratch
     """
+    list_X = np.array_split(X_train, 2)
+    list_y = np.array_split(y_train, 2)
+    logging.info("Input shape - {}".format(list_X[0].shape[1:]))
     mirrored_strategy = tf.distribute.MirroredStrategy()
-    logging.info(
-        "Training shape{}/{}".format(X_train.shape[1:], y_train.shape))
     with mirrored_strategy.scope():
         model = Model()
         model.compile(
             model=model.LSTM(X_train.shape[1:]),
             loss="binary_crossentropy",
             optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
-            metrics=(f1)
+            metrics=(
+                # precision,
+                # recall,
+                f1,
+                # auroc,
+                # fbeta,
+                # specificity,
+                # negative_predictive_value,
+                # matthews_correlation_coefficient,
+                # equal_error_rate
+            )
         )
-        model.train(X_train, y_train, 1000, 0.1, 1024)  # 1024
-        # for k in ("loss", "precision",
-        #           "recall", "f1", "fbeta", "specificity",
-        #           "negative_predictive_value",
-        #           "matthews_correlation_coefficient", "equal_error_rate"):
-        for k in ("loss", "f1"):
-            model.plot_history(
-                k, title="{} - LSTM, Chunk, Oversampling".format(k))
+        for X_train, y_train in zip(list_X, list_y):
+            model.train(X_train, y_train, 10, 0.1, 4096)  # 1024
+            # for k in ("loss", "precision",
+            #           "recall", "f1", "fbeta", "specificity",
+            #           "negative_predictive_value",
+            #           "matthews_correlation_coefficient", "equal_error_rate"):
+            for k in ("loss", "f1"):
+                model.plot_history(
+                    k, title="{} - LSTM, Chunk, Oversampling".format(k))
 
     return model
 
 
 def _test(model_path: str, X_test: np.array, y_test: np.array) -> None:
-    model = InferenceModel(model_path, {"f1", f1})
+    custom_objects = {
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+        # "auroc":auroc,
+        "fbeta": fbeta,
+        "specificity": specificity,
+        "negative_predictive_value": negative_predictive_value,
+        "matthews_correlation_coefficient": matthews_correlation_coefficient,
+        "equal_error_rate": equal_error_rate
+    }
+    model = InferenceModel(model_path, custom_objects=custom_objects)
     y_pred = model.predict(X_test)
     model.evaluate(y_test, y_pred)
 
@@ -238,7 +261,7 @@ def _main() -> None:
 
     if args.test:
         logging.info("[Testing] Start ...")
-        _test("model.h5", X_test, y_test)
+        _test("model0.h5", X_test, y_test)
         logging.info("[Testing] done.")
 
 

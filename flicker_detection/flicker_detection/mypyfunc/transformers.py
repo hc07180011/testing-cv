@@ -22,6 +22,14 @@ class PositionalEmbedding(layers.Layer):
         mask = tf.reduce_any(tf.cast(inputs, "bool"), axis=-1)
         return mask
 
+    def get_config(self):
+        config = super().get_config().copy()
+        config.update({
+            "sequence_length": self.sequence_length,
+            "output_dim": self.output_dim,
+        })
+        return config
+
 
 class TransformerEncoder(layers.Layer):
     def __init__(self, embed_dim, dense_dim, num_heads, **kwargs):
@@ -47,3 +55,12 @@ class TransformerEncoder(layers.Layer):
         proj_input = self.layernorm_1(inputs + attention_output)
         proj_output = self.dense_proj(proj_input)
         return self.layernorm_2(proj_input + proj_output)
+
+    def get_config(self):
+        config = super().get_config().copy()
+        config.update({
+            "embed_dim": self.embed_dim,
+            "dense_dim": self.dense_dim,
+            "num_heads": self.num_heads,
+        })
+        return config

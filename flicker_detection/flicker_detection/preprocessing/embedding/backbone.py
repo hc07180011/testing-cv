@@ -42,8 +42,9 @@ class BaseCNN:
             images = np. expand_dims(images, axis=0)
         resized_images = np.array([cv2.resize(image, dsize=self.__target_shape,
                                               interpolation=cv2.INTER_CUBIC) for image in images])
-        image_tensor = tf.convert_to_tensor(resized_images, np.float32)
-        return self.__embedding(resnet.preprocess_input(image_tensor)).numpy()
+        with self.strategy.scope():
+            image_tensor = tf.convert_to_tensor(resized_images, np.float32)
+            return self.__embedding(resnet.preprocess_input(image_tensor)).numpy()
 
     def extractor(self, extractor: Model, weights: str = "imagenet", pooling: str = "Max") -> Model:
         with self.strategy.scope():
