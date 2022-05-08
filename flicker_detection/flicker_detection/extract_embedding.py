@@ -6,6 +6,7 @@ import logging
 import random
 import numpy as np
 import tensorflow as tf
+from argparse import ArgumentParser
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.applications import DenseNet121, mobilenet, vgg16, InceptionResNetV2, InceptionV3
 from tensorflow.keras import Model
@@ -14,6 +15,8 @@ from tensorflow.keras.optimizers import Adam
 from mypyfunc.logger import init_logger
 from typing import Tuple
 from preprocessing.embedding.backbone import BaseCNN, Serializer
+from mypyfunc.custom_models import Model, InferenceModel
+from mypyfunc.custom_eval import f1
 
 
 data_base_dir = "data"
@@ -32,20 +35,18 @@ def _embed(
     feature_extractor.extractor(mobilenet.MobileNet)
 
     for path in tqdm.tqdm(os.listdir(video_data_dir)):
-        if os.path.exists(os.path.join(output_dir, "/{}.tfrecords".format(path))):
+        if os.path.exists(os.path.join(output_dir, "{}.tfrecords".format(path))):
             continue
-
+        # path = "0060.mp4"
         vidcap = cv2.VideoCapture(os.path.join(video_data_dir, path))
-        h, w, total_frames, frame_count, n_batch = int(vidcap.get(
-            4)), int(vidcap.get(3)), int(vidcap.get(7)), 0, 0
+        h, w = int(vidcap.get(4)), int(vidcap.get(3))
         b_frames = np.zeros((batch_size, h, w, 3))
-        embedding, success = (), True
+        embedding, success, frame_count = (), True, 0
         while success:
             if frame_count == batch_size:
                 embedding += (feature_extractor.get_embedding(
                     b_frames, batched=True).flatten(),)
                 frame_count = 0
-                n_batch += 1
                 b_frames = np.zeros((batch_size, h, w, 3))
 
             success, b_frames[frame_count] = vidcap.read()
@@ -54,7 +55,9 @@ def _embed(
         embedding += (feature_extractor.get_embedding(
             b_frames, batched=True).flatten(),)
 
-        serializer.parse_batch(embedding,
+        logging.info("{} {}".format(
+            path, tf.convert_to_tensor(embedding).shape))
+        serializer.parse_batch(tf.convert_to_tensor(embedding),
                                filename=path)
         serializer.write_to_tfr()
         serializer.done_writing()
@@ -73,7 +76,6 @@ def np_embed(
     for path in tqdm.tqdm(os.listdir(video_data_dir)):
         if os.path.exists(os.path.join(output_dir, "{}.npy".format(path))):
             continue
-
         vidcap = cv2.VideoCapture(os.path.join(video_data_dir, path))
         success, image = vidcap.read()
 
@@ -107,10 +109,13 @@ def preprocessing(
     )
     raw_labels = json.load(open(label_path, "r"))
     encoding_filename_mapping = json.load(open(mapping_path, "r"))
+
+    # logging.debug("{}".format(data_dir))
+
     embedding_path_list = sorted([
         x for x in os.listdir(data_dir)
-        if x.split(".npy")[0] not in pass_videos
-        and encoding_filename_mapping[x.replace(".npy", "")] in raw_labels
+        if x.split(".tfrecords")[0] not in pass_videos
+        and encoding_filename_mapping[x.replace(".tfrecords", "")] in raw_labels
     ])
 
     embedding_list_train, embedding_list_test, _, _ = train_test_split(
@@ -122,37 +127,29 @@ def preprocessing(
 
     np.savez(cache_path, embedding_list_train, embedding_list_test)
 
-    return np.asarray(embedding_list_train), np.asarray(embedding_list_test)
 
-
-def decode_fn(record_bytes, key):
+def decode_fn(record_bytes, key) -> tf.Tensor:
     string = tf.io.parse_single_example(
         record_bytes,
         {key: tf.io.FixedLenFeature([], dtype=tf.string), }
     )
     return tf.io.parse_tensor(string[key], out_type=tf.float32)
 
-# give minor classes higher weight
 
-
-def extract_testing(
-    data_dir: str,
-    cache_path: str,
-):
-    embedding_list_test = np.load("{}.npz".format(
-        cache_path), allow_pickle=True)["arr_1"]
-
-    X_test = ()
-    for key in embedding_list_test:
-        ds = tf.data.TFRecordDataset(
-            os.path.join(data_dir, "TFRecords/{}".format(key))
-        ).map(
-            lambda byte: decode_fn(byte, key)
-        )
-        tensor = tf.io.parse_example(ds.get_single_element()[
-                                     key], out_type=tf.float32)
-        X_test += (tensor,)
-    return np.array(X_test)
+def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
+    usable_vec = input_arr[:(
+        np.floor(len(input_arr)/chunk_size)*chunk_size).astype(int)]
+    i_pad = np.concatenate((usable_vec, np.array(
+        [np.zeros(input_arr[-1].shape)]*(chunk_size-len(usable_vec) % chunk_size))))
+    asymmetric_chunks = np.split(
+        i_pad,
+        list(range(
+            chunk_size,
+            input_arr.shape[0] + 1,
+            chunk_size
+        ))
+    )
+    return tuple(map(tuple, asymmetric_chunks))
 
 
 def training(
@@ -160,8 +157,9 @@ def training(
     mapping_path: str,
     data_dir: str,
     cache_path: str,
-    batch_size: int,
-    model: Model,
+    batch_size: int = 32,
+    epochs: int = 1000,
+    model: tf.keras.Model = None,
 ) -> Model:
 
     embedding_list_train = np.load("{}.npz".format(
@@ -169,25 +167,90 @@ def training(
     encoding_filename_mapping = json.load(open(mapping_path, "r"))
     raw_labels = json.load(open(label_path, "r"))
 
-    epochs = 1000
     for epoch in range(epochs):
-        print("Epoch {}".format(epoch))
-
-        for key in random.shuffle(embedding_list_train):
-            real_filename = encoding_filename_mapping[key.replace(".npy", "")]
-            X_train = tf.data.TFRecordDataset(data_dir)\
-                .map(lambda byte: decode_fn(byte, key))
+        logging.info("[EPOCH] - {}".format(epoch))
+        random.shuffle(embedding_list_train)
+        for key in embedding_list_train:
+            real_filename = encoding_filename_mapping[key.replace(
+                ".tfrecords", "")]
+            # X_train = tf.data.TFRecordDataset(data_dir)\
+            #     .map(lambda byte: decode_fn(byte, key))
+            # logging.debug("Loading {}".format(os.path.join(data_dir, key.replace(
+            #     ".tfrecords", ""))))
+            # X_train = tf.data.Dataset.from_tensor_slices(loaded)
+            loaded = np.load("{}.npy".format(os.path.join(data_dir, key.replace(
+                ".tfrecords", ""))))
+            X_train = np.array(_get_chunk_array(loaded, batch_size))
+            if model is None:
+                logging.info("Input shape {}".format(X_train.shape[1:]))
+                model = Model()
+                model.compile(
+                    model=model.BiLSTM(X_train.shape[1:]),
+                    loss="binary_crossentropy",
+                    optimizer=Adam(learning_rate=1e-5),
+                    metrics=(f1),
+                )
 
             flicker_idxs = np.array(raw_labels[real_filename]) - 1
-            buf_label = np.zeros(X_train.shape[0], dtype=np.uint8)
+            buf_label = np.zeros(loaded.shape[0], dtype=np.uint8)
             buf_label[flicker_idxs] = 1
-            y_train = tf.data.Dataset.from_tensor_slices(buf_label)
-            for bX_train, by_train in zip(X_train.padded_batch(batch_size), y_train.padded_batch(batch_size)):
-                model.train_on_batch(bX_train, by_train)
+            y_train = np.array(_get_chunk_array(
+                buf_label, batch_size)).flatten()
+            # y_train = tf.data.Dataset.from_tensor_slices(buf_label)
+            # logging.info("Label shape {}".format(y_train.shape))
+            model.train(X_train, y_train, epochs=1,
+                        validation_split=0.1, batch_size=1024,)
+            for k in ("loss", "f1"):
+                model.plot_history(
+                    k, title="{} - LSTM, Chunk, Oversampling".format(k))
+
     return model
 
 
+def testing(
+    label_path: str,
+    mapping_path: str,
+    data_dir: str,
+    cache_path: str,
+    model_path: str,
+    batch_size: int = 32,
+) -> None:
+    encoding_filename_mapping = json.load(open(mapping_path, "r"))
+    raw_labels = json.load(open(label_path, "r"))
+    embedding_list_test = np.load("{}.npz".format(
+        cache_path), allow_pickle=True)["arr_1"]
+
+    X_test, y_test = (), ()
+    for key in embedding_list_test:
+        real_filename = encoding_filename_mapping[key.replace(
+            ".tfrecords", "")]
+
+        # ds = tf.data.TFRecordDataset(os.path.join(data_dir, key)).map(
+        #     lambda byte: decode_fn(byte, key.replace(".tfrecords", "")))
+        # tensor = ds.get_single_element()
+        loaded = np.load("{}.npy".format(os.path.join(data_dir, key.replace(
+            ".tfrecords", ""))))
+        X_test += (*_get_chunk_array(loaded, batch_size),)
+        logging.info("WTF {}".format(key))
+        logging.info("WTF {}".format(loaded.shape))
+
+        flicker_idxs = np.array(
+            raw_labels[real_filename]) - 1
+        buf_label = np.zeros(loaded.shape[0], dtype=np.uint8)
+        buf_label[flicker_idxs] = 1
+        y_test += (_get_chunk_array(buf_label, batch_size),)
+        # y_test += (*tf.data.Dataset.from_tensor_slices(buf_label).padded(batch_size),)
+        # X_test += (*tensor.padded(batch_size),)
+    X_test, y_test = np.array(X_test), np.array(y_test)
+
+    model = InferenceModel(model_path, {"f1": f1})
+    model.evaluate(y_test, model.predict(X_test))
+
+
 def main():
+    """
+    can give minor classes higher weight
+    """
     data_base_dir = "data"
     os.makedirs(data_base_dir, exist_ok=True)
     cache_base_dir = ".cache"
@@ -195,13 +258,24 @@ def main():
 
     tf.keras.utils.set_random_seed(12345)
     tf.config.experimental.enable_op_determinism()
-
     configproto = tf.compat.v1.ConfigProto()
     configproto.gpu_options.allow_growth = True
     sess = tf.compat.v1.Session(config=configproto)
     tf.compat.v1.keras.backend.set_session(sess)
 
     init_logger()
+    parser = ArgumentParser()
+    parser.add_argument(
+        "-train", "--train", action="store_true",
+        default=False,
+        help="Whether to do training"
+    )
+    parser.add_argument(
+        "-test", "--test", action="store_true",
+        default=False,
+        help="Whether to do testing"
+    )
+    args = parser.parse_args()
 
     logging.info("[Embedding] Start ...")
     _embed(
@@ -211,25 +285,32 @@ def main():
     logging.info("[Embedding] done.")
 
     logging.info("[Preprocessing] Start ...")
-    emb_train, emb_test = preprocessing(
+    preprocessing(
         os.path.join(data_base_dir, "label.json"),
         os.path.join(data_base_dir, "mapping_aug_data.json"),
-        os.path.join(data_base_dir, "embedding"),  # or embedding
+        os.path.join(data_base_dir, "TFRecords"),  # or embedding
         os.path.join(cache_base_dir, "train_test")
     )
     logging.info("[Preprocessing] done.")
-
-    extract_testing(
-        os.path.join(data_base_dir, "TFRecords"),
-        os.path.join(cache_base_dir, "train_test")
-    )
-
-    training(
-        os.path.join(data_base_dir, "label.json"),
-        os.path.join(data_base_dir, "mapping_aug_data.json"),
-        os.path.join(data_base_dir, "TFRecords"),
-        os.path.join(cache_base_dir, "train_test")
-    )
+    if args.train:
+        logging.info("[Training] Start ...")
+        training(
+            os.path.join(data_base_dir, "label.json"),
+            os.path.join(data_base_dir, "mapping_aug_data.json"),
+            os.path.join(data_base_dir, "embedding_original"),
+            os.path.join(cache_base_dir, "train_test")
+        )
+        logging.info("[Training] done.")
+    if args.test:
+        logging.info("[Testing] start ...")
+        testing(
+            os.path.join(data_base_dir, "label.json"),
+            os.path.join(data_base_dir, "mapping_aug_data.json"),
+            os.path.join(data_base_dir, "embedding_original"),
+            os.path.join(cache_base_dir, "train_test"),
+            "model0.h5"
+        )
+        logging.info("[Testing] done.")
 
 
 if __name__ == "__main__":

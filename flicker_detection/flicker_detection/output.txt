@@ -1,0 +1,122 @@
+2022-05-08 02:49:16.158375: I tensorflow/core/platform/cpu_feature_guard.cc:151] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 FMA
+To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2022-05-08 02:49:16.928150: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1525] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 10410 MB memory:  -> device: 0, name: NVIDIA GeForce GTX 1080 Ti, pci bus id: 0000:2a:00.0, compute capability: 6.1
+2022-05-08 02:49:16.928726: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1525] Created device /job:localhost/replica:0/task:0/device:GPU:1 with 10386 MB memory:  -> device: 1, name: NVIDIA GeForce GTX 1080 Ti, pci bus id: 0000:41:00.0, compute capability: 6.1
+WARNING:tensorflow:From /tmp2/test/testing-cv/flicker_detection/flicker_detection/preprocessing/embedding/backbone.py:24: The name tf.keras.backend.set_session is deprecated. Please use tf.compat.v1.keras.backend.set_session instead.
+
+2022-05-08 02:49:17.571511: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1525] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 10410 MB memory:  -> device: 0, name: NVIDIA GeForce GTX 1080 Ti, pci bus id: 0000:2a:00.0, compute capability: 6.1
+2022-05-08 02:49:17.571712: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1525] Created device /job:localhost/replica:0/task:0/device:GPU:1 with 10386 MB memory:  -> device: 1, name: NVIDIA GeForce GTX 1080 Ti, pci bus id: 0000:41:00.0, compute capability: 6.1
+2022-05-08 02:49:17.573241: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1525] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 10410 MB memory:  -> device: 0, name: NVIDIA GeForce GTX 1080 Ti, pci bus id: 0000:2a:00.0, compute capability: 6.1
+2022-05-08 02:49:17.573419: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1525] Created device /job:localhost/replica:0/task:0/device:GPU:1 with 10386 MB memory:  -> device: 1, name: NVIDIA GeForce GTX 1080 Ti, pci bus id: 0000:41:00.0, compute capability: 6.1
+[05/08/22 02:49:17] INFO     root[3481] MainProcess(MainThread) logger:29  Initializing ok.                                                             logger.py:29
+                    INFO     root[3481] MainProcess(MainThread) extract_embedding:249  [Embedding] Start ...                                extract_embedding.py:249
+2022-05-08 02:49:17.581240: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1525] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 10410 MB memory:  -> device: 0, name: NVIDIA GeForce GTX 1080 Ti, pci bus id: 0000:2a:00.0, compute capability: 6.1
+2022-05-08 02:49:17.581424: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1525] Created device /job:localhost/replica:0/task:0/device:GPU:1 with 10386 MB memory:  -> device: 1, name: NVIDIA GeForce GTX 1080 Ti, pci bus id: 0000:41:00.0, compute capability: 6.1
+WARNING:tensorflow:`input_shape` is undefined or non-square, or `rows` is not in [128, 160, 192, 224]. Weights for input shape (224, 224) will be loaded as the default.
+                    WARNING  tensorflow[3481] MainProcess(MainThread) mobilenet:226  `input_shape` is undefined or non-square, or `rows` is not in  mobilenet.py:226
+                             [128, 160, 192, 224]. Weights for input shape (224, 224) will be loaded as the default.                                                
+INFO:tensorflow:Reduce to /job:localhost/replica:0/task:0/device:CPU:0 then broadcast to ('/job:localhost/replica:0/task:0/device:CPU:0',).
+                    INFO     tensorflow[3481] MainProcess(MainThread) cross_device_ops:616  Reduce to                                        cross_device_ops.py:616
+                             /job:localhost/replica:0/task:0/device:CPU:0 then broadcast to                                                                         
+                             ('/job:localhost/replica:0/task:0/device:CPU:0',).                                                                                     
+INFO:tensorflow:Reduce to /job:localhost/replica:0/task:0/device:CPU:0 then broadcast to ('/job:localhost/replica:0/task:0/device:CPU:0',).
+                    INFO     tensorflow[3481] MainProcess(MainThread) cross_device_ops:616  Reduce to                                        cross_device_ops.py:616
+                             /job:localhost/replica:0/task:0/device:CPU:0 then broadcast to                                                                         
+                             ('/job:localhost/replica:0/task:0/device:CPU:0',).                                                                                     
+INFO:tensorflow:Reduce to /job:localhost/replica:0/task:0/device:CPU:0 then broadcast to ('/job:localhost/replica:0/task:0/device:CPU:0',).
+                    INFO     tensorflow[3481] MainProcess(MainThread) cross_device_ops:616  Reduce to                                        cross_device_ops.py:616
+                             /job:localhost/replica:0/task:0/device:CPU:0 then broadcast to                                                                         
+                             ('/job:localhost/replica:0/task:0/device:CPU:0',).                                                                                     
+INFO:tensorflow:Reduce to /job:localhost/replica:0/task:0/device:CPU:0 then broadcast to ('/job:localhost/replica:0/task:0/device:CPU:0',).
+                    INFO     tensorflow[3481] MainProcess(MainThread) cross_device_ops:616  Reduce to                                        cross_device_ops.py:616
+                             /job:localhost/replica:0/task:0/device:CPU:0 then broadcast to                                                                         
+                             ('/job:localhost/replica:0/task:0/device:CPU:0',).                                                                                     
+INFO:tensorflow:Reduce to /job:localhost/replica:0/task:0/device:CPU:0 then broadcast to ('/job:localhost/replica:0/task:0/device:CPU:0',).
+                    INFO     tensorflow[3481] MainProcess(MainThread) cross_device_ops:616  Reduce to                                        cross_device_ops.py:616
+                             /job:localhost/replica:0/task:0/device:CPU:0 then broadcast to                                                                         
+                             ('/job:localhost/replica:0/task:0/device:CPU:0',).                                                                                     
+INFO:tensorflow:Reduce to /job:localhost/replica:0/task:0/device:CPU:0 then broadcast to ('/job:localhost/replica:0/task:0/device:CPU:0',).
+                    INFO     tensorflow[3481] MainProcess(MainThread) cross_device_ops:616  Reduce to                                        cross_device_ops.py:616
+                             /job:localhost/replica:0/task:0/device:CPU:0 then broadcast to                                                                         
+                             ('/job:localhost/replica:0/task:0/device:CPU:0',).                                                                                     
+INFO:tensorflow:Reduce to /job:localhost/replica:0/task:0/device:CPU:0 then broadcast to ('/job:localhost/replica:0/task:0/device:CPU:0',).
+                    INFO     tensorflow[3481] MainProcess(MainThread) cross_device_ops:616  Reduce to                                        cross_device_ops.py:616
+                             /job:localhost/replica:0/task:0/device:CPU:0 then broadcast to                                                                         
+                             ('/job:localhost/replica:0/task:0/device:CPU:0',).                                                                                     
+INFO:tensorflow:Reduce to /job:localhost/replica:0/task:0/device:CPU:0 then broadcast to ('/job:localhost/replica:0/task:0/device:CPU:0',).
+                    INFO     tensorflow[3481] MainProcess(MainThread) cross_device_ops:616  Reduce to                                        cross_device_ops.py:616
+                             /job:localhost/replica:0/task:0/device:CPU:0 then broadcast to                                                                         
+                             ('/job:localhost/replica:0/task:0/device:CPU:0',).                                                                                     
+INFO:tensorflow:Reduce to /job:localhost/replica:0/task:0/device:CPU:0 then broadcast to ('/job:localhost/replica:0/task:0/device:CPU:0',).
+                    INFO     tensorflow[3481] MainProcess(MainThread) cross_device_ops:616  Reduce to                                        cross_device_ops.py:616
+                             /job:localhost/replica:0/task:0/device:CPU:0 then broadcast to                                                                         
+                             ('/job:localhost/replica:0/task:0/device:CPU:0',).                                                                                     
+INFO:tensorflow:Reduce to /job:localhost/replica:0/task:0/device:CPU:0 then broadcast to ('/job:localhost/replica:0/task:0/device:CPU:0',).
+                    INFO     tensorflow[3481] MainProcess(MainThread) cross_device_ops:616  Reduce to                                        cross_device_ops.py:616
+                             /job:localhost/replica:0/task:0/device:CPU:0 then broadcast to                                                                         
+                             ('/job:localhost/replica:0/task:0/device:CPU:0',).                                                                                     
+[05/08/22 02:49:18] DEBUG    h5py._conv[3481] MainProcess(MainThread) attrs:77  Creating converter from 3 to 5                                           attrs.py:77
+  0%|          | 0/181 [00:00<?, ?it/s]100%|██████████| 181/181 [00:00<00:00, 311390.08it/s]
+                    INFO     root[3481] MainProcess(MainThread) extract_embedding:254  [Embedding] done.                                    extract_embedding.py:254
+                    INFO     root[3481] MainProcess(MainThread) extract_embedding:256  [Preprocessing] Start ...                            extract_embedding.py:256
+                    INFO     root[3481] MainProcess(MainThread) extract_embedding:263  [Preprocessing] done.                                extract_embedding.py:263
+                    INFO     root[3481] MainProcess(MainThread) extract_embedding:187  ['0162.mp4.tfrecords' '0053.mp4.tfrecords'           extract_embedding.py:187
+                             '0174.mp4.tfrecords'                                                                                                                   
+                              '0108.mp4.tfrecords' '0012.mp4.tfrecords' '0004.mp4.tfrecords'                                                                        
+                              '0018.mp4.tfrecords' '0041.mp4.tfrecords' '0078.mp4.tfrecords'                                                                        
+                              '0111.mp4.tfrecords' '0015.mp4.tfrecords' '0117.mp4.tfrecords'                                                                        
+                              '0144.mp4.tfrecords' '0045.mp4.tfrecords' '0049.mp4.tfrecords'                                                                        
+                              '0011.mp4.tfrecords' '0113.mp4.tfrecords' '0118.mp4.tfrecords'                                                                        
+                              '0046.mp4.tfrecords' '0143.mp4.tfrecords' '0009.mp4.tfrecords'                                                                        
+                              '0121.mp4.tfrecords' '0005.mp4.tfrecords' '0065.mp4.tfrecords'                                                                        
+                              '0076.mp4.tfrecords' '0016.mp4.tfrecords' '0074.mp4.tfrecords'                                                                        
+                              '0051.mp4.tfrecords' '0007.mp4.tfrecords' '0155.mp4.tfrecords'                                                                        
+                              '0040.mp4.tfrecords' '0020.mp4.tfrecords' '0136.mp4.tfrecords'                                                                        
+                              '0034.mp4.tfrecords' '0086.mp4.tfrecords' '0013.mp4.tfrecords'                                                                        
+                              '0030.mp4.tfrecords' '0003.mp4.tfrecords' '0017.mp4.tfrecords'                                                                        
+                              '0058.mp4.tfrecords' '0008.mp4.tfrecords' '0130.mp4.tfrecords'                                                                        
+                              '0006.mp4.tfrecords' '0171.mp4.tfrecords' '0055.mp4.tfrecords'                                                                        
+                              '0168.mp4.tfrecords' '0092.mp4.tfrecords' '0177.mp4.tfrecords'                                                                        
+                              '0087.mp4.tfrecords' '0068.mp4.tfrecords' '0082.mp4.tfrecords'                                                                        
+                              '0134.mp4.tfrecords' '0075.mp4.tfrecords' '0110.mp4.tfrecords'                                                                        
+                              '0104.mp4.tfrecords' '0175.mp4.tfrecords' '0163.mp4.tfrecords'                                                                        
+                              '0061.mp4.tfrecords' '0099.mp4.tfrecords' '0077.mp4.tfrecords'                                                                        
+                              '0157.mp4.tfrecords' '0093.mp4.tfrecords' '0048.mp4.tfrecords'                                                                        
+                              '0169.mp4.tfrecords' '0101.mp4.tfrecords' '0109.mp4.tfrecords'                                                                        
+                              '0151.mp4.tfrecords' '0056.mp4.tfrecords' '0044.mp4.tfrecords'                                                                        
+                              '0001.mp4.tfrecords' '0085.mp4.tfrecords' '0022.mp4.tfrecords'                                                                        
+                              '0002.mp4.tfrecords' '0029.mp4.tfrecords' '0166.mp4.tfrecords'                                                                        
+                              '0133.mp4.tfrecords' '0159.mp4.tfrecords' '0021.mp4.tfrecords'                                                                        
+                              '0102.mp4.tfrecords' '0122.mp4.tfrecords' '0014.mp4.tfrecords'                                                                        
+                              '0083.mp4.tfrecords']                                                                                                                 
+                    INFO     root[3481] MainProcess(MainThread) extract_embedding:193  Epoch 0                                              extract_embedding.py:193
+                    DEBUG    root[3481] MainProcess(MainThread) extract_embedding:200  Loading data/embedding_original/0074.mp4             extract_embedding.py:200
+Traceback (most recent call last):
+  File "/tmp2/test/testing-cv/flicker_detection/flicker_detection/extract_embedding.py", line 283, in <module>
+    main()
+  File "/tmp2/test/testing-cv/flicker_detection/flicker_detection/extract_embedding.py", line 274, in main
+    training(
+  File "/tmp2/test/testing-cv/flicker_detection/flicker_detection/extract_embedding.py", line 208, in training
+    model=model.LSTM(loaded.shape[1:]),
+  File "/tmp2/test/testing-cv/flicker_detection/flicker_detection/mypyfunc/custom_models.py", line 63, in LSTM
+    buf.add(LSTM(units=256, input_shape=(input_shape)))
+  File "/tmp2/test/testing-cv/flicker_detection/flicker_detection/.env/lib/python3.9/site-packages/tensorflow/python/training/tracking/base.py", line 629, in _method_wrapper
+    result = method(self, *args, **kwargs)
+  File "/tmp2/test/testing-cv/flicker_detection/flicker_detection/.env/lib/python3.9/site-packages/keras/utils/traceback_utils.py", line 67, in error_handler
+    raise e.with_traceback(filtered_tb) from None
+  File "/tmp2/test/testing-cv/flicker_detection/flicker_detection/.env/lib/python3.9/site-packages/keras/engine/input_spec.py", line 214, in assert_input_compatibility
+    raise ValueError(f'Input {input_index} of layer "{layer_name}" '
+ValueError: Input 0 of layer "lstm" is incompatible with the layer: expected ndim=3, found ndim=2. Full shape received: (None, 9216)
+Exception ignored in: <function Pool.__del__ at 0x7face6bf8790>
+Traceback (most recent call last):
+  File "/usr/lib/python3.9/multiprocessing/pool.py", line 268, in __del__
+    self._change_notifier.put(None)
+  File "/usr/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/usr/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/usr/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/usr/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+OSError: [Errno 9] Bad file descriptor
