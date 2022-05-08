@@ -13,7 +13,7 @@ from imblearn.over_sampling import SMOTE
 from keras.models import Sequential
 from keras.layers import LSTM, Dense, Flatten
 
-from mypyfunc.custom import Model, InferenceModel
+from mypyfunc.custom import Model, InferenceModel, f1, precision, recall
 from mypyfunc.logger import init_logger
 from preprocessing.embedding.facenet import Facenet
 from mypyfunc.transformers import Transformers
@@ -172,6 +172,9 @@ def _oversampling(
 def _train(X_train: np.array, y_train: np.array) -> Model:
     tf.keras.utils.set_random_seed(12345)
     tf.config.experimental.enable_op_determinism()
+
+    lst_x = np.array_split(X_train, 2)
+    lst_y = np.array_split(y_train, 2)
     mirrored_strategy = tf.distribute.MirroredStrategy()
     with mirrored_strategy.scope():
         buf = Sequential()
@@ -181,22 +184,20 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
         buf.add(Dense(units=1, activation="sigmoid"))
 
         model = Model(
-            # model=transformers(X_train),
             model=buf,
             loss="binary_crossentropy",
             optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
+            metrics=[
+                "accuracy",
+                f1,
+                tf.keras.metrics.AUC()
+            ]
         )
-    # strategy = tf.distribute.MirroredStrategy()
-    # model = Transformers(
-    #     X_train,
-    #     loss="binary_crossentropy",
-    #     optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
-    #     strategy=strategy,
-    # )
-        model.train(X_train, y_train, 1000, 0.1, 1024)
-        for k in list(("loss", "accuracy", "f1")):
-            model.plot_history(
-                k, title="{} - LSTM, Chunk, Oversampling".format(k))
+        for X_train, y_train in zip(lst_x, lst_y):
+            model.train(X_train, y_train, 1000, 0.1, 1024)
+            for k in list(("loss", "accuracy", "f1", "auc_2")):
+                model.plot_history(
+                    k, title="{} - LSTM, Chunk, Oversampling".format(k))
 
     return model
 
@@ -234,20 +235,18 @@ def _main() -> None:
     X_train, X_test, y_train, y_test = _preprocess(
         os.path.join(data_base_dir, "label.json"),
         os.path.join(data_base_dir, "mapping.json"),
-        os.path.join(data_base_dir, "embedding"),
+        os.path.join(data_base_dir, "embedding_original"),
         os.path.join(cache_base_dir, "train_test")
     )
     logging.info("[Preprocessing] done.")
 
-    # TODO fix me
-    logging.info("[Oversampling] Start ...")
-    X_train, y_train = _oversampling(
-        X_train,
-        y_train
-    )
-    logging.info("[Oversampling] done.")
-
     if args.train:
+        logging.info("[Oversampling] Start ...")
+        X_train, y_train = _oversampling(
+            X_train,
+            y_train
+        )
+        logging.info("[Oversampling] done.")
         logging.info("[Training] Start ...")
         _ = _train(
             X_train,
@@ -257,7 +256,7 @@ def _main() -> None:
 
     if args.test:
         logging.info("[Testing] Start ...")
-        _test("model.h5", X_test, y_test)
+        _test("model0.h5", X_test, y_test)
         logging.info("[Testing] done.")
 
 

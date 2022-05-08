@@ -60,7 +60,7 @@ class Model:
         metrics: list = list((
             "accuracy",
             f1,
-            # tf.keras.metrics.AUC()
+            tf.keras.metrics.AUC()
         )),
         summary=True,
     ) -> None:
@@ -81,7 +81,7 @@ class Model:
         epochs: int,
         validation_split: float,
         batch_size: int,
-        model_path: str = "model.h5",
+        model_path: str = "model0.h5",
         monitor: str = "val_f1",
         mode: str = "max"
     ) -> None:
@@ -120,7 +120,7 @@ class InferenceModel:
         model_path: str,
         custom_objects: dict = dict({
             "f1": f1,
-            # "auc": tf.keras.metrics.AUC()
+            "auc": tf.keras.metrics.AUC()
         })
     ) -> None:
         self.model = tf.keras.models.load_model(
