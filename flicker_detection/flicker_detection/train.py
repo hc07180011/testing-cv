@@ -31,7 +31,7 @@ def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
             chunk_size
         ))
     )
-    return tuple(map(tuple, asymmetric_chunks))
+    return tuple(asymmetric_chunks)
 
 
 def _preprocess(
@@ -39,6 +39,8 @@ def _preprocess(
     mapping_path: str,
     data_dir: str,
     cache_path: str
+
+
 ) -> Tuple[np.array]:
     """
     can consider reducing precision of np.float32 to np.float16 to reduce memory consumption
@@ -50,8 +52,8 @@ def _preprocess(
     static memory allocation solution:
     https://pytorch.org/docs/stable/generated/torch.zeros.html
     """
-    if os.path.exists("{}.npz".format(cache_path)):
-        __cache__ = np.load("{}.npz".format(cache_path), allow_pickle=True)
+    if os.path.exists("/{}.npz".format(cache_path)):
+        __cache__ = np.load("/{}.npz".format(cache_path), allow_pickle=True)
         return tuple(__cache__[k] for k in __cache__)
 
     pass_videos = (
@@ -160,9 +162,9 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
     """
     https://www.tensorflow.org/guide/keras/writing_a_training_loop_from_scratch
     """
-    list_X = np.array_split(X_train, 2)
-    list_y = np.array_split(y_train, 2)
-    logging.info("Input shape - {}".format(list_X[0].shape[1:]))
+    # list_X = np.array_split(X_train, 2)
+    # list_y = np.array_split(y_train, 2)
+    # logging.info("Input shape - {}".format(list_X[0].shape[1:]))
     mirrored_strategy = tf.distribute.MirroredStrategy()
     with mirrored_strategy.scope():
         model = Model()
@@ -171,26 +173,26 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
             loss="binary_crossentropy",
             optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
             metrics=(
-                # precision,
-                # recall,
+                precision,
+                recall,
                 f1,
-                # auroc,
-                # fbeta,
-                # specificity,
-                # negative_predictive_value,
-                # matthews_correlation_coefficient,
-                # equal_error_rate
+                tf.metrics.AUC(),
+                fbeta,
+                specificity,
+                negative_predictive_value,
+                matthews_correlation_coefficient,
+                equal_error_rate
             )
         )
-        for X_train, y_train in zip(list_X, list_y):
-            model.train(X_train, y_train, 10, 0.1, 4096)  # 1024
-            # for k in ("loss", "precision",
-            #           "recall", "f1", "fbeta", "specificity",
-            #           "negative_predictive_value",
-            #           "matthews_correlation_coefficient", "equal_error_rate"):
-            for k in ("loss", "f1"):
-                model.plot_history(
-                    k, title="{} - LSTM, Chunk, Oversampling".format(k))
+        # for X_train, y_train in zip(list_X, list_y):
+        model.train(X_train, y_train, 1000, 0.1, 4096)  # 1024
+        for k in ("loss", "precision",
+                  "recall", "f1", "fbeta", "specificity",
+                  "negative_predictive_value",
+                  "matthews_correlation_coefficient", "equal_error_rate"):
+            # for k in ("loss", "f1"):
+            model.plot_history(
+                k, title="{} - LSTM, Chunk, Oversampling".format(k))
 
     return model
 
@@ -200,7 +202,7 @@ def _test(model_path: str, X_test: np.array, y_test: np.array) -> None:
         "precision": precision,
         "recall": recall,
         "f1": f1,
-        # "auroc":auroc,
+        "auroc": tf.metrics.AUC(),
         "fbeta": fbeta,
         "specificity": specificity,
         "negative_predictive_value": negative_predictive_value,
@@ -215,10 +217,10 @@ def _test(model_path: str, X_test: np.array, y_test: np.array) -> None:
 def _main() -> None:
     tf.keras.utils.set_random_seed(12345)
     tf.config.experimental.enable_op_determinism()
-    configproto = tf.compat.v1.ConfigProto()
-    configproto.gpu_options.allow_growth = True
-    sess = tf.compat.v1.Session(config=configproto)
-    tf.compat.v1.keras.backend.set_session(sess)
+    # configproto = tf.compat.v1.ConfigProto()
+    # configproto.gpu_options.allow_growth = True
+    # sess = tf.compat.v1.Session(config=configproto)
+    # tf.compat.v1.keras.backend.set_session(sess)
 
     parser = ArgumentParser()
     parser.add_argument(

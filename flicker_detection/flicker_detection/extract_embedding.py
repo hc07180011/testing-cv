@@ -3,10 +3,10 @@ import json
 import cv2
 import tqdm
 import logging
-import random
 import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
+from imblearn.over_sampling import SMOTE
 from argparse import ArgumentParser
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.applications import DenseNet121, mobilenet, vgg16, InceptionResNetV2, InceptionV3
@@ -39,7 +39,6 @@ def _embed(
     for path in tqdm.tqdm(os.listdir(video_data_dir)):
         if os.path.exists(os.path.join(output_dir, "{}.tfrecords".format(path))):
             continue
-        # path = "0060.mp4"
         vidcap = cv2.VideoCapture(os.path.join(video_data_dir, path))
         h, w = int(vidcap.get(4)), int(vidcap.get(3))
         b_frames = np.zeros((batch_size, h, w, 3))
@@ -158,12 +157,12 @@ def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
     return tuple(map(tuple, asymmetric_chunks))
 
 
-def load_train(
+def load_embeddings(
     embedding_list_train: list,
     label_path: str,
     mapping_path: str,
     data_dir: str,
-    batch_size: int = 32,
+    batch_size: int = 4,
 ) -> Tuple[np.ndarray, np.ndarray]:
     encoding_filename_mapping = json.load(open(mapping_path, "r"))
     raw_labels = json.load(open(label_path, "r"))
@@ -175,6 +174,8 @@ def load_train(
 
         loaded = np.load("{}.npy".format(os.path.join(data_dir, key.replace(
             ".tfrecords", ""))))
+        logging.info("Video - {}".format(key))
+        logging.info("Embedding Shape - {}".format(loaded.shape))
         X_train += (*_get_chunk_array(loaded, batch_size),)
 
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
@@ -184,7 +185,25 @@ def load_train(
             1 if sum(x) else 0
             for x in _get_chunk_array(buf_label, batch_size)
         )
-    return np.array(X_train), np.array(y_train).flatten()
+    return np.array(X_train), np.array(y_train)
+
+
+def _oversampling(
+    X_train: np.array,
+    y_train: np.array,
+) -> Tuple[np.array]:
+    """
+    batched alternative:
+    https://imbalanced-learn.org/stable/references/generated/imblearn.keras.BalancedBatchGenerator.html
+    """
+    sm = SMOTE(random_state=42)
+    original_X_shape = X_train.shape
+    X_train, y_train = sm.fit_resample(
+        np.reshape(X_train, (-1, np.prod(original_X_shape[1:]))),
+        y_train
+    )
+    X_train = np.reshape(X_train, (-1,) + original_X_shape[1:])
+    return (X_train, y_train)
 
 
 def training(
@@ -192,37 +211,33 @@ def training(
     mapping_path: str,
     data_dir: str,
     cache_path: str,
-    epochs: int = 10,
+    epochs: int = 1000,
     model: tf.keras.Model = None,
 ) -> Model:
-
+    mirrored_strategy = tf.distribute.MirroredStrategy()
     embedding_list_train = np.array(np.load("{}.npz".format(
         cache_path), allow_pickle=True)["arr_0"])
     chunked_list = np.array_split(embedding_list_train, indices_or_sections=2)
 
     for vid_chunk in chunked_list:
-        X_train, y_train = load_train(
-            vid_chunk, label_path, mapping_path, data_dir)
+        X_train, y_train = _oversampling(*load_embeddings(
+            embedding_list_train, label_path, mapping_path, data_dir))
+        with mirrored_strategy.scope():
+            if model is None:
+                logging.info("Input shape {}".format(X_train.shape[1:]))
+                model = Model()
+                model.compile(
+                    model=model.LSTM(X_train.shape[1:]),
+                    loss="binary_crossentropy",
+                    optimizer=Adam(learning_rate=1e-5),
+                    metrics=(f1),  # , recall, precision, specificity),
+                )
 
-        if model is None:
-            logging.info("Input shape {}".format(X_train.shape[1:]))
-            model = Model()
-            model.compile(
-                model=model.LSTM(X_train.shape[1:]),
-                loss="binary_crossentropy",
-                optimizer=Adam(learning_rate=1e-5),
-                metrics=(f1)  # , recall, precision, specificity),
-            )
-        else:
-            model.model = tf.keras.models.load_model(
-                "model0.h5", custom_objects={'f1': f1})
-
-        model.train(X_train, y_train, epochs=epochs,
-                    validation_split=0.1, batch_size=1024,)
-        for k in ("loss", "f1"):
-            model.plot_history(
-                k, title="{} - LSTM, Chunk, Oversampling".format(k))
-        model.model.save("model0.h5")
+            model.train(X_train, y_train, epochs=epochs,
+                        validation_split=0.1, batch_size=4096, model_path="online.h5")
+            for k in ("loss", "f1"):
+                model.plot_history(
+                    k, title="{} - LSTM, Chunk, Oversampling".format(k))
 
     return model
 
@@ -233,45 +248,13 @@ def testing(
     data_dir: str,
     cache_path: str,
     model_path: str,
-    batch_size: int = 32,
 ) -> None:
-    encoding_filename_mapping = json.load(open(mapping_path, "r"))
-    raw_labels = json.load(open(label_path, "r"))
     embedding_list_test = np.load("{}.npz".format(
         cache_path), allow_pickle=True)["arr_1"]
+    X_test, y_test = load_embeddings(
+        embedding_list_test, label_path, mapping_path, data_dir)
 
-    X_test, y_test = (), ()
-    for key in embedding_list_test:
-        real_filename = encoding_filename_mapping[key.replace(
-            ".tfrecords", "")]
-
-        # ds = tf.data.TFRecordDataset(os.path.join(data_dir, key)).map(
-        #     lambda byte: decode_fn(byte, key.replace(".tfrecords", "")))
-        # tensor = ds.get_single_element()
-        loaded = np.load("{}.npy".format(os.path.join(data_dir, key.replace(
-            ".tfrecords", ""))))
-        X_test += (*_get_chunk_array(loaded, batch_size),)
-        logging.info("Video - {}".format(key))
-        logging.info("Embedding Shape - {}".format(loaded.shape))
-
-        flicker_idxs = np.array(
-            raw_labels[real_filename]) - 1
-        buf_label = np.zeros(loaded.shape[0], dtype=np.uint8)
-        buf_label[flicker_idxs] = 1
-        y_test += tuple(
-            1 if sum(x) else 0
-            for x in _get_chunk_array(buf_label, batch_size)
-        )
-        # y_test += (*tf.data.Dataset.from_tensor_slices(buf_label).padded(batch_size),)
-        # X_test += (*tensor.padded(batch_size),)
-    X_test, y_test = np.array(X_test), np.array(y_test)
-
-    model = InferenceModel(model_path, {
-                           "f1": f1,
-                           #    "recall": recall,
-                           #    "precision": precision,
-                           #    "specificity": specificity,
-                           })
+    model = InferenceModel(model_path, custom_objects={'f1': f1})
     y_pred = model.predict(X_test)
     model.evaluate(y_test, y_pred)
 
@@ -287,10 +270,6 @@ def main():
 
     tf.keras.utils.set_random_seed(12345)
     tf.config.experimental.enable_op_determinism()
-    configproto = tf.compat.v1.ConfigProto()
-    configproto.gpu_options.allow_growth = True
-    sess = tf.compat.v1.Session(config=configproto)
-    tf.compat.v1.keras.backend.set_session(sess)
 
     init_logger()
 
@@ -338,7 +317,7 @@ def main():
             os.path.join(data_base_dir, "mapping_aug_data.json"),
             os.path.join(data_base_dir, "embedding_original"),
             os.path.join(cache_base_dir, "train_test"),
-            "model0.h5"
+            "online.h5"
         )
         logging.info("[Testing] done.")
 
