@@ -17,12 +17,19 @@ def pca(input_directory):
     # To keep track of how many files we're processing
     count = 0
 
+<<<<<<< HEAD
     videoIndexes = [0]
+=======
+    videoIndexes = []
+>>>>>>> d4a10a4 (pca scatter plot added)
     totalDimensions = 0
     tags = []
     ids = []
     numbered_ids = []
+<<<<<<< HEAD
     legendNames = []
+=======
+>>>>>>> d4a10a4 (pca scatter plot added)
 
     pbar = tqdm(total=LENGTH)
 
@@ -34,12 +41,18 @@ def pca(input_directory):
             np_embedding = np.load(np_name).T
             embeddings_shape = np_embedding.shape[1]
             embeddings = np.concatenate([embeddings, np_embedding], axis=1)
+<<<<<<< HEAD
         
+=======
+>>>>>>> d4a10a4 (pca scatter plot added)
         totalDimensions += embeddings_shape
         videoIndexes.append(totalDimensions)
 
         formatted_name = os.path.basename(np_name).removesuffix('.mp4.npy')
+<<<<<<< HEAD
         legendNames.append(formatted_name)
+=======
+>>>>>>> d4a10a4 (pca scatter plot added)
 
         for i in range(embeddings_shape):
             tags.append(formatted_name + '_' +str(i))
@@ -47,10 +60,15 @@ def pca(input_directory):
             numbered_ids.append(int(formatted_name))
 
         print("Processed: {}".format(np_name))
+<<<<<<< HEAD
+=======
+        print("Size: {}".format(embeddings_shape))
+>>>>>>> d4a10a4 (pca scatter plot added)
 
         count += 1
 
         pbar.update(n=1)
+<<<<<<< HEAD
         
 
     
@@ -124,6 +142,37 @@ def pca(input_directory):
     # fig.write_html('./visualization/results.html')
 
     f.write_html('./visualization/results.html')
+=======
+
+    
+    model = PCA(n_components=2).fit(embeddings)
+    print('PCA done')
+
+    # Splits into the original arrays
+    """
+    modelSplit = np.array_split(
+                    model.components_, 
+                    indices_or_sections=videoIndexes[:-1],
+                    axis=1)
+    """
+
+    category_vectors = model.components_.T
+    category_vector_frame=pd.DataFrame(category_vectors, 
+                                   columns=['col1', 'col2']).reset_index()
+    
+    # Using Plotly to make a scatter plot
+    scatterGl = go.Scattergl(
+        x=category_vector_frame['col1'],
+        y=category_vector_frame['col2'],
+        mode='markers',
+        marker_color=numbered_ids,
+        ids=ids,
+        hovertext=tags,
+        hoverinfo='text'
+    )
+    fig = go.Figure(scatterGl)
+    fig.write_html('./visualization/results.html')
+>>>>>>> d4a10a4 (pca scatter plot added)
     print('Scatter figure complete')
     
     # Using seaborn to make a scatter plot
