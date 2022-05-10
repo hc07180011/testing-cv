@@ -28,6 +28,8 @@ class Model:
         self.model_path = None
         self.summary = summary
         self.plots_folder = plots_folder
+        # TODO batched history
+        # self.history = ()
         os.makedirs(self.plots_folder, exist_ok=True)
 
     def compile(

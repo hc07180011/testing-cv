@@ -99,11 +99,14 @@ def preprocessing(
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     manual testing
-    0000.mp4
-    0002.mp4
-    0003.mp4
-    0006.mp4
-    0013.mp4 - stopped at 15
+    0002.mp4 tap to start
+    0003.mp4 wallpaper flicker
+    0006.mp4 main menu flicker
+    0016.mp4 camera
+    0018.mp4 blank screen
+    0043.mp4 settings flicker
+    0025.mp4 colors youtube
+    0029.mp4 welcome to chrome flicker - stop at 42
     """
     if os.path.exists("/{}.npz".format(cache_path)):
         __cache__ = np.load("/{}.npz".format(cache_path), allow_pickle=True)
@@ -165,6 +168,7 @@ def load_embeddings(
     data_dir: str,
     batch_size: int = 4,
 ) -> Tuple[np.ndarray, np.ndarray]:
+
     encoding_filename_mapping = json.load(open(mapping_path, "r"))
     raw_labels = json.load(open(label_path, "r"))
 
@@ -212,30 +216,31 @@ def training(
     mapping_path: str,
     data_dir: str,
     cache_path: str,
-    epochs: int = 100,
+    epochs: int = 1000,
     model: tf.keras.Model = None,
 ) -> Model:
     mirrored_strategy = tf.distribute.MirroredStrategy()
     embedding_list_train = np.array(np.load("{}.npz".format(
         cache_path), allow_pickle=True)["arr_0"])
-    chunked_list = np.array_split(embedding_list_train, indices_or_sections=20)
+    chunked_list = np.array_split(embedding_list_train, indices_or_sections=2)
 
     for vid_chunk in chunked_list:
         X_train, y_train = _oversampling(*load_embeddings(
             vid_chunk, label_path, mapping_path, data_dir))
+
         with mirrored_strategy.scope():
             if model is None:
                 logging.info("Input shape {}".format(X_train.shape[1:]))
                 model = Model()
                 model.compile(
-                    model=model.transformers(X_train.shape[1:]),
+                    model=model.LSTM(X_train.shape[1:]),
                     loss="binary_crossentropy",
                     optimizer=Adam(learning_rate=1e-5),
                     metrics=(f1),  # , recall, precision, specificity),
                 )
 
             model.train(X_train, y_train, epochs=epochs,
-                        validation_split=0.1, batch_size=32, model_path="transformers.h5")
+                        validation_split=0.1, batch_size=6144, model_path="LSTM.h5")
             for k in ("loss", "f1"):
                 model.plot_history(
                     k, title="{} - LSTM, Chunk, Oversampling".format(k))
@@ -259,8 +264,8 @@ def testing(
         model_path,
         custom_objects={
             'f1': f1,
-            "PositionalEmbedding": PositionalEmbedding,
-            "TransformerEncoder": TransformerEncoder
+            # "PositionalEmbedding": PositionalEmbedding,
+            # "TransformerEncoder": TransformerEncoder
         })
     y_pred = model.predict(X_test)
     model.evaluate(y_test, y_pred)
@@ -324,7 +329,7 @@ def main():
             os.path.join(data_base_dir, "mapping_aug_data.json"),
             os.path.join(data_base_dir, "embedding_original"),
             os.path.join(cache_base_dir, "train_test"),
-            "transformers.h5"
+            "LSTM.h5"
         )
         logging.info("[Testing] done.")
 
