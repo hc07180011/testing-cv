@@ -12,13 +12,13 @@ from sklearn.model_selection import train_test_split
 from tensorflow.keras.applications import DenseNet121, mobilenet, vgg16, InceptionResNetV2, InceptionV3
 from tensorflow.keras import Model
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Flatten, Bidirectional, Dropout, GlobalMaxPooling1D
 from mypyfunc.logger import init_logger
 from typing import Tuple
 from preprocessing.embedding.backbone import BaseCNN, Serializer
 from mypyfunc.custom_models import Model, InferenceModel
 from mypyfunc.custom_eval import f1, recall, precision, specificity
+from mypyfunc.transformers import PositionalEmbedding, TransformerEncoder
 
 
 data_base_dir = "data"
@@ -102,7 +102,8 @@ def preprocessing(
     0000.mp4
     0002.mp4
     0003.mp4
-    0005.mp4
+    0006.mp4
+    0013.mp4 - stopped at 15
     """
     if os.path.exists("/{}.npz".format(cache_path)):
         __cache__ = np.load("/{}.npz".format(cache_path), allow_pickle=True)
@@ -211,30 +212,30 @@ def training(
     mapping_path: str,
     data_dir: str,
     cache_path: str,
-    epochs: int = 1000,
+    epochs: int = 100,
     model: tf.keras.Model = None,
 ) -> Model:
     mirrored_strategy = tf.distribute.MirroredStrategy()
     embedding_list_train = np.array(np.load("{}.npz".format(
         cache_path), allow_pickle=True)["arr_0"])
-    chunked_list = np.array_split(embedding_list_train, indices_or_sections=2)
+    chunked_list = np.array_split(embedding_list_train, indices_or_sections=20)
 
     for vid_chunk in chunked_list:
         X_train, y_train = _oversampling(*load_embeddings(
-            embedding_list_train, label_path, mapping_path, data_dir))
+            vid_chunk, label_path, mapping_path, data_dir))
         with mirrored_strategy.scope():
             if model is None:
                 logging.info("Input shape {}".format(X_train.shape[1:]))
                 model = Model()
                 model.compile(
-                    model=model.LSTM(X_train.shape[1:]),
+                    model=model.transformers(X_train.shape[1:]),
                     loss="binary_crossentropy",
                     optimizer=Adam(learning_rate=1e-5),
                     metrics=(f1),  # , recall, precision, specificity),
                 )
 
             model.train(X_train, y_train, epochs=epochs,
-                        validation_split=0.1, batch_size=4096, model_path="online.h5")
+                        validation_split=0.1, batch_size=32, model_path="transformers.h5")
             for k in ("loss", "f1"):
                 model.plot_history(
                     k, title="{} - LSTM, Chunk, Oversampling".format(k))
@@ -254,7 +255,13 @@ def testing(
     X_test, y_test = load_embeddings(
         embedding_list_test, label_path, mapping_path, data_dir)
 
-    model = InferenceModel(model_path, custom_objects={'f1': f1})
+    model = InferenceModel(
+        model_path,
+        custom_objects={
+            'f1': f1,
+            "PositionalEmbedding": PositionalEmbedding,
+            "TransformerEncoder": TransformerEncoder
+        })
     y_pred = model.predict(X_test)
     model.evaluate(y_test, y_pred)
 
@@ -317,7 +324,7 @@ def main():
             os.path.join(data_base_dir, "mapping_aug_data.json"),
             os.path.join(data_base_dir, "embedding_original"),
             os.path.join(cache_base_dir, "train_test"),
-            "online.h5"
+            "transformers.h5"
         )
         logging.info("[Testing] done.")
 
