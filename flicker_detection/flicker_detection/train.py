@@ -56,8 +56,8 @@ def _preprocess(
     cache_path: str
 ) -> Tuple[np.array]:
 
-    if os.path.exists("{}.npz".format(cache_path)):
-        __cache__ = np.load("{}.npz".format(cache_path), allow_pickle=True)
+    if os.path.exists("/{}.npz".format(cache_path)):
+        __cache__ = np.load("/{}.npz".format(cache_path), allow_pickle=True)
         return tuple((__cache__[k] for k in __cache__))
 
     pass_videos = list([
@@ -236,7 +236,7 @@ def _main() -> None:
         os.path.join(data_base_dir, "label.json"),
         os.path.join(data_base_dir, "mapping.json"),
         os.path.join(data_base_dir, "embedding_original"),
-        os.path.join(cache_base_dir, "train_test")
+        os.path.join(cache_base_dir, "old_train_test")
     )
     logging.info("[Preprocessing] done.")
 
