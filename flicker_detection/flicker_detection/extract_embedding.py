@@ -2,9 +2,9 @@ import os
 import json
 import cv2
 import tqdm
+import random
 import logging
 import numpy as np
-import matplotlib.pyplot as plt
 import tensorflow as tf
 from imblearn.over_sampling import SMOTE
 from argparse import ArgumentParser
@@ -73,7 +73,7 @@ def np_embed(
     os.makedirs(output_dir, exist_ok=True)
 
     feature_extractor = BaseCNN()
-    feature_extractor.extractor(vgg16.VGG16)  # mobilenet.MobileNet
+    feature_extractor.extractor(mobilenet.MobileNet)  # mobilenet.MobileNet
     for path in tqdm.tqdm(os.listdir(video_data_dir)):
         if os.path.exists(os.path.join(output_dir, "{}.npy".format(path))):
             continue
@@ -222,28 +222,41 @@ def training(
     mirrored_strategy = tf.distribute.MirroredStrategy()
     embedding_list_train = np.array(np.load("{}.npz".format(
         cache_path), allow_pickle=True)["arr_0"])
-    chunked_list = np.array_split(embedding_list_train, indices_or_sections=2)
+    chunked_list = np.array_split(embedding_list_train, indices_or_sections=30)
 
-    for vid_chunk in chunked_list:
-        X_train, y_train = _oversampling(*load_embeddings(
-            vid_chunk, label_path, mapping_path, data_dir))
+    loss_history, acc_history, val_loss_history, val_acc_history, f1_history, val_f1_history = (), (), (), (), (), ()
+    for epoch in range(epochs):
+        logging.info("Epoch {}".format(epoch))
+        random.shuffle(chunked_list)
+        for vid_chunk in chunked_list:
+            X_train, y_train = _oversampling(*load_embeddings(
+                vid_chunk, label_path, mapping_path, data_dir))
+            with mirrored_strategy.scope():
+                if model is None:
+                    logging.info("Input shape {}".format(X_train.shape[1:]))
+                    model = Model()
+                    model.compile(
+                        model=model.LSTM(X_train.shape[1:]),
+                        loss="binary_crossentropy",
+                        optimizer=Adam(learning_rate=1e-5),
+                        metrics=(f1,),  # , recall, precision, specificity),
+                    )
 
-        with mirrored_strategy.scope():
-            if model is None:
-                logging.info("Input shape {}".format(X_train.shape[1:]))
-                model = Model()
-                model.compile(
-                    model=model.LSTM(X_train.shape[1:]),
-                    loss="binary_crossentropy",
-                    optimizer=Adam(learning_rate=1e-5),
-                    metrics=(f1),  # , recall, precision, specificity),
-                )
+                loss, f1_score = model.model.train_on_batch(
+                    X_train, y_train)
+                val_loss, val_f1 = model.model.evaluate(
+                    X_train, y_train)  # FIX ME
+            logging.info("Metrics - {}".format(model.model.metrics_names))
+            loss_history += (loss,)
+            f1_history += (f1_score,)
+            val_loss_history += (val_loss,)
+            val_f1_history += (val_f1,)
 
-            model.train(X_train, y_train, epochs=epochs,
-                        validation_split=0.1, batch_size=4096, model_path="test.h5")
-            for k in ("loss", "f1"):
-                model.plot_history(
-                    k, title="{} - LSTM, Chunk, Oversampling".format(k))
+            # model.train(X_train, y_train, epochs=epochs,
+            #             validation_split=0.1, batch_size=4096, model_path="test.h5")
+            # for k in ("loss", "f1"):
+            #     model.plot_history(
+            #         k, title="{} - LSTM, Chunk, Oversampling".format(k))
 
     return model
 
