@@ -23,13 +23,14 @@ class Model:
     def __init__(
         self,
         summary: bool = True,
-        plots_folder: str = "plots/"
+        plots_folder: str = "plots/",
+        overview: str = 'preprocessing/embedding/models/flicker_detection.txt'
     ) -> None:
         self.model_path = None
         self.summary = summary
         self.plots_folder = plots_folder
-        # TODO batched history
-        # self.history = ()
+        self.overview = overview
+        self.metrics = None
         os.makedirs(self.plots_folder, exist_ok=True)
 
     def compile(
@@ -40,13 +41,14 @@ class Model:
         metrics: tuple,
     ) -> None:
         self.model = model
+        self.metrics = dict(map(lambda metric: (metric.__name__, []), metrics))
         self.model.compile(
             loss=loss,
             optimizer=optimizer,
             metrics=metrics
         )
         if self.summary:
-            with open('preprocessing/embedding/models/flicker_detection.txt', 'w') as fh:
+            with open(self.overview, 'w') as fh:
                 self.model.summary(print_fn=lambda x: fh.write(x + '\n'))
 
     def LSTM(self, input_shape: Tuple) -> tf.keras.models.Sequential:
