@@ -21,8 +21,9 @@ os.makedirs(cache_base_dir, exist_ok=True)
 def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
     usable_vec = input_arr[:(
         np.floor(len(input_arr)/chunk_size)*chunk_size).astype(int)]
-    i_pad = np.concatenate((usable_vec, np.array(
-        [np.zeros(input_arr[-1].shape)]*(chunk_size-len(usable_vec) % chunk_size))))
+    pad_last = np.array(
+        [input_arr[-1]] + [np.zeros(input_arr[-1].shape)]*((chunk_size-len(usable_vec) % chunk_size)-1))
+    i_pad = np.concatenate((usable_vec, pad_last))
     asymmetric_chunks = np.split(
         i_pad,
         list(range(
@@ -31,7 +32,7 @@ def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
             chunk_size
         ))
     )
-    return tuple(asymmetric_chunks)
+    return tuple(map(tuple, asymmetric_chunks))
 
 
 def _preprocess(
@@ -39,8 +40,6 @@ def _preprocess(
     mapping_path: str,
     data_dir: str,
     cache_path: str
-
-
 ) -> Tuple[np.array]:
     """
     can consider reducing precision of np.float32 to np.float16 to reduce memory consumption
@@ -247,12 +246,12 @@ def _main() -> None:
     logging.info("[Preprocessing] done.")
 
     if args.train:
-        logging.info("[Oversampling] Start ...")
-        X_train, y_train = _oversampling(
-            X_train,
-            y_train
-        )
-        logging.info("[Oversampling] done.")
+        # logging.info("[Oversampling] Start ...")
+        # X_train, y_train = _oversampling(
+        #     X_train,
+        #     y_train
+        # )
+        # logging.info("[Oversampling] done.")
 
         logging.info("[Training] Start ...")
         _ = _train(
