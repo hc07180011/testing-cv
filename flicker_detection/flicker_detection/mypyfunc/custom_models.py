@@ -59,7 +59,7 @@ class Model:
 
     def BiLSTM(self, input_shape: Tuple) -> tf.keras.models.Sequential:
         buf = Sequential()
-        buf.add(Bidirectional(LSTM(units=256, activation='relu'),
+        buf.add(Bidirectional(LSTM(units=256),
                               input_shape=(input_shape)))
 
         buf.add(Dense(units=128, activation="relu"))
@@ -146,7 +146,8 @@ class InferenceModel:
 
         f1_scores = list()
         for lambda_ in threshold_range:
-            f1_scores.append(f1_score(y_true, (y_pred > lambda_).astype(int)))
+            f1_scores.append(
+                f1_score(y_true, (y_pred > lambda_).astype(int)))  # , average='weighted'))
 
         # plot ROC Curve
         fpr, tpr, thresholds = roc_curve(y_true, y_pred)

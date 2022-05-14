@@ -146,19 +146,18 @@ def decode_fn(record_bytes, key) -> tf.Tensor:
 
 
 def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
-    usable_vec = input_arr[:(
-        np.floor(len(input_arr)/chunk_size)*chunk_size).astype(int)]
-    i_pad = np.concatenate((usable_vec, np.array(
-        [np.zeros(input_arr[-1].shape)]*(chunk_size-len(usable_vec) % chunk_size))))
-    asymmetric_chunks = np.split(
-        i_pad,
+    chunks = np.array_split(
+        input_arr,
         list(range(
             chunk_size,
             input_arr.shape[0] + 1,
             chunk_size
         ))
     )
-    return tuple(map(tuple, asymmetric_chunks))
+    i_pad = np.zeros(chunks[0].shape)
+    i_pad[:len(chunks[-1])] = chunks[-1]
+    chunks[-1] = i_pad
+    return tuple(map(tuple, chunks))
 
 
 def load_embeddings(
@@ -168,28 +167,29 @@ def load_embeddings(
     data_dir: str,
     batch_size: int = 4,
 ) -> Tuple[np.ndarray, np.ndarray]:
-
     encoding_filename_mapping = json.load(open(mapping_path, "r"))
     raw_labels = json.load(open(label_path, "r"))
-
     X_train, y_train = (), ()
     for key in embedding_list_train:
         real_filename = encoding_filename_mapping[key.replace(
             ".tfrecords", "")]
-
         loaded = np.load("{}.npy".format(os.path.join(data_dir, key.replace(
             ".tfrecords", ""))))
         logging.info("Video - {}".format(key))
-        logging.info("Embedding Shape - {}".format(loaded.shape))
         X_train += (*_get_chunk_array(loaded, batch_size),)
-
+        # get flicker frame indexes
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
+        # buffer zeros array frame video embedding
         buf_label = np.zeros(loaded.shape[0], dtype=np.uint8)
+        # set indexes in zeros array based on flicker frame indexes
         buf_label[flicker_idxs] = 1
         y_train += tuple(
             1 if sum(x) else 0
             for x in _get_chunk_array(buf_label, batch_size)
-        )
+        )  # consider using tf reduce sum for multiclass
+        logging.debug("X_train {}".format(np.array(X_train).shape))
+        logging.debug("y_train {}".format(np.array(y_train).shape))
+
     return np.array(X_train), np.array(y_train)
 
 
@@ -216,7 +216,7 @@ def training(
     mapping_path: str,
     data_dir: str,
     cache_path: str,
-    epochs: int = 1000,
+    epochs: int = 10,
     model: tf.keras.Model = None,
 ) -> Model:
     mirrored_strategy = tf.distribute.MirroredStrategy()
@@ -240,7 +240,7 @@ def training(
                 )
 
             model.train(X_train, y_train, epochs=epochs,
-                        validation_split=0.1, batch_size=6144, model_path="LSTM.h5")
+                        validation_split=0.1, batch_size=4096, model_path="test.h5")
             for k in ("loss", "f1"):
                 model.plot_history(
                     k, title="{} - LSTM, Chunk, Oversampling".format(k))
@@ -329,7 +329,7 @@ def main():
             os.path.join(data_base_dir, "mapping_aug_data.json"),
             os.path.join(data_base_dir, "embedding_original"),
             os.path.join(cache_base_dir, "train_test"),
-            "LSTM.h5"
+            "test.h5"
         )
         logging.info("[Testing] done.")
 
