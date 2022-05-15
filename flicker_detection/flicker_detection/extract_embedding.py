@@ -3,24 +3,19 @@ import json
 from unicodedata import mirrored
 import cv2
 import tqdm
-import random
 import logging
 import numpy as np
-import matplotlib.pyplot as plt
 import tensorflow as tf
 from imblearn.over_sampling import SMOTE
 from argparse import ArgumentParser
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.applications import DenseNet121, mobilenet, vgg16, InceptionResNetV2, InceptionV3
 from tensorflow.keras import Model
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.layers import LSTM, Dense, Flatten, Bidirectional, Dropout, GlobalMaxPooling1D
 from mypyfunc.logger import init_logger
 from typing import Tuple
 from preprocessing.embedding.backbone import BaseCNN, Serializer
 from mypyfunc.custom_models import Model, InferenceModel
 from mypyfunc.custom_eval import f1, recall, precision, specificity
-from mypyfunc.transformers import PositionalEmbedding, TransformerEncoder
 
 
 data_base_dir = "data"
@@ -100,6 +95,9 @@ def preprocessing(
     cache_path: str,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
+    use tensorboard to monitor gpu memory usage
+    2 place adjust batch size, chunk window splitting and data loader video splitting
+    consider reduce on training data as well to reduce data volume
     manual testing
     0002.mp4 tap to start
     0003.mp4 wallpaper flicker
@@ -108,7 +106,14 @@ def preprocessing(
     0018.mp4 blank screen
     0043.mp4 settings flicker
     0025.mp4 colors youtube
-    0029.mp4 welcome to chrome flicker - stop at 42
+    0029.mp4 welcome to chrome flicker 
+    0043.mp4 email flicker
+    0044.mp4 bubbles screen flicker
+    0046.mp4 lock screen flicker
+    0052.mp4 youtube rotate flicker
+    0050.mp4 black screen flicker?
+    0055.mp4 google maps flicker
+    0062.mp4 dark mode settings flicker
     """
     if os.path.exists("/{}.npz".format(cache_path)):
         __cache__ = np.load("/{}.npz".format(cache_path), allow_pickle=True)
@@ -156,7 +161,6 @@ def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
             chunk_size
         ))
     )
-    # return tf.reduce_sum(tf.ragged.constant(chunks).to_tensor())
     i_pad = np.zeros(chunks[0].shape)
     i_pad[:len(chunks[-1])] = chunks[-1]
     chunks[-1] = i_pad
@@ -168,7 +172,7 @@ def load_embeddings(
     label_path: str,
     mapping_path: str,
     data_dir: str,
-    batch_size: int = 4,
+    batch_size: int = 30,
 ) -> Tuple[np.ndarray, np.ndarray]:
     encoding_filename_mapping = json.load(open(mapping_path, "r"))
     raw_labels = json.load(open(label_path, "r"))
@@ -178,7 +182,6 @@ def load_embeddings(
             ".tfrecords", "")]
         loaded = np.load("{}.npy".format(os.path.join(data_dir, key.replace(
             ".tfrecords", ""))))
-        # logging.info("Video - {}".format(key))
         X_train += (*_get_chunk_array(loaded, batch_size),)
         # get flicker frame indexes
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
@@ -190,7 +193,7 @@ def load_embeddings(
             1 if sum(x) else 0
             for x in _get_chunk_array(buf_label, batch_size)
         )  # consider using tf reduce sum for multiclass
-
+        # logging.info("Video - {}".format(key))
     return np.array(X_train), np.array(y_train)
 
 
@@ -217,19 +220,15 @@ def training(
     mapping_path: str,
     data_dir: str,
     cache_path: str,
-    epochs: int = 100,
+    epochs: int = 30,
 ) -> Model:
     embedding_list_train = np.array(np.load("{}.npz".format(
         cache_path), allow_pickle=True)["arr_0"])
     chunked_list = np.array_split(embedding_list_train, indices_or_sections=40)
     buf = Model(chunked_list, label_path, mapping_path, data_dir)
-    buf.batch_train(epochs=epochs, _oversampling=_oversampling,
+    buf.batch_train(epochs=epochs, metrics=(f1,), _oversampling=_oversampling,
                     load_embeddings=load_embeddings)
-
-    for idx, metric in enumerate(buf.model.metrics_names):
-        buf.plot_history(
-            idx, metric, title="{} - LSTM, Chunk, Oversampling".format(metric))
-
+    buf.plot_history()
     return buf
 
 
@@ -259,6 +258,9 @@ def testing(
 def main():
     """
     can give minor classes higher weight
+
+    GPU tensorflow memory managment
+    https://stackoverflow.com/questions/36927607/how-can-i-solve-ran-out-of-gpu-memory-in-tensorflow
     """
     data_base_dir = "data"
     os.makedirs(data_base_dir, exist_ok=True)
@@ -267,6 +269,11 @@ def main():
 
     tf.keras.utils.set_random_seed(12345)
     tf.config.experimental.enable_op_determinism()
+    configproto = tf.compat.v1.ConfigProto()
+    # configproto.gpu_options.allow_growth = True
+    configproto.gpu_options.per_process_gpu_memory_fraction = 0.5
+    sess = tf.compat.v1.Session(config=configproto)
+    tf.compat.v1.keras.backend.set_session(sess)
 
     init_logger()
 
@@ -314,7 +321,7 @@ def main():
             os.path.join(data_base_dir, "mapping_aug_data.json"),
             os.path.join(data_base_dir, "embedding_original"),
             os.path.join(cache_base_dir, "train_test"),
-            "test.h5"
+            "h5_models/test.h5"
         )
         logging.info("[Testing] done.")
 
