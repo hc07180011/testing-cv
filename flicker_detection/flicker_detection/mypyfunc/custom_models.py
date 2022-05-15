@@ -1,13 +1,16 @@
 import os
+import random
 import logging
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import seaborn as sns
-from typing import Tuple
+from typing import Tuple, Callable
 from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score, precision_recall_curve, roc_curve, auc, roc_auc_score
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Flatten, Bidirectional, Dropout, GlobalMaxPooling1D
+from tensorflow.keras.optimizers import Adam
+from mypyfunc.custom_eval import f1, recall, precision, specificity
 from mypyfunc.transformers import TransformerEncoder, PositionalEmbedding
 
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
@@ -22,15 +25,22 @@ class Model:
 
     def __init__(
         self,
+        chunked_list, label_path, mapping_path, data_dir,
         summary: bool = True,
         plots_folder: str = "plots/",
         overview: str = 'preprocessing/embedding/models/flicker_detection.txt'
     ) -> None:
+        self.chunked_list = chunked_list
+        self.label_path = label_path
+        self.mapping_path = mapping_path
+        self.data_dir = data_dir
         self.model_path = None
         self.summary = summary
         self.plots_folder = plots_folder
         self.overview = overview
-        self.metrics = None
+        self.history = None
+        self.figures = None
+        self.model = None
         os.makedirs(self.plots_folder, exist_ok=True)
 
     def compile(
@@ -41,7 +51,6 @@ class Model:
         metrics: tuple,
     ) -> None:
         self.model = model
-        self.metrics = dict(map(lambda metric: (metric.__name__, []), metrics))
         self.model.compile(
             loss=loss,
             optimizer=optimizer,
@@ -51,10 +60,10 @@ class Model:
             with open(self.overview, 'w') as fh:
                 self.model.summary(print_fn=lambda x: fh.write(x + '\n'))
 
-    def LSTM(self, input_shape: Tuple) -> tf.keras.models.Sequential:
+    def LSTM(self, input_shape: Tuple = None) -> tf.keras.models.Sequential:
         buf = Sequential()
-        buf.add(LSTM(units=256, input_shape=(input_shape)))
-        buf.add(Dense(units=128, activation="relu"))
+        buf.add(LSTM(units=128, input_shape=(input_shape)))
+        buf.add(Dense(units=64, activation="relu"))
         buf.add(Flatten())
         buf.add(Dense(units=1, activation="sigmoid"))
         return buf
@@ -63,7 +72,6 @@ class Model:
         buf = Sequential()
         buf.add(Bidirectional(LSTM(units=256),
                               input_shape=(input_shape)))
-
         buf.add(Dense(units=128, activation="relu"))
         buf.add(Flatten())
         buf.add(Dense(units=1, activation="sigmoid"))
@@ -114,17 +122,60 @@ class Model:
             ]
         )
 
-    def plot_history(self, key: str, title=None) -> None:
-        plt.figure(figsize=(16, 4), dpi=200)
-        plt.plot(self.history.history["{}".format(key)])
-        plt.plot(self.history.history["val_{}".format(key)])
-        plt.legend(["{}".format(key), "val_{}".format(key)])
+    def plot_history(self, figure_n: int, key: str, title=None) -> None:
+        plt.figure(num=figure_n, figsize=(16, 4), dpi=200)
+        plt.plot(self.history["{}".format(key)])
+        plt.plot(self.history["val_{}".format(key)])
+        plt.legend(["{}".format(key), "{}".format(key)])
         plt.xlabel("# Epochs")
         plt.ylabel("{}".format(key))
         if title:
             plt.title("{}".format(title))
         plt.savefig("{}.png".format(os.path.join(self.plots_folder, key)))
         plt.close()
+
+    def batch_train(self, epochs: int,
+                    _oversampling: Callable, load_embeddings: Callable,
+                    ) -> None:
+        mirrored_strategy = tf.distribute.MirroredStrategy()
+        for epoch in range(epochs):
+            logging.info("Epoch {}".format(epoch))
+            random.shuffle(self.chunked_list)
+            for vid_chunk in self.chunked_list:
+                X_train, y_train = _oversampling(*load_embeddings(
+                    vid_chunk, self.label_path, self.mapping_path, self.data_dir))
+                with mirrored_strategy.scope():
+                    if self.model is None:
+                        logging.info(
+                            "Input shape {}".format(X_train.shape[1:]))
+                        self.compile(
+                            model=self.LSTM(X_train.shape[1:]),
+                            loss="binary_crossentropy",
+                            optimizer=Adam(learning_rate=1e-5),
+                            # , recall, precision, specificity),
+                            metrics=(f1,),
+                        )
+                    train_metrics = self.model.train_on_batch(
+                        X_train, y_train)
+                    y_pred = self.model.predict(X_train)
+                    val_metrics = self.model.evaluate(
+                        X_train, y_train)  # FIX ME
+                logging.info("val_loss - {}, val_f1 - {}".format(*val_metrics))
+
+                if self.model.metrics and self.history is None:
+                    logging.info("Metrics - {}".format(self.model.metrics))
+                    self.history = {}
+                    for metric in self.model.metrics_names:
+                        self.history[metric] = []
+                        self.history["val_{}".format(metric)] = []
+
+                    self.figures = tuple(map(lambda i: plt.figure(
+                        num=i, figsize=(16, 4), dpi=200), range(len(self.model.metrics_names))))
+
+            for idx, metrics in enumerate(self.model.metrics_names):
+                self.history[metrics].append(train_metrics[idx])
+                self.history["val_{}".format(metrics)].append(
+                    val_metrics[idx])
 
 
 class InferenceModel:

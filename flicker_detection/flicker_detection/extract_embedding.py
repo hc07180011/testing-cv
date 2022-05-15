@@ -1,10 +1,12 @@
 import os
 import json
+from unicodedata import mirrored
 import cv2
 import tqdm
 import random
 import logging
 import numpy as np
+import matplotlib.pyplot as plt
 import tensorflow as tf
 from imblearn.over_sampling import SMOTE
 from argparse import ArgumentParser
@@ -154,6 +156,7 @@ def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
             chunk_size
         ))
     )
+    # return tf.reduce_sum(tf.ragged.constant(chunks).to_tensor())
     i_pad = np.zeros(chunks[0].shape)
     i_pad[:len(chunks[-1])] = chunks[-1]
     chunks[-1] = i_pad
@@ -175,7 +178,7 @@ def load_embeddings(
             ".tfrecords", "")]
         loaded = np.load("{}.npy".format(os.path.join(data_dir, key.replace(
             ".tfrecords", ""))))
-        logging.info("Video - {}".format(key))
+        # logging.info("Video - {}".format(key))
         X_train += (*_get_chunk_array(loaded, batch_size),)
         # get flicker frame indexes
         flicker_idxs = np.array(raw_labels[real_filename]) - 1
@@ -187,8 +190,6 @@ def load_embeddings(
             1 if sum(x) else 0
             for x in _get_chunk_array(buf_label, batch_size)
         )  # consider using tf reduce sum for multiclass
-        logging.debug("X_train {}".format(np.array(X_train).shape))
-        logging.debug("y_train {}".format(np.array(y_train).shape))
 
     return np.array(X_train), np.array(y_train)
 
@@ -201,7 +202,7 @@ def _oversampling(
     batched alternative:
     https://imbalanced-learn.org/stable/references/generated/imblearn.keras.BalancedBatchGenerator.html
     """
-    sm = SMOTE(random_state=42)
+    sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=1)
     original_X_shape = X_train.shape
     X_train, y_train = sm.fit_resample(
         np.reshape(X_train, (-1, np.prod(original_X_shape[1:]))),
@@ -216,49 +217,20 @@ def training(
     mapping_path: str,
     data_dir: str,
     cache_path: str,
-    epochs: int = 10,
-    model: tf.keras.Model = None,
+    epochs: int = 100,
 ) -> Model:
-    mirrored_strategy = tf.distribute.MirroredStrategy()
     embedding_list_train = np.array(np.load("{}.npz".format(
         cache_path), allow_pickle=True)["arr_0"])
-    chunked_list = np.array_split(embedding_list_train, indices_or_sections=30)
+    chunked_list = np.array_split(embedding_list_train, indices_or_sections=40)
+    buf = Model(chunked_list, label_path, mapping_path, data_dir)
+    buf.batch_train(epochs=epochs, _oversampling=_oversampling,
+                    load_embeddings=load_embeddings)
 
-    loss_history, acc_history, val_loss_history, val_acc_history, f1_history, val_f1_history = (), (), (), (), (), ()
-    for epoch in range(epochs):
-        logging.info("Epoch {}".format(epoch))
-        random.shuffle(chunked_list)
-        for vid_chunk in chunked_list:
-            X_train, y_train = _oversampling(*load_embeddings(
-                vid_chunk, label_path, mapping_path, data_dir))
-            with mirrored_strategy.scope():
-                if model is None:
-                    logging.info("Input shape {}".format(X_train.shape[1:]))
-                    model = Model()
-                    model.compile(
-                        model=model.LSTM(X_train.shape[1:]),
-                        loss="binary_crossentropy",
-                        optimizer=Adam(learning_rate=1e-5),
-                        metrics=(f1,),  # , recall, precision, specificity),
-                    )
+    for idx, metric in enumerate(buf.model.metrics_names):
+        buf.plot_history(
+            idx, metric, title="{} - LSTM, Chunk, Oversampling".format(metric))
 
-                loss, f1_score = model.model.train_on_batch(
-                    X_train, y_train)
-                val_loss, val_f1 = model.model.evaluate(
-                    X_train, y_train)  # FIX ME
-            logging.info("Metrics - {}".format(model.model.metrics_names))
-            loss_history += (loss,)
-            f1_history += (f1_score,)
-            val_loss_history += (val_loss,)
-            val_f1_history += (val_f1,)
-
-            # model.train(X_train, y_train, epochs=epochs,
-            #             validation_split=0.1, batch_size=4096, model_path="test.h5")
-            # for k in ("loss", "f1"):
-            #     model.plot_history(
-            #         k, title="{} - LSTM, Chunk, Oversampling".format(k))
-
-    return model
+    return buf
 
 
 def testing(
