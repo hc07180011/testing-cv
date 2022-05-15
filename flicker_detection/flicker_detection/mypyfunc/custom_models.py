@@ -40,6 +40,7 @@ class Model:
         self.history = None
         self.figures = None
         self.model = None
+        self.metrics = None
         os.makedirs(self.plots_folder, exist_ok=True)
 
     def compile(
@@ -61,8 +62,8 @@ class Model:
 
     def LSTM(self, input_shape: Tuple = None) -> tf.keras.models.Sequential:
         buf = Sequential()
-        buf.add(LSTM(units=128, input_shape=(input_shape)))
-        buf.add(Dense(units=64, activation="relu"))
+        buf.add(LSTM(units=256, input_shape=(input_shape)))
+        buf.add(Dense(units=128, activation="relu"))
         buf.add(Flatten())
         buf.add(Dense(units=1, activation="sigmoid"))
         return buf
@@ -122,7 +123,7 @@ class Model:
         )
 
     def plot_history(self) -> None:
-        for idx, metric in enumerate(self.model.metric_names):
+        for idx, metric in enumerate(self.metrics):
             plt.figure(num=idx, figsize=(16, 4), dpi=200)
             plt.plot(self.history["{}".format(metric)])
             plt.plot(self.history["val_{}".format(metric)])
@@ -144,10 +145,9 @@ class Model:
             random.shuffle(self.chunked_list)
             for vid_chunk in self.chunked_list:
                 X_train, y_train = _oversampling(*load_embeddings(
-                    vid_chunk, self.label_path, self.mapping_path, self.data_dir))
-                logging.debug("X_train shape {}".format(X_train.shape))
+                    vid_chunk, self.label_path, self.mapping_path, self.data_dir))  # FIX ME x val y val
                 with mirrored_strategy.scope():
-                    if self.model is None and os.path.exists("/{}".format(model_path)):
+                    if self.model is None and os.path.exists("{}".format(model_path)):
                         logging.info("{}".format(metrics))
                         self.model = tf.keras.models.load_model(
                             model_path,
@@ -166,11 +166,12 @@ class Model:
                         X_train, y_train)
                     y_pred = self.model.predict(X_train)
                     val_metrics = self.model.evaluate(
-                        X_train, y_train)  # FIX ME
+                        X_train, y_train)  # FIX ME x val y val
                 logging.info(
                     "EPOCH {}: loss - {:.3f}, f1 - {:.3f}, val_loss - {:.3f}, val_f1 - {:.3f}".format(epoch, *train_metrics, *val_metrics))
 
                 if self.model.metrics and self.history is None:
+                    self.metrics = self.model.metrics_names  # FIX ME
                     self.history = {}
                     for metric in self.model.metrics_names:
                         self.history[metric] = []
@@ -179,13 +180,18 @@ class Model:
                     self.figures = tuple(map(lambda i: plt.figure(
                         num=i, figsize=(16, 4), dpi=200), range(len(self.model.metrics_names))))
 
-            for idx, metrics in enumerate(self.model.metrics_names):
-                self.history[metrics].append(train_metrics[idx])
-                self.history["val_{}".format(metrics)].append(
+            logging.info("{}".format(self.model.metrics_names))
+            for idx, metric in enumerate(self.model.metrics_names):
+                self.history[metric].append(train_metrics[idx])
+                self.history["val_{}".format(metric)].append(
                     val_metrics[idx])
 
-            if not (epoch % 10):
+            if not (epoch % 3):
                 self.model.save("{}".format(model_path))
+                del self.model
+                self.model = None
+                tf.compat.v1.reset_default_graph()
+                tf.keras.backend.clear_session()
 
 
 class InferenceModel:
