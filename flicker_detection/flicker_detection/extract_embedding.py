@@ -11,6 +11,8 @@ from argparse import ArgumentParser
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.applications import DenseNet121, mobilenet, vgg16, InceptionResNetV2, InceptionV3
 from tensorflow.keras import Model
+from tensorflow.compat.v1 import ConfigProto
+from tensorflow.compat.v1 import InteractiveSession
 from mypyfunc.logger import init_logger
 from typing import Tuple
 from preprocessing.embedding.backbone import BaseCNN, Serializer
@@ -110,10 +112,12 @@ def preprocessing(
     0043.mp4 email flicker
     0044.mp4 bubbles screen flicker
     0046.mp4 lock screen flicker
-    0052.mp4 youtube rotate flicker
+    0070.mp4 youtube rotate flicker
     0050.mp4 black screen flicker?
     0055.mp4 google maps flicker
     0062.mp4 dark mode settings flicker
+    0067.mp4 email no flicker
+    0068.mp4 half screen/menu scroll down flicker
     """
     if os.path.exists("/{}.npz".format(cache_path)):
         __cache__ = np.load("/{}.npz".format(cache_path), allow_pickle=True)
@@ -220,7 +224,7 @@ def training(
     mapping_path: str,
     data_dir: str,
     cache_path: str,
-    epochs: int = 30,
+    epochs: int = 2,
 ) -> Model:
     embedding_list_train = np.array(np.load("{}.npz".format(
         cache_path), allow_pickle=True)["arr_0"])
@@ -261,6 +265,8 @@ def main():
 
     GPU tensorflow memory managment
     https://stackoverflow.com/questions/36927607/how-can-i-solve-ran-out-of-gpu-memory-in-tensorflow
+     You can do this by creating a new `tf.data.Options()` object then setting `options.experimenta
+    l_distribute.auto_shard_policy = AutoShardPolicy.DATA` before applying the options object to the dataset via `dataset.with_options(options)`.   
     """
     data_base_dir = "data"
     os.makedirs(data_base_dir, exist_ok=True)
@@ -269,11 +275,11 @@ def main():
 
     tf.keras.utils.set_random_seed(12345)
     tf.config.experimental.enable_op_determinism()
-    configproto = tf.compat.v1.ConfigProto()
-    # configproto.gpu_options.allow_growth = True
-    configproto.gpu_options.per_process_gpu_memory_fraction = 0.5
-    sess = tf.compat.v1.Session(config=configproto)
-    tf.compat.v1.keras.backend.set_session(sess)
+    config = ConfigProto()
+    # config.gpu_options.per_process_gpu_memory_fraction = 0.5
+    config.gpu_options.allow_growth = True
+    session = InteractiveSession(config=config)
+    tf.compat.v1.keras.backend.set_session(session)
 
     init_logger()
 
