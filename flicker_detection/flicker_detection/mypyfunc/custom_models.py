@@ -10,7 +10,6 @@ from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Flatten, Bidirectional, Dropout, GlobalMaxPooling1D
 from tensorflow.keras.optimizers import Adam
-from mypyfunc.custom_eval import f1, recall, precision, specificity
 from mypyfunc.transformers import TransformerEncoder, PositionalEmbedding
 
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
@@ -122,20 +121,22 @@ class Model:
             ]
         )
 
-    def plot_history(self, figure_n: int, key: str, title=None) -> None:
-        plt.figure(num=figure_n, figsize=(16, 4), dpi=200)
-        plt.plot(self.history["{}".format(key)])
-        plt.plot(self.history["val_{}".format(key)])
-        plt.legend(["{}".format(key), "{}".format(key)])
-        plt.xlabel("# Epochs")
-        plt.ylabel("{}".format(key))
-        if title:
-            plt.title("{}".format(title))
-        plt.savefig("{}.png".format(os.path.join(self.plots_folder, key)))
-        plt.close()
+    def plot_history(self) -> None:
+        for idx, metric in enumerate(self.model.metric_names):
+            plt.figure(num=idx, figsize=(16, 4), dpi=200)
+            plt.plot(self.history["{}".format(metric)])
+            plt.plot(self.history["val_{}".format(metric)])
+            plt.legend(["{}".format(metric), "val_{}".format(metric)])
+            plt.xlabel("# Epochs")
+            plt.ylabel("{}".format(metric))
+            plt.title("{} LSTM, Chunked, Oversampling".format(metric))
+            plt.savefig("{}.png".format(
+                os.path.join(self.plots_folder, metric)))
+            plt.close()
 
-    def batch_train(self, epochs: int,
+    def batch_train(self, epochs: int, metrics: tuple,
                     _oversampling: Callable, load_embeddings: Callable,
+                    model_path: str = "h5_models/test.h5",
                     ) -> None:
         mirrored_strategy = tf.distribute.MirroredStrategy()
         for epoch in range(epochs):
@@ -144,26 +145,32 @@ class Model:
             for vid_chunk in self.chunked_list:
                 X_train, y_train = _oversampling(*load_embeddings(
                     vid_chunk, self.label_path, self.mapping_path, self.data_dir))
+                logging.debug("X_train shape {}".format(X_train.shape))
                 with mirrored_strategy.scope():
-                    if self.model is None:
-                        logging.info(
-                            "Input shape {}".format(X_train.shape[1:]))
+                    if self.model is None and os.path.exists("/{}".format(model_path)):
+                        logging.info("{}".format(metrics))
+                        self.model = tf.keras.models.load_model(
+                            model_path,
+                            custom_objects=dict(
+                                map(lambda metric: (metric.__name__, metric), metrics))
+                        )
+                    elif self.model is None:
                         self.compile(
                             model=self.LSTM(X_train.shape[1:]),
                             loss="binary_crossentropy",
                             optimizer=Adam(learning_rate=1e-5),
                             # , recall, precision, specificity),
-                            metrics=(f1,),
+                            metrics=metrics,
                         )
                     train_metrics = self.model.train_on_batch(
                         X_train, y_train)
                     y_pred = self.model.predict(X_train)
                     val_metrics = self.model.evaluate(
                         X_train, y_train)  # FIX ME
-                logging.info("val_loss - {}, val_f1 - {}".format(*val_metrics))
+                logging.info(
+                    "EPOCH {}: loss - {:.3f}, f1 - {:.3f}, val_loss - {:.3f}, val_f1 - {:.3f}".format(epoch, *train_metrics, *val_metrics))
 
                 if self.model.metrics and self.history is None:
-                    logging.info("Metrics - {}".format(self.model.metrics))
                     self.history = {}
                     for metric in self.model.metrics_names:
                         self.history[metric] = []
@@ -176,6 +183,9 @@ class Model:
                 self.history[metrics].append(train_metrics[idx])
                 self.history["val_{}".format(metrics)].append(
                     val_metrics[idx])
+
+            if not (epoch % 10):
+                self.model.save("{}".format(model_path))
 
 
 class InferenceModel:
