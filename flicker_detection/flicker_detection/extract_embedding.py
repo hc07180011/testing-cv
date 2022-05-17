@@ -118,6 +118,12 @@ def preprocessing(
     0062.mp4 dark mode settings flicker
     0067.mp4 email no flicker
     0068.mp4 half screen/menu scroll down flicker
+    0071.mp4 transition flicker?
+    0084.mp4 darkmode youtube flicker
+    0095.mp4 menu rotation flicker
+    0096.mp4 ????????
+    0100.mp4 scroll lag
+    stop 106
     """
     if os.path.exists("/{}.npz".format(cache_path)):
         __cache__ = np.load("/{}.npz".format(cache_path), allow_pickle=True)
@@ -224,7 +230,7 @@ def training(
     mapping_path: str,
     data_dir: str,
     cache_path: str,
-    epochs: int = 2,
+    epochs: int = 1000,
 ) -> Model:
     embedding_list_train = np.array(np.load("{}.npz".format(
         cache_path), allow_pickle=True)["arr_0"])
@@ -276,8 +282,8 @@ def main():
     tf.keras.utils.set_random_seed(12345)
     tf.config.experimental.enable_op_determinism()
     config = ConfigProto()
-    # config.gpu_options.per_process_gpu_memory_fraction = 0.5
-    config.gpu_options.allow_growth = True
+    config.gpu_options.per_process_gpu_memory_fraction = 0.5
+    # config.gpu_options.allow_growth = True
     session = InteractiveSession(config=config)
     tf.compat.v1.keras.backend.set_session(session)
 
