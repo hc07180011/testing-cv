@@ -19,20 +19,18 @@ os.makedirs(cache_base_dir, exist_ok=True)
 
 
 def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
-    usable_vec = input_arr[:(
-        np.floor(len(input_arr)/chunk_size)*chunk_size).astype(int)]
-    pad_last = np.array(
-        [input_arr[-1]] + [np.zeros(input_arr[-1].shape)]*((chunk_size-len(usable_vec) % chunk_size)-1))
-    i_pad = np.concatenate((usable_vec, pad_last))
-    asymmetric_chunks = np.split(
-        i_pad,
+    chunks = np.array_split(
+        input_arr,
         list(range(
             chunk_size,
             input_arr.shape[0] + 1,
             chunk_size
         ))
     )
-    return tuple(map(tuple, asymmetric_chunks))
+    i_pad = np.zeros(chunks[0].shape)
+    i_pad[:len(chunks[-1])] = chunks[-1]
+    chunks[-1] = i_pad
+    return tuple(map(tuple, chunks))
 
 
 def _preprocess(
@@ -77,7 +75,7 @@ def _preprocess(
         random_state=42
     )
 
-    chunk_size = 4  # batch sizes must be even number
+    chunk_size = 30  # batch sizes must be even number
 
     video_embeddings_list_train = ()
     video_labels_list_train = ()
@@ -161,52 +159,47 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
     """
     https://www.tensorflow.org/guide/keras/writing_a_training_loop_from_scratch
     """
-    # list_X = np.array_split(X_train, 2)
-    # list_y = np.array_split(y_train, 2)
-    # logging.info("Input shape - {}".format(list_X[0].shape[1:]))
     mirrored_strategy = tf.distribute.MirroredStrategy()
     with mirrored_strategy.scope():
-        model = Model()
+        model = Model(chunked_list=None, label_path=None,
+                      mapping_path=None, data_dir=None)
         model.compile(
             model=model.LSTM(X_train.shape[1:]),
             loss="binary_crossentropy",
             optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
             metrics=(
-                precision,
-                recall,
+                # precision,
+                # recall,
                 f1,
-                tf.metrics.AUC(),
-                fbeta,
-                specificity,
-                negative_predictive_value,
-                matthews_correlation_coefficient,
-                equal_error_rate
+                # tf.metrics.AUC(),
+                # fbeta,
+                # specificity,
+                # negative_predictive_value,
+                # matthews_correlation_coefficient,
+                # equal_error_rate
             )
         )
-        # for X_train, y_train in zip(list_X, list_y):
-        model.train(X_train, y_train, 1000, 0.1, 4096)  # 1024
-        for k in ("loss", "precision",
-                  "recall", "f1", "fbeta", "specificity",
-                  "negative_predictive_value",
-                  "matthews_correlation_coefficient", "equal_error_rate"):
-            # for k in ("loss", "f1"):
-            model.plot_history(
-                k, title="{} - LSTM, Chunk, Oversampling".format(k))
+        model.train(X_train, y_train, 1000, 0.1, 512)  # 1024 , 8192
+    # for k in ("loss", "precision",
+    #           "recall", "f1", "fbeta", "specificity",
+    #           "negative_predictive_value",
+    #           "matthews_correlation_coefficient", "equal_error_rate"):
+    model.plot_history()
 
     return model
 
 
 def _test(model_path: str, X_test: np.array, y_test: np.array) -> None:
     custom_objects = {
-        "precision": precision,
-        "recall": recall,
+        # "precision": precision,
+        # "recall": recall,
         "f1": f1,
-        "auroc": tf.metrics.AUC(),
-        "fbeta": fbeta,
-        "specificity": specificity,
-        "negative_predictive_value": negative_predictive_value,
-        "matthews_correlation_coefficient": matthews_correlation_coefficient,
-        "equal_error_rate": equal_error_rate
+        # "auroc": tf.metrics.AUC(),
+        # "fbeta": fbeta,
+        # "specificity": specificity,
+        # "negative_predictive_value": negative_predictive_value,
+        # "matthews_correlation_coefficient": matthews_correlation_coefficient,
+        # "equal_error_rate": equal_error_rate
     }
     model = InferenceModel(model_path, custom_objects=custom_objects)
     y_pred = model.predict(X_test)
@@ -216,10 +209,6 @@ def _test(model_path: str, X_test: np.array, y_test: np.array) -> None:
 def _main() -> None:
     tf.keras.utils.set_random_seed(12345)
     tf.config.experimental.enable_op_determinism()
-    # configproto = tf.compat.v1.ConfigProto()
-    # configproto.gpu_options.allow_growth = True
-    # sess = tf.compat.v1.Session(config=configproto)
-    # tf.compat.v1.keras.backend.set_session(sess)
 
     parser = ArgumentParser()
     parser.add_argument(
@@ -246,12 +235,12 @@ def _main() -> None:
     logging.info("[Preprocessing] done.")
 
     if args.train:
-        # logging.info("[Oversampling] Start ...")
-        # X_train, y_train = _oversampling(
-        #     X_train,
-        #     y_train
-        # )
-        # logging.info("[Oversampling] done.")
+        logging.info("[Oversampling] Start ...")
+        X_train, y_train = _oversampling(
+            X_train,
+            y_train
+        )
+        logging.info("[Oversampling] done.")
 
         logging.info("[Training] Start ...")
         _ = _train(

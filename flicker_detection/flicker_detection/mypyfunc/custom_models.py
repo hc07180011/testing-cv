@@ -51,6 +51,7 @@ class Model:
         metrics: tuple,
     ) -> None:
         self.model = model
+        self.metrics = [metric.__name__ for metric in metrics]
         self.model.compile(
             loss=loss,
             optimizer=optimizer,
@@ -139,14 +140,19 @@ class Model:
                     _oversampling: Callable, load_embeddings: Callable,
                     model_path: str = "h5_models/test.h5",
                     ) -> None:
+
         mirrored_strategy = tf.distribute.MirroredStrategy()
+
         for epoch in range(epochs):
-            logging.info("Epoch {}".format(epoch))
+
             random.shuffle(self.chunked_list)
             for vid_chunk in self.chunked_list:
+
                 X_train, y_train = _oversampling(*load_embeddings(
                     vid_chunk, self.label_path, self.mapping_path, self.data_dir))  # FIX ME x val y val
+
                 with mirrored_strategy.scope():
+
                     if self.model is None and os.path.exists("{}".format(model_path)):
                         logging.info("{}".format(metrics))
                         self.model = tf.keras.models.load_model(
@@ -162,16 +168,18 @@ class Model:
                             # , recall, precision, specificity),
                             metrics=metrics,
                         )
+
                     train_metrics = self.model.train_on_batch(
                         X_train, y_train)
                     y_pred = self.model.predict(X_train)
                     val_metrics = self.model.evaluate(
                         X_train, y_train)  # FIX ME x val y val
+
                 logging.info(
                     "EPOCH {}: loss - {:.3f}, f1 - {:.3f}, val_loss - {:.3f}, val_f1 - {:.3f}".format(epoch, *train_metrics, *val_metrics))
 
                 if self.model.metrics and self.history is None:
-                    self.metrics = self.model.metrics_names  # FIX ME
+                    self.metrics = self.model.metrics_names
                     self.history = {}
                     for metric in self.model.metrics_names:
                         self.history[metric] = []
@@ -180,13 +188,12 @@ class Model:
                     self.figures = tuple(map(lambda i: plt.figure(
                         num=i, figsize=(16, 4), dpi=200), range(len(self.model.metrics_names))))
 
-            logging.info("{}".format(self.model.metrics_names))
             for idx, metric in enumerate(self.model.metrics_names):
                 self.history[metric].append(train_metrics[idx])
                 self.history["val_{}".format(metric)].append(
                     val_metrics[idx])
 
-            if not (epoch % 3):
+            if not (epoch % 1):
                 self.model.save("{}".format(model_path))
                 del self.model
                 self.model = None
@@ -251,6 +258,7 @@ class InferenceModel:
         logging.info("Max f1: {:.4f}, at thres = {:.4f}".format(
             np.max(f1_scores), threshold_range[np.argmax(f1_scores)]
         ))
+
         # plot Confusion Matrix
         cm = confusion_matrix(
             y_true,
