@@ -27,7 +27,6 @@ os.makedirs(data_base_dir, exist_ok=True)
 def _embed(
     video_data_dir: str,
     output_dir: str,
-    batch_size: int = 32,
 ) -> None:
     os.makedirs(output_dir, exist_ok=True)
 
@@ -39,24 +38,13 @@ def _embed(
         if os.path.exists(os.path.join(output_dir, "{}.tfrecords".format(path))):
             continue
         vidcap = cv2.VideoCapture(os.path.join(video_data_dir, path))
-        h, w = int(vidcap.get(4)), int(vidcap.get(3))
-        b_frames = np.zeros((batch_size, h, w, 3))
-        embedding, success, frame_count = (), True, 0
+        success, image = vidcap.read()
+        embedding = ()
         while success:
-            if frame_count == batch_size:
-                embedding += (feature_extractor.get_embedding(
-                    b_frames, batched=True).flatten(),)
-                frame_count = 0
-                b_frames = np.zeros((batch_size, h, w, 3))
+            embedding += (feature_extractor.get_embedding(
+                image, batched=True).flatten(),)
+            success, image = vidcap.read()
 
-            success, b_frames[frame_count] = vidcap.read()
-            frame_count += int(success)
-
-        embedding += (feature_extractor.get_embedding(
-            b_frames, batched=True).flatten(),)
-
-        logging.info("{} {}".format(
-            path, tf.convert_to_tensor(embedding).shape))
         serializer.parse_batch(tf.convert_to_tensor(embedding),
                                filename=path)
         serializer.write_to_tfr()
