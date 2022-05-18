@@ -75,7 +75,7 @@ def _preprocess(
         random_state=42
     )
 
-    chunk_size = 30  # batch sizes must be even number
+    chunk_size = 32  # batch sizes must be even number
 
     video_embeddings_list_train = ()
     video_labels_list_train = ()
@@ -86,8 +86,6 @@ def _preprocess(
         real_filename = encoding_filename_mapping[path.replace(".npy", "")]
 
         buf_embedding = np.load(os.path.join(data_dir, path))
-        if buf_embedding.shape[0] == 0:
-            continue
 
         batch = _get_chunk_array(buf_embedding, chunk_size)
         video_embeddings_list_train = video_embeddings_list_train + (*batch,)
@@ -109,8 +107,6 @@ def _preprocess(
         real_filename = encoding_filename_mapping[path.replace(".npy", "")]
 
         buf_embedding = np.load(os.path.join(data_dir, path))
-        if buf_embedding.shape[0] == 0:
-            continue
 
         video_embeddings_list_test = video_embeddings_list_test +\
             (*_get_chunk_array(buf_embedding, chunk_size),)
@@ -179,12 +175,12 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
                 # equal_error_rate
             )
         )
-        model.train(X_train, y_train, 1000, 0.1, 512)  # 1024 , 8192
+        model.train(X_train, y_train, 2, 0.1, 256)  # 1024 , 8192
     # for k in ("loss", "precision",
     #           "recall", "f1", "fbeta", "specificity",
     #           "negative_predictive_value",
     #           "matthews_correlation_coefficient", "equal_error_rate"):
-    model.plot_history()
+    model.plot_history()  # FIX ME
 
     return model
 
@@ -229,18 +225,18 @@ def _main() -> None:
     X_train, X_test, y_train, y_test = _preprocess(
         os.path.join(data_base_dir, "label.json"),
         os.path.join(data_base_dir, "mapping_aug_data.json"),
-        os.path.join(data_base_dir, "embedding_original"),
+        os.path.join(data_base_dir, "vgg16_emb"),
         os.path.join(cache_base_dir, "train_test")
     )
     logging.info("[Preprocessing] done.")
 
     if args.train:
-        logging.info("[Oversampling] Start ...")
-        X_train, y_train = _oversampling(
-            X_train,
-            y_train
-        )
-        logging.info("[Oversampling] done.")
+        # logging.info("[Oversampling] Start ...")
+        # X_train, y_train = _oversampling(
+        #     X_train,
+        #     y_train
+        # )
+        # logging.info("[Oversampling] done.")
 
         logging.info("[Training] Start ...")
         _ = _train(

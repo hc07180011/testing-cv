@@ -1,4 +1,5 @@
 import os
+import json
 import random
 import logging
 import numpy as np
@@ -78,11 +79,14 @@ class Model:
         buf.add(Dense(units=1, activation="sigmoid"))
         return buf
 
-    def transformers(self, input_shape: Tuple) -> tf.keras.Model:
-        sequence_length = 20
-        embed_dim = 9216
-        dense_dim = 4
-        num_heads = 1
+    def transformers(self,
+                     input_shape: Tuple,
+                     sequence_length: int = 20,
+                     num_heads: int = 1
+                     ) -> tf.keras.Model:
+
+        embed_dim = input_shape[-1]  # 9216
+        dense_dim = input_shape[-2]  # 4
         inputs = tf.keras.Input(shape=input_shape)
         x = PositionalEmbedding(
             sequence_length, embed_dim, name="frame_position_embedding"
@@ -123,11 +127,16 @@ class Model:
             ]
         )
 
-    def plot_history(self) -> None:
+    def plot_history(self) -> None:  # FIX ME
+        history = self.history.history if "history" in dir(
+            self.history) else self.history
+        with open('trainHistoryDict.json', 'wb') as file_pi:
+            json.dump(history, file_pi)
+
         for idx, metric in enumerate(self.metrics):
             plt.figure(num=idx, figsize=(16, 4), dpi=200)
-            plt.plot(self.history["{}".format(metric)])
-            plt.plot(self.history["val_{}".format(metric)])
+            plt.plot(history["{}".format(metric)])
+            plt.plot(history["val_{}".format(metric)])
             plt.legend(["{}".format(metric), "val_{}".format(metric)])
             plt.xlabel("# Epochs")
             plt.ylabel("{}".format(metric))
