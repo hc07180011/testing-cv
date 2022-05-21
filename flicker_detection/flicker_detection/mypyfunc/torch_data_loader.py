@@ -1,6 +1,5 @@
 import os
 import json
-import torch
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 from typing import Tuple
@@ -18,11 +17,10 @@ class MYDS(Dataset):
         self.label_path = label_path
         self.mapping_path = mapping_path
         self.data_dir = data_dir
-        self.x_paths = x_paths
         self.chunk_size = chunk_size
 
         self.xs, self.ys = self.load_embeddings(
-            self.x_paths
+            x_paths
         )
 
     def __len__(self):
@@ -30,6 +28,11 @@ class MYDS(Dataset):
 
     def __getitem__(self, idx: int):
         return self.xs[idx], self.ys[idx]
+
+    def update(self, new_x_paths: list):
+        self.xs, self.ys = self.load_embeddings(
+            new_x_paths
+        )
 
     @staticmethod
     def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:

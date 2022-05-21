@@ -1,42 +1,42 @@
 import torch
+import numpy as np
 import torch.nn as nn
 
 
-class LSTM(nn.Module):
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-    else:
-        device = torch.device("cpu")
-
-    def __init__(self, output_size, embedding_dim, hidden_dim, n_layers, drop_prob=0.5):
-        super(LSTM, self).__init__()
-        self.output_size = output_size
-        self.n_layers = n_layers
+class LSTMModel(nn.Module):
+    def __init__(self, input_dim, hidden_dim, layer_dim, output_dim):
+        super(LSTMModel, self).__init__()
+        # Hidden dimensions
         self.hidden_dim = hidden_dim
 
-        self.lstm = nn.LSTM(embedding_dim, hidden_dim,
-                            n_layers, dropout=drop_prob, batch_first=True)
-        self.dropout = nn.Dropout(drop_prob)
-        self.fc = nn.Linear(hidden_dim, output_size)
-        self.sigmoid = nn.Sigmoid()
+        # Number of hidden layers
+        self.layer_dim = layer_dim
 
-    def forward(self, x, hidden):
-        batch_size = x.size(0)
-        x = x.long()
-        embeds = self.embedding(x)
-        lstm_out, hidden = self.lstm(embeds, hidden)
-        lstm_out = lstm_out.contiguous().view(-1, self.hidden_dim)
+        # Building your LSTM
+        # batch_first=True causes input/output tensors to be of shape
+        # (batch_dim, seq_dim, feature_dim)
+        self.lstm = nn.LSTM(input_dim, hidden_dim, layer_dim, batch_first=True)
 
-        out = self.dropout(lstm_out)
-        out = self.fc(out)
-        out = self.sigmoid(out)
+        # Readout layer
+        self.fc = nn.Linear(hidden_dim, output_dim)
 
-        out = out.view(batch_size, -1)
-        out = out[:, -1]
-        return out, hidden
+    def forward(self, x):
+        # Initialize hidden state with zeros
+        h0 = torch.zeros(self.layer_dim, x.size(
+            0), self.hidden_dim).requires_grad_()
 
-    def init_hidden(self, batch_size):
-        weight = next(self.parameters()).data
-        hidden = (weight.new(self.n_layers, batch_size, self.hidden_dim).zero_().to(device),
-                  weight.new(self.n_layers, batch_size, self.hidden_dim).zero_().to(device))
-        return hidden
+        # Initialize cell state
+        c0 = torch.zeros(self.layer_dim, x.size(
+            0), self.hidden_dim).requires_grad_()
+
+        # 28 time steps
+        # We need to detach as we are doing truncated backpropagation through time (BPTT)
+        # If we don't, we'll backprop all the way to the start even after going through another batch
+        out, (hn, cn) = self.lstm(x, (h0.detach(), c0.detach()))
+
+        # Index hidden state of last time step
+        # out.size() --> 100, 28, 100
+        # out[:, -1, :] --> 100, 100 --> just want last time step hidden states!
+        out = self.fc(out[:, -1, :])
+        # out.size() --> 100, 10
+        return out
