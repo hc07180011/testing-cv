@@ -268,10 +268,13 @@ class InferenceModel:
             np.max(f1_scores), threshold_range[np.argmax(f1_scores)]
         ))
 
+        # FIX ME 0,1 labeling
         # plot Confusion Matrix
+        # https://towardsdatascience.com/understanding-the-confusion-matrix-from-scikit-learn-c51d88929c79
         cm = confusion_matrix(
             y_true,
-            (y_pred > threshold_range[np.argmax(f1_scores)]).astype(int)
+            (y_pred > threshold_range[np.argmax(f1_scores)]).astype(int),
+            labels=[1, 0]
         )
         fig = plt.figure()
         ax = fig.add_subplot()
