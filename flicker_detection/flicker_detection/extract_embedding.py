@@ -16,8 +16,15 @@ from tensorflow.compat.v1 import InteractiveSession
 from mypyfunc.logger import init_logger
 from typing import Tuple
 from preprocessing.embedding.backbone import BaseCNN, Serializer
-from mypyfunc.custom_models import Model, InferenceModel
-from mypyfunc.custom_eval import f1, recall, precision, specificity
+from mypyfunc.keras_models import Model, InferenceModel
+from mypyfunc.keras_eval import f1, recall, precision, specificity
+
+
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+from mypyfunc.torch_models import LSTMModel
+from mypyfunc.torch_data_loader import MYDS
 
 
 data_base_dir = "data"
@@ -84,35 +91,7 @@ def preprocessing(
     data_dir: str,
     cache_path: str,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    use tensorboard to monitor gpu memory usage
-    2 place adjust batch size, chunk window splitting and data loader video splitting
-    consider reduce on training data as well to reduce data volume
-    manual testing
-    0002.mp4 tap to start
-    0003.mp4 wallpaper flicker
-    0006.mp4 main menu flicker
-    0016.mp4 camera
-    0018.mp4 blank screen
-    0043.mp4 settings flicker
-    0025.mp4 colors youtube
-    0029.mp4 welcome to chrome flicker 
-    0043.mp4 email flicker
-    0044.mp4 bubbles screen flicker
-    0046.mp4 lock screen flicker
-    0070.mp4 youtube rotate flicker
-    0050.mp4 black screen flicker?
-    0055.mp4 google maps flicker
-    0062.mp4 dark mode settings flicker
-    0067.mp4 email no flicker
-    0068.mp4 half screen/menu scroll down flicker
-    0071.mp4 transition flicker?
-    0084.mp4 darkmode youtube flicker
-    0095.mp4 menu rotation flicker
-    0096.mp4 ????????
-    0100.mp4 scroll lag
-    stop 106
-    """
+
     if os.path.exists("/{}.npz".format(cache_path)):
         __cache__ = np.load("/{}.npz".format(cache_path), allow_pickle=True)
         return tuple(__cache__[k] for k in __cache__)
@@ -230,6 +209,51 @@ def training(
     return buf
 
 
+def torch_training(
+    label_path: str,
+    mapping_path: str,
+    data_dir: str,
+    cache_path: str,
+    epochs: int = 10,
+):
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+
+    embedding_list_train = np.array(np.load("{}.npz".format(
+        cache_path), allow_pickle=True)["arr_0"])
+    chunked_list = np.array_split(embedding_list_train, indices_or_sections=40)
+
+    input_dim = 9216
+    hidden_dim = 100
+    layer_dim = 3  # ONLY CHANGE IS HERE FROM ONE LAYER TO TWO LAYER
+    output_dim = 10
+
+    model = LSTMModel(input_dim, hidden_dim, layer_dim, output_dim)
+
+    criterion = nn.BCELoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
+    ds = MYDS(embedding_list_train, label_path, mapping_path, data_dir)
+    dl = DataLoader(ds, batch_size=32, shuffle=True, num_workers=16)
+    for epoch in range(epochs):
+        for i, (x, y) in enumerate(dl):
+            if model is None:
+                model = LSTMModel(x.shape[1:])
+
+            x = x.to(device)
+            y = y.to(device)
+            optimizer.zero_grad()
+            y_pred = model(x)
+            loss = criterion(y_pred, y)
+            loss.backward()
+            optimizer.step()
+            if i % 100 == 0:
+                logging.info(
+                    "Epoch: {}/{}, Loss: {}".format(epoch, epochs, loss))
+    return model
+
+
 def testing(
     label_path: str,
     mapping_path: str,
@@ -267,13 +291,13 @@ def main():
     cache_base_dir = ".cache"
     os.makedirs(cache_base_dir, exist_ok=True)
 
-    tf.keras.utils.set_random_seed(12345)
-    tf.config.experimental.enable_op_determinism()
-    config = ConfigProto()
-    config.gpu_options.per_process_gpu_memory_fraction = 0.5
+    # tf.keras.utils.set_random_seed(12345)
+    # tf.config.experimental.enable_op_determinism()
+    # config = ConfigProto()
+    # config.gpu_options.per_process_gpu_memory_fraction = 0.5
     # config.gpu_options.allow_growth = True
-    session = InteractiveSession(config=config)
-    tf.compat.v1.keras.backend.set_session(session)
+    # session = InteractiveSession(config=config)
+    # tf.compat.v1.keras.backend.set_session(session)
 
     init_logger()
 
@@ -307,7 +331,7 @@ def main():
     logging.info("[Preprocessing] done.")
     if args.train:
         logging.info("[Training] Start ...")
-        training(
+        torch_training(
             os.path.join(data_base_dir, "label.json"),
             os.path.join(data_base_dir, "mapping_aug_data.json"),
             os.path.join(data_base_dir, "embedding_original"),

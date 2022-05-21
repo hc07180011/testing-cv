@@ -8,9 +8,9 @@ from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
 from typing import Tuple
 from argparse import ArgumentParser
-from mypyfunc.custom_models import Model, InferenceModel
+from mypyfunc.keras_models import Model, InferenceModel
 from mypyfunc.logger import init_logger
-from mypyfunc.custom_eval import f1, precision, recall, specificity, fbeta, negative_predictive_value, matthews_correlation_coefficient, equal_error_rate
+from mypyfunc.keras_eval import f1, precision, recall, specificity, fbeta, negative_predictive_value, matthews_correlation_coefficient, equal_error_rate
 
 data_base_dir = "data"
 os.makedirs(data_base_dir, exist_ok=True)
@@ -74,6 +74,9 @@ def _preprocess(
         test_size=0.1,
         random_state=42
     )
+    with open("used_videos.txt", "w") as f:
+        for video in [*embedding_list_train, *embedding_list_test]:
+            f.write("{}\n".format(video))
 
     chunk_size = 32  # batch sizes must be even number
 
@@ -175,12 +178,12 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
                 # equal_error_rate
             )
         )
-        model.train(X_train, y_train, 2, 0.1, 256)  # 1024 , 8192
+        model.train(X_train, y_train, 1000, 0.1, 256)  # 1024 , 8192
     # for k in ("loss", "precision",
     #           "recall", "f1", "fbeta", "specificity",
     #           "negative_predictive_value",
     #           "matthews_correlation_coefficient", "equal_error_rate"):
-    model.plot_history()  # FIX ME
+    # model.plot_history()  # FIX ME
 
     return model
 
