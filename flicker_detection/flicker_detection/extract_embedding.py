@@ -225,8 +225,9 @@ def torch_training(
     input_dim = 9216
     hidden_dim = 256
     layer_dim = 1
+    output_dim = 1
 
-    model = LSTMModel(input_dim, hidden_dim, layer_dim)
+    model = LSTMModel(input_dim, hidden_dim, layer_dim, output_dim=1)
     # model = nn.Sequential()
     # model.add_module("lstm", nn.LSTM(
     #     input_dim, hidden_dim, layer_dim))
@@ -246,15 +247,11 @@ def torch_training(
             y = y.to(device)
             optimizer.zero_grad()
             y_pred = model(x)
-            logging.debug("{}".format(y_pred))
-            logging.debug("{}".format(y))
-            logging.debug("{} {}".format(y_pred.shape, y.shape))
             loss = criterion(y_pred, y)
             loss.backward()
             optimizer.step()
-            if i % 2 == 0:
-                logging.info(
-                    "Epoch: {}/{}, Loss: {}".format(epoch, epochs, loss))
+        logging.info(
+            "Epoch: {}/{}, Loss: {}".format(epoch, epochs, loss))
     return model
 
 
