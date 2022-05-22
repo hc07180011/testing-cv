@@ -181,6 +181,7 @@ class Model:
                     train_metrics = self.model.train_on_batch(
                         X_train, y_train)
                     y_pred = self.model.predict(X_train)
+                    logging.debug("YPRED SHAPE - {}".format(y_pred.shape))
                     val_metrics = self.model.evaluate(
                         X_train, y_train)  # FIX ME x val y val
 

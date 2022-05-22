@@ -27,7 +27,7 @@ class MYDS(Dataset):
         return len(self.xs)
 
     def __getitem__(self, idx: int):
-        return self.xs[idx], self.ys[idx]
+        return self.xs[idx].astype(np.float32), self.ys[idx].astype(np.float32)
 
     def update(self, new_x_paths: list):
         self.xs, self.ys = self.load_embeddings(
@@ -72,7 +72,7 @@ class MYDS(Dataset):
                 1 if sum(x) else 0
                 for x in self._get_chunk_array(buf_label, self.chunk_size)
             )  # consider using tf reduce sum for multiclass
-        return np.array(X_train), np.array(y_train)
+        return np.array(X_train), np.asarray(y_train)
 
 
 if __name__ == '__main__':
