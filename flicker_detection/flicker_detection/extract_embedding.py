@@ -1,6 +1,6 @@
 import os
 import json
-from unicodedata import mirrored
+from unicodedata import bidirectional, mirrored
 import cv2
 import tqdm
 import logging
@@ -197,7 +197,7 @@ def training(
     mapping_path: str,
     data_dir: str,
     cache_path: str,
-    epochs: int = 1000,
+    epochs: int = 1,
 ) -> Model:
     embedding_list_train = np.array(np.load("{}.npz".format(
         cache_path), allow_pickle=True)["arr_0"])
@@ -216,39 +216,43 @@ def torch_training(
     cache_path: str,
     epochs: int = 10,
 ):
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-    else:
-        device = torch.device("cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     embedding_list_train = np.array(np.load("{}.npz".format(
         cache_path), allow_pickle=True)["arr_0"])
     chunked_list = np.array_split(embedding_list_train, indices_or_sections=40)
 
     input_dim = 9216
-    hidden_dim = 100
-    layer_dim = 3  # ONLY CHANGE IS HERE FROM ONE LAYER TO TWO LAYER
-    output_dim = 10
+    hidden_dim = 256
+    layer_dim = 1
 
-    model = LSTMModel(input_dim, hidden_dim, layer_dim, output_dim)
-
+    model = LSTMModel(input_dim, hidden_dim, layer_dim)
+    # model = nn.Sequential()
+    # model.add_module("lstm", nn.LSTM(
+    #     input_dim, hidden_dim, layer_dim))
+    # model.add_module("relu", nn.ReLU())
+    # model.add_module("flatten", nn.Flatten())
+    # model.add_module("sigmoid", nn.Sigmoid())
+    model.to(device)
+    print(model)
     criterion = nn.BCELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
     ds = MYDS(embedding_list_train, label_path, mapping_path, data_dir)
     dl = DataLoader(ds, batch_size=32, shuffle=True, num_workers=16)
+
     for epoch in range(epochs):
         for i, (x, y) in enumerate(dl):
-            if model is None:
-                model = LSTMModel(x.shape[1:])
-
             x = x.to(device)
             y = y.to(device)
             optimizer.zero_grad()
             y_pred = model(x)
+            logging.debug("{}".format(y_pred))
+            logging.debug("{}".format(y))
+            logging.debug("{} {}".format(y_pred.shape, y.shape))
             loss = criterion(y_pred, y)
             loss.backward()
             optimizer.step()
-            if i % 100 == 0:
+            if i % 2 == 0:
                 logging.info(
                     "Epoch: {}/{}, Loss: {}".format(epoch, epochs, loss))
     return model
