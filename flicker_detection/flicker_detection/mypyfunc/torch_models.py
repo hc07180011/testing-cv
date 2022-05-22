@@ -1,8 +1,9 @@
 import torch
 from torch import nn
 from torch import optim
+from torch.nn import functional as F
 from torch.autograd import Variable
-from torchsummary import summary as summary_
+from torchsummary import summary as summary
 import pkbar
 
 import warnings
@@ -10,7 +11,7 @@ warnings.filterwarnings('ignore')
 
 
 class LSTMModel(nn.Module):
-    def __init__(self, input_dim, hidden_dim, layer_dim):
+    def __init__(self, input_dim, hidden_dim, layer_dim, output_dim):
         super(LSTMModel, self).__init__()
         # Hidden dimensions
         self.hidden_dim = hidden_dim
@@ -24,7 +25,8 @@ class LSTMModel(nn.Module):
         self.lstm = nn.LSTM(input_dim, hidden_dim, layer_dim, batch_first=True)
 
         # ReLu layer
-        self.relu = nn.ReLU()
+        self.fc1 = nn.Linear(hidden_dim, 128)
+        self.fc2 = nn.Linear(128, output_dim)
 
         # flatten layer
         self.flatten = nn.Flatten()
@@ -49,10 +51,11 @@ class LSTMModel(nn.Module):
         # One time step
         out, (hn, cn) = self.lstm(x, (h0.detach(), c0.detach()))
 
-        out = self.relu(out)
+        out = self.fc1(out)
+        out = self.fc2(out)
         out = self.flatten(out)
         out = self.sig(out)
-        return out
+        return out[:, -1]
 
 
 def Input(shape):
