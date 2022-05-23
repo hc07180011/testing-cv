@@ -74,9 +74,17 @@ def _preprocess(
         test_size=0.1,
         random_state=42
     )
-    with open("used_videos.txt", "w") as f:
-        for video in [*embedding_list_train, *embedding_list_test]:
+    with open("test_vid.txt", "w") as f:
+        for video in [*embedding_list_test]:
             f.write("{}\n".format(video))
+
+    # embedding_list_test = (
+    #     "0002.mp4.npy", "0003.mp4.npy", "0006.mp4.npy",
+    #     "0016.mp4.npy", "0044.mp4.npy", "0055.mp4.npy",
+    #     "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
+    #     "0169.mp4.npy"
+    # )
+    # embedding_list_train = set(embedding_path_list) - set(embedding_list_test)
 
     chunk_size = 32  # batch sizes must be even number
 
@@ -179,11 +187,7 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
             )
         )
         model.train(X_train, y_train, 1000, 0.1, 256)  # 1024 , 8192
-    # for k in ("loss", "precision",
-    #           "recall", "f1", "fbeta", "specificity",
-    #           "negative_predictive_value",
-    #           "matthews_correlation_coefficient", "equal_error_rate"):
-    # model.plot_history()  # FIX ME
+    model.save_callback()  # FIX ME
 
     return model
 
@@ -203,6 +207,7 @@ def _test(model_path: str, X_test: np.array, y_test: np.array) -> None:
     model = InferenceModel(model_path, custom_objects=custom_objects)
     y_pred = model.predict(X_test)
     model.evaluate(y_test, y_pred)
+    model.plot_callback()
 
 
 def _main() -> None:
