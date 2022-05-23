@@ -6,30 +6,25 @@ import glob
 from sklearn.decomposition import PCA
 import pandas as pd
 import plotly.graph_objects as go
+from sklearn.preprocessing import StandardScaler, scale
+from visualization.kmeans import kmeans, multipleKmeans
 
 # from sklearn import model_selection
 # from tensorboard.plugins import projector
 
 from tqdm import tqdm
-LENGTH = 181
+LENGTH = 40
 
 def pca(input_directory):
     # To keep track of how many files we're processing
     count = 0
 
-<<<<<<< HEAD
     videoIndexes = [0]
-=======
-    videoIndexes = []
->>>>>>> d4a10a4 (pca scatter plot added)
     totalDimensions = 0
     tags = []
     ids = []
     numbered_ids = []
-<<<<<<< HEAD
     legendNames = []
-=======
->>>>>>> d4a10a4 (pca scatter plot added)
 
     pbar = tqdm(total=LENGTH)
 
@@ -41,18 +36,12 @@ def pca(input_directory):
             np_embedding = np.load(np_name).T
             embeddings_shape = np_embedding.shape[1]
             embeddings = np.concatenate([embeddings, np_embedding], axis=1)
-<<<<<<< HEAD
         
-=======
->>>>>>> d4a10a4 (pca scatter plot added)
         totalDimensions += embeddings_shape
         videoIndexes.append(totalDimensions)
 
         formatted_name = os.path.basename(np_name).removesuffix('.mp4.npy')
-<<<<<<< HEAD
         legendNames.append(formatted_name)
-=======
->>>>>>> d4a10a4 (pca scatter plot added)
 
         for i in range(embeddings_shape):
             tags.append(formatted_name + '_' +str(i))
@@ -60,22 +49,25 @@ def pca(input_directory):
             numbered_ids.append(int(formatted_name))
 
         print("Processed: {}".format(np_name))
-<<<<<<< HEAD
-=======
-        print("Size: {}".format(embeddings_shape))
->>>>>>> d4a10a4 (pca scatter plot added)
 
         count += 1
 
         pbar.update(n=1)
-<<<<<<< HEAD
-        
-
+        if (count == LENGTH):
+            break
     
-    model = PCA(n_components=2).fit(embeddings)
-    print('Explained variance: {}'.format(model.explained_variance_))
-    print('Explained variance Ratio: {}'.format(model.explained_variance_ratio_))
+    scaledEmbeddings = StandardScaler().fit_transform(embeddings)
+    model = PCA(n_components=2)
+    model_result = model.fit_transform(scaledEmbeddings)
+    print('Explained variance per dimension:')
+    for i, variance in enumerate(model.explained_variance_ratio_):
+        print('Dimension {} accounts for {:.2%} in variance'.format(i, variance))
+    print('Total explained variance: {:.2%}'.format(np.sum(model.explained_variance_ratio_)))
     print('PCA done')
+
+    # multipleKmeans(scaledEmbeddings)
+    kmeans(model_result, 3)
+    return
 
     # Splits into the original arrays
     
