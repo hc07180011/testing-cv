@@ -6,12 +6,14 @@ import glob
 from sklearn.decomposition import PCA
 import pandas as pd
 import plotly.graph_objects as go
+from sklearn.preprocessing import StandardScaler, scale
+from visualization.kmeans import kmeans, multipleKmeans
 
 # from sklearn import model_selection
 # from tensorboard.plugins import projector
 
 from tqdm import tqdm
-LENGTH = 181
+LENGTH = 40
 
 def pca(input_directory):
     # To keep track of how many files we're processing
@@ -51,13 +53,21 @@ def pca(input_directory):
         count += 1
 
         pbar.update(n=1)
-        
-
+        if (count == LENGTH):
+            break
     
-    model = PCA(n_components=2).fit(embeddings)
-    print('Explained variance: {}'.format(model.explained_variance_))
-    print('Explained variance Ratio: {}'.format(model.explained_variance_ratio_))
+    scaledEmbeddings = StandardScaler().fit_transform(embeddings)
+    model = PCA(n_components=2)
+    model_result = model.fit_transform(scaledEmbeddings)
+    print('Explained variance per dimension:')
+    for i, variance in enumerate(model.explained_variance_ratio_):
+        print('Dimension {} accounts for {:.2%} in variance'.format(i, variance))
+    print('Total explained variance: {:.2%}'.format(np.sum(model.explained_variance_ratio_)))
     print('PCA done')
+
+    # multipleKmeans(scaledEmbeddings)
+    kmeans(model_result, 3)
+    return
 
     # Splits into the original arrays
     
