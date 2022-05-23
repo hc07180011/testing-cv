@@ -1,7 +1,7 @@
 from sklearn.cluster import KMeans
 import numpy as np
 import matplotlib.pyplot as plt
-from visualization.graph import graphKmeans
+from visualization.graph import graph
 # import pandas as pd
 
 def multipleKmeans(dataSet):
@@ -24,5 +24,5 @@ def kmeans(PCA_result, k):
     labels = KMeans(n_clusters=k).fit_predict(PCA_result)
     unique_labels = np.unique(labels)
     
-    graphKmeans(PCA_result, labels, unique_labels)
+    graph(PCA_result, labels, unique_labels)
     return

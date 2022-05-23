@@ -8,12 +8,13 @@ import pandas as pd
 import plotly.graph_objects as go
 from sklearn.preprocessing import StandardScaler, scale
 from visualization.kmeans import kmeans, multipleKmeans
+from visualization.meanShift import meanshift
 
 # from sklearn import model_selection
 # from tensorboard.plugins import projector
 
 from tqdm import tqdm
-LENGTH = 40
+LENGTH = 181
 
 def pca(input_directory):
     # To keep track of how many files we're processing
@@ -66,7 +67,8 @@ def pca(input_directory):
     print('PCA done')
 
     # multipleKmeans(scaledEmbeddings)
-    kmeans(model_result, 3)
+    # kmeans(model_result, 20)
+    meanshift(model_result)
     return
 
     # Splits into the original arrays
