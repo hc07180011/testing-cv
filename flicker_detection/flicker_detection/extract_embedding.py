@@ -22,6 +22,7 @@ from mypyfunc.keras_eval import f1, recall, precision, specificity
 
 import torch
 import torch.nn as nn
+from torchmetrics import F1Score
 from torch.utils.data import DataLoader
 from mypyfunc.torch_models import LSTMModel
 from mypyfunc.torch_data_loader import MYDS
@@ -214,7 +215,7 @@ def torch_training(
     mapping_path: str,
     data_dir: str,
     cache_path: str,
-    epochs: int = 10,
+    epochs: int = 2,
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -223,20 +224,13 @@ def torch_training(
     chunked_list = np.array_split(embedding_list_train, indices_or_sections=40)
 
     input_dim = 9216
-    hidden_dim = 256
-    layer_dim = 1
-    output_dim = 1
 
-    model = LSTMModel(input_dim, hidden_dim, layer_dim, output_dim=1)
-    # model = nn.Sequential()
-    # model.add_module("lstm", nn.LSTM(
-    #     input_dim, hidden_dim, layer_dim))
-    # model.add_module("relu", nn.ReLU())
-    # model.add_module("flatten", nn.Flatten())
-    # model.add_module("sigmoid", nn.Sigmoid())
+    model = LSTMModel(input_dim, hidden_dim=256, layer_dim=1, output_dim=1)
+    logging.info("{}".format(model.train()))
     model.to(device)
-    print(model)
+
     criterion = nn.BCELoss()
+    f1_torch = F1Score()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
     ds = MYDS(embedding_list_train, label_path, mapping_path, data_dir)
     dl = DataLoader(ds, batch_size=32, shuffle=True, num_workers=16)
@@ -248,10 +242,11 @@ def torch_training(
             optimizer.zero_grad()
             y_pred = model(x)
             loss = criterion(y_pred, y)
+            f1_score = f1_torch((y_pred.cpu() > 0.5).int(), y.cpu().int())
             loss.backward()
             optimizer.step()
         logging.info(
-            "Epoch: {}/{}, Loss: {}".format(epoch, epochs, loss))
+            "Epoch: {}/{}, Loss: {}, f1: {}".format(epoch, epochs, loss, f1_score))
     return model
 
 
@@ -261,6 +256,8 @@ def testing(
     data_dir: str,
     cache_path: str,
     model_path: str,
+
+
 ) -> None:
     embedding_list_test = np.load("{}.npz".format(
         cache_path), allow_pickle=True)["arr_1"]
@@ -285,7 +282,7 @@ def main():
     GPU tensorflow memory managment
     https://stackoverflow.com/questions/36927607/how-can-i-solve-ran-out-of-gpu-memory-in-tensorflow
      You can do this by creating a new `tf.data.Options()` object then setting `options.experimenta
-    l_distribute.auto_shard_policy = AutoShardPolicy.DATA` before applying the options object to the dataset via `dataset.with_options(options)`.   
+    l_distribute.auto_shard_policy = AutoShardPolicy.DATA` before applying the options object to the dataset via `dataset.with_options(options)`.
     """
     data_base_dir = "data"
     os.makedirs(data_base_dir, exist_ok=True)

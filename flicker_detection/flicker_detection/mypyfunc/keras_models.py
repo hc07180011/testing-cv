@@ -27,7 +27,6 @@ class Model:
         self,
         chunked_list, label_path, mapping_path, data_dir,
         summary: bool = True,
-        plots_folder: str = "plots/",
         overview: str = 'preprocessing/embedding/models/flicker_detection.txt'
     ) -> None:
         self.chunked_list = chunked_list
@@ -36,13 +35,11 @@ class Model:
         self.data_dir = data_dir
         self.model_path = None
         self.summary = summary
-        self.plots_folder = plots_folder
         self.overview = overview
         self.history = None
         self.figures = None
         self.model = None
         self.metrics = None
-        os.makedirs(self.plots_folder, exist_ok=True)
 
     def compile(
         self,
@@ -127,23 +124,10 @@ class Model:
             ]
         )
 
-    def plot_history(self) -> None:  # FIX ME
-        history = self.history.history if "history" in dir(
-            self.history) else self.history
-        with open('trainHistoryDict.json', 'wb') as file_pi:
-            json.dump(history, file_pi)
-
-        for idx, metric in enumerate(self.metrics):
-            plt.figure(num=idx, figsize=(16, 4), dpi=200)
-            plt.plot(history["{}".format(metric)])
-            plt.plot(history["val_{}".format(metric)])
-            plt.legend(["{}".format(metric), "val_{}".format(metric)])
-            plt.xlabel("# Epochs")
-            plt.ylabel("{}".format(metric))
-            plt.title("{} LSTM, Chunked, Oversampling".format(metric))
-            plt.savefig("{}.png".format(
-                os.path.join(self.plots_folder, metric)))
-            plt.close()
+    def save_callback(self) -> None:  # FIX ME
+        with open('history.json', 'w') as file_pi:
+            json.dump(self.history if isinstance(self.history, dict)
+                      else self.history.history, file_pi)
 
     def batch_train(self, epochs: int, metrics: tuple,
                     _oversampling: Callable, load_embeddings: Callable,
@@ -217,15 +201,35 @@ class InferenceModel:
         self,
         model_path: str,
         custom_objects: dict,
+        plots_folder: str = "plots/",
     ) -> None:
+        self.plots_folder = plots_folder
         self.model = tf.keras.models.load_model(
             model_path,
             custom_objects=custom_objects
         )
+        self.metrics = self.model.metrics_names
+        os.makedirs(self.plots_folder, exist_ok=True)
 
     def predict(self, X_test: np.array) -> np.array:
         y_pred = self.model.predict(X_test)
         return y_pred.flatten()
+
+    def plot_callback(self) -> None:
+        with open('history.json', 'r') as file_pi:
+            history = json.load(file_pi)
+
+        for idx, metric in enumerate(self.metrics):
+            plt.figure(num=idx, figsize=(16, 4), dpi=200)
+            plt.plot(history["{}".format(metric)])
+            plt.plot(history["val_{}".format(metric)])
+            plt.legend(["{}".format(metric), "val_{}".format(metric)])
+            plt.xlabel("# Epochs")
+            plt.ylabel("{}".format(metric))
+            plt.title("{} LSTM, Chunked, Oversampling".format(metric))
+            plt.savefig("{}.png".format(
+                os.path.join(self.plots_folder, metric)))
+            plt.close()
 
     def evaluate(self, y_true: np.array, y_pred: np.array, plots_folder="plots/") -> None:
         threshold_range = np.arange(0.1, 1.0, 0.001)
@@ -269,7 +273,6 @@ class InferenceModel:
             np.max(f1_scores), threshold_range[np.argmax(f1_scores)]
         ))
 
-        # FIX ME 0,1 labeling
         # plot Confusion Matrix
         # https://towardsdatascience.com/understanding-the-confusion-matrix-from-scikit-learn-c51d88929c79
         cm = confusion_matrix(
@@ -277,7 +280,7 @@ class InferenceModel:
             (y_pred > threshold_range[np.argmax(f1_scores)]).astype(int),
             labels=[1, 0]
         )
-        fig = plt.figure()
+        fig = plt.figure(num=-1)
         ax = fig.add_subplot()
         sns.heatmap(cm, annot=True, fmt='g', ax=ax)
         ax.set_xlabel('Predicted')

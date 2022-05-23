@@ -51,11 +51,22 @@ class LSTMModel(nn.Module):
         # One time step
         out, (hn, cn) = self.lstm(x, (h0.detach(), c0.detach()))
 
+        # Apply relu
         out = self.fc1(out)
         out = self.fc2(out)
+
+        # Flatten for sigmoid
         out = self.flatten(out)
+
+        # Apply sigmoid
         out = self.sig(out)
         return out[:, -1]
+
+
+"""
+https://stackoverflow.com/questions/53628622/loss-function-its-inputs-for-binary-classification-pytorch
+https://towardsdatascience.com/recreating-keras-functional-api-with-pytorch-cc2974f7143c
+"""
 
 
 def Input(shape):
@@ -227,7 +238,7 @@ class Model():
         self.criterion = loss
 
     def summary(self):
-        summary_(self.model, self.input_size, device=self.device)
+        summary(self.model, self.input_size, device=self.device)
         print("Device Type:", self.device)
 
     def fit(self, data_x, data_y, epochs):
