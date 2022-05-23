@@ -213,4 +213,7 @@ Thumbs.db
 .img/
 *.png
 
+# data folders
+embeddings/
+
 # End of https://www.toptal.com/developers/gitignore/api/python,c++,vscode
