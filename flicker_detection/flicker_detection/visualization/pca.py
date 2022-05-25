@@ -68,7 +68,7 @@ def pca(input_directory):
 
     # multipleKmeans(scaledEmbeddings)
     # kmeans(model_result, 20)
-    meanshift(model_result)
+    meanshift(model_result, scaledEmbeddings)
     return
 
     # Splits into the original arrays
