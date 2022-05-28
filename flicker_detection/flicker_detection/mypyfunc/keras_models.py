@@ -49,7 +49,8 @@ class Model:
         metrics: tuple,
     ) -> None:
         self.model = model
-        self.metrics = [metric.__name__ for metric in metrics]
+        self.metrics = [metric.__name__ if not isinstance(
+            metric, tf.keras.metrics.AUC) else "auc" for metric in metrics]
         self.model.compile(
             loss=loss,
             optimizer=optimizer,
@@ -123,6 +124,7 @@ class Model:
                 )
             ]
         )
+        self.model.save(model_path)
 
     def save_callback(self) -> None:  # FIX ME
         with open('history.json', 'w') as file_pi:
@@ -237,7 +239,7 @@ class InferenceModel:
         f1_scores = list()
         for lambda_ in threshold_range:
             f1_scores.append(
-                f1_score(y_true, (y_pred > lambda_).astype(int)))  # , average='weighted'))
+                f1_score(y_true, (y_pred > lambda_).astype(int)))
 
         # plot ROC Curve
         fpr, tpr, thresholds = roc_curve(y_true, y_pred)
