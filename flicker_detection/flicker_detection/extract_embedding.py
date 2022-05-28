@@ -11,7 +11,6 @@ import seaborn as sns
 from imblearn.over_sampling import SMOTE
 from argparse import ArgumentParser
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix, classification_report
 from tensorflow.keras.applications import DenseNet121, mobilenet, vgg16, InceptionResNetV2, InceptionV3
 from tensorflow.keras import Model
 from mypyfunc.logger import init_logger
@@ -19,14 +18,6 @@ from typing import Tuple
 from preprocessing.embedding.backbone import BaseCNN, Serializer
 from mypyfunc.keras_models import Model, InferenceModel
 from mypyfunc.keras_eval import f1, recall, precision, specificity
-
-
-import torch
-import torch.nn as nn
-from torchmetrics import F1Score
-from torch.utils.data import DataLoader
-from mypyfunc.torch_models import LSTMModel
-from mypyfunc.torch_data_loader import MYDS
 
 
 data_base_dir = "data"
@@ -109,15 +100,18 @@ def preprocessing(
         "0145.mp4", "0146.mp4", "0147.mp4",
         "0178.mp4", "0179.mp4", "0180.mp4"
     )
+    pass_videos += tuple(vid[:4]+f"_{i}.mp4.npy"for i in range(10)
+                         for vid in pass_videos)
+    logging.info("{}".format(pass_videos))
     raw_labels = json.load(open(label_path, "r"))
     encoding_filename_mapping = json.load(open(mapping_path, "r"))
 
     embedding_path_list = sorted([
         x for x in os.listdir(data_dir)
         if x.split(".tfrecords")[0] not in pass_videos
-        and encoding_filename_mapping[x.replace(".tfrecords", "")] in raw_labels
+        and encoding_filename_mapping[x.replace(".npy", "")] in raw_labels
     ])
-
+    logging.info(" USED {}".format(embedding_path_list))
     embedding_list_train, embedding_list_test, _, _ = train_test_split(
         embedding_path_list,
         tuple(range(len(embedding_path_list))),
@@ -216,81 +210,6 @@ def training(
     return buf
 
 
-def torch_training(
-    label_path: str,
-    mapping_path: str,
-    data_dir: str,
-    cache_path: str,
-    epochs: int = 2,
-):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    embedding_list_train = np.array(np.load("{}.npz".format(
-        cache_path), allow_pickle=True)["arr_0"])
-    chunked_list = np.array_split(embedding_list_train, indices_or_sections=40)
-
-    input_dim = 9216
-
-    model = LSTMModel(input_dim, hidden_dim=256, layer_dim=1, output_dim=1)
-    logging.info("{}".format(model.train()))
-    model.to(device)
-
-    criterion = nn.BCELoss()
-    f1_torch = F1Score()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
-    ds = MYDS(embedding_list_train, label_path, mapping_path, data_dir)
-    dl = DataLoader(ds, batch_size=32, shuffle=True, num_workers=16)
-
-    model.train()
-    for epoch in range(epochs):
-        for i, (x, y) in enumerate(dl):
-            x = x.to(device)
-            y = y.to(device)
-            optimizer.zero_grad()
-            y_pred = model(x)
-            loss = criterion(y_pred, y)
-            loss.backward()
-            optimizer.step()
-
-            model.eval()
-            f1_score = f1_torch((y_pred.cpu() > 0.5).int(), y.cpu().int())
-            model.train()
-
-        logging.info(
-            "Epoch: {}/{}, Loss: {}, f1: {}".format(epoch, epochs, loss, f1_score))
-    return model
-
-
-def torch_eval(model, test_loader, version='title', threshold=0.5):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    y_pred, y_true = (), ()
-
-    model.eval()
-    with torch.no_grad():
-        for i, (x, y) in enumerate(test_loader):
-            x = x.to(device)
-            y = y.to(device)
-            output = model(x)
-
-            y_pred += ((output.cpu() > threshold).int().tolist(),)
-            y_true += (y.cpu().int().tolist(),)
-
-    print('Classification Report:')
-    print(classification_report(y_true, y_pred, labels=[1, 0], digits=4))
-
-    cm = confusion_matrix(y_true, y_pred, labels=[1, 0])
-    ax = plt.subplot()
-    sns.heatmap(cm, annot=True, ax=ax, cmap='Blues', fmt="d")
-
-    ax.set_title('Confusion Matrix')
-
-    ax.set_xlabel('Predicted Labels')
-    ax.set_ylabel('True Labels')
-
-    ax.xaxis.set_ticklabels(['FAKE', 'REAL'])
-    ax.yaxis.set_ticklabels(['FAKE', 'REAL'])
-
-
 def testing(
     label_path: str,
     mapping_path: str,
@@ -362,16 +281,16 @@ def main():
     preprocessing(
         os.path.join(data_base_dir, "label.json"),
         os.path.join(data_base_dir, "mapping_aug_data.json"),
-        os.path.join(data_base_dir, "TFRecords"),  # or embedding
+        os.path.join(data_base_dir, "vgg16_emb"),  # or embedding
         os.path.join(cache_base_dir, "train_test")
     )
     logging.info("[Preprocessing] done.")
     if args.train:
         logging.info("[Training] Start ...")
-        torch_training(
+        training(
             os.path.join(data_base_dir, "label.json"),
             os.path.join(data_base_dir, "mapping_aug_data.json"),
-            os.path.join(data_base_dir, "embedding_original"),
+            os.path.join(data_base_dir, "vgg16_emb"),
             os.path.join(cache_base_dir, "train_test")
         )
         logging.info("[Training] done.")
@@ -380,7 +299,7 @@ def main():
         testing(
             os.path.join(data_base_dir, "label.json"),
             os.path.join(data_base_dir, "mapping_aug_data.json"),
-            os.path.join(data_base_dir, "embedding_original"),
+            os.path.join(data_base_dir, "vgg16_emb"),
             os.path.join(cache_base_dir, "train_test"),
             "h5_models/test.h5"
         )
