@@ -1,7 +1,8 @@
 import os
 import json
-import random
+import gc
 import numpy as np
+import torch
 from torch.utils.data import Dataset, DataLoader
 from typing import Tuple
 
@@ -77,6 +78,10 @@ class MYDS(Dataset):
 
 
 class Streamer():
+    """
+    https://jamesmccaffrey.wordpress.com/2021/03/08/working-with-huge-training-data-files-for-pytorch/
+    """
+
     def __init__(self,
                  embedding_list_train: list,
                  label_path: str,
@@ -84,19 +89,16 @@ class Streamer():
                  data_dir: str,
                  chunk_size: int = 32,
                  batch_size: int = 32,
-                 #  num_chunks: int = 10,
                  ) -> None:
         self.embedding_list_train = embedding_list_train
         self.label_path = label_path
         self.mapping_path = mapping_path
         self.data_dir = data_dir
+
         self.chunk_size = chunk_size
         self.batch_size = batch_size
 
-        # self.chunked_list = np.array_split(
-        #     embedding_list_train, indices_or_sections=num_chunks)
         self.cur_chunk = 0
-
         self.X_buffer, self.y_buffer = [], []
 
     def __iter__(self):
@@ -104,14 +106,23 @@ class Streamer():
 
     def __next__(self):
         if self.cur_chunk >= len(self.embedding_list_train):
+            gc.collect()
             raise StopIteration
+
         if len(self.X_buffer) == 0 and len(self.y_buffer) == 0:
+            gc.collect()
             self.load_embeddings([self.embedding_list_train[self.cur_chunk]])
             self.cur_chunk += 1
+
         X, y = np.array(self.X_buffer.pop()), np.array(self.y_buffer.pop())
         if X.shape == (0,):
             return self.__next__()
-        return X, y
+        return torch.from_numpy(X).float(), torch.from_numpy(y).float()
+
+    def new_embeddings(self, new_emb_list: list):
+        self.embedding_list_train = new_emb_list
+        self.cur_chunk = 0
+        self.X_buffer, self.y_buffer = [], []
 
     @staticmethod
     def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
@@ -136,9 +147,9 @@ class Streamer():
         raw_labels = json.load(open(self.label_path, "r"))
         for key in embedding_list_train:
             real_filename = encoding_filename_mapping[key.replace(
-                ".tfrecords", "")]
+                ".npy", "")]
             loaded = np.load("{}.npy".format(os.path.join(self.data_dir, key.replace(
-                ".tfrecords", ""))))
+                ".npy", ""))))
             self.X_buffer.extend(
                 self._get_chunk_array(loaded, self.chunk_size))
             # get flicker frame indexes
@@ -161,8 +172,6 @@ class Streamer():
             self.y_buffer[i:self.batch_size]
             for i in range(0, len(self.y_buffer), self.batch_size)
         ]
-        # if shuffle:
-        #     return np.array(random.sample(X_train, len(X_train))), np.asarray(random.sample(y_train, len(y_train)))
 
 
 if __name__ == '__main__':
@@ -186,11 +195,11 @@ if __name__ == '__main__':
     mapping_path = "../data/mapping_aug_data.json"
     data_dir = "../data/embedding_original/"
 
-    # ds = MYDS(embedding_path_list, label_path, mapping_path, data_dir)
-    # dl = DataLoader(ds, batch_size=128, shuffle=False, num_workers=2)
-    # for batch_idx, (x, y) in enumerate(dl):
-    #     # loading batches only from x_paths[-1] and y_paths[-1] numpy files
-    #     print(batch_idx, x.shape, y.shape)
+    ds = MYDS(embedding_path_list, label_path, mapping_path, data_dir)
+    dl = DataLoader(ds, batch_size=128, shuffle=False, num_workers=2)
+    for batch_idx, (x, y) in enumerate(dl):
+        # loading batches only from x_paths[-1] and y_paths[-1] numpy files
+        print(batch_idx, x.shape, y.shape)
 
     ds = Streamer(embedding_path_list, label_path, mapping_path, data_dir)
     for idx, (x, y) in enumerate(ds):
