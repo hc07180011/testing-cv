@@ -68,23 +68,32 @@ def _preprocess(
         and encoding_filename_mapping[x.replace(".npy", "")] in raw_labels
     ])
 
-    embedding_list_train, embedding_list_test, _, _ = train_test_split(
-        embedding_path_list,
-        tuple(range(len(embedding_path_list))),
-        test_size=0.1,
-        random_state=42
-    )
-    with open("test_vid.txt", "w") as f:
-        for video in [*embedding_list_test]:
-            f.write("{}\n".format(video))
-
-    # embedding_list_test = (
-    #     "0002.mp4.npy", "0003.mp4.npy", "0006.mp4.npy",
-    #     "0016.mp4.npy", "0044.mp4.npy", "0055.mp4.npy",
-    #     "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
-    #     "0169.mp4.npy"
+    # embedding_list_train, embedding_list_test, _, _ = train_test_split(
+    #     embedding_path_list,
+    #     tuple(range(len(embedding_path_list))), # dummy buffer just to split embedding_path_list
+    #     test_size=0.1,
+    #     random_state=42
     # )
+
+    embedding_list_test = (
+        "0002.mp4.npy", "0003.mp4.npy", "0006.mp4.npy",
+        "0016.mp4.npy", "0044.mp4.npy", "0055.mp4.npy",
+        "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
+        "0169.mp4.npy"
+    )
+    # embedding_list_train = embedding_list_test * 8
+    embedding_list_train = tuple(
+        file for file in embedding_path_list if not any(map(file.__contains__, ("_",))) and file not in embedding_list_test
+        # if any(map(file.__contains__, ("0002_", "0003_", "0006_",
+        #                                "0016_", "0044_", "0055_",
+        #                                "0070_", "0108_", "0121_", "0169_")))
+        # and not any(map(file.__contains__, ("_9",)))
+    )
     # embedding_list_train = set(embedding_path_list) - set(embedding_list_test)
+
+    # with open("test_vid.txt", "w") as f:
+    #     for video in [*embedding_list_test]:
+    #         f.write("{}\n".format(video))
 
     chunk_size = 32  # batch sizes must be even number
 
@@ -178,7 +187,7 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
                 # precision,
                 # recall,
                 f1,
-                # tf.metrics.AUC(),
+                tf.metrics.AUC(),
                 # fbeta,
                 # specificity,
                 # negative_predictive_value,
@@ -186,8 +195,10 @@ def _train(X_train: np.array, y_train: np.array) -> Model:
                 # equal_error_rate
             )
         )
-        model.train(X_train, y_train, 1000, 0.1, 256)  # 1024 , 8192
-    model.save_callback()  # FIX ME
+        # 1024 , 8192
+        model.train(X_train, y_train, epochs=1000,
+                    validation_split=0.0, batch_size=256)
+    model.save_callback()
 
     return model
 
@@ -197,7 +208,7 @@ def _test(model_path: str, X_test: np.array, y_test: np.array) -> None:
         # "precision": precision,
         # "recall": recall,
         "f1": f1,
-        # "auroc": tf.metrics.AUC(),
+        "auroc": tf.metrics.AUC(),
         # "fbeta": fbeta,
         # "specificity": specificity,
         # "negative_predictive_value": negative_predictive_value,

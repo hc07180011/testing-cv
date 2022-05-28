@@ -1,18 +1,19 @@
 import os
 import json
-from unicodedata import bidirectional, mirrored
 import cv2
 import tqdm
 import logging
 import numpy as np
+import matplotlib.pyplot as plt
 import tensorflow as tf
+import seaborn as sns
+
 from imblearn.over_sampling import SMOTE
 from argparse import ArgumentParser
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix, classification_report
 from tensorflow.keras.applications import DenseNet121, mobilenet, vgg16, InceptionResNetV2, InceptionV3
 from tensorflow.keras import Model
-from tensorflow.compat.v1 import ConfigProto
-from tensorflow.compat.v1 import InteractiveSession
 from mypyfunc.logger import init_logger
 from typing import Tuple
 from preprocessing.embedding.backbone import BaseCNN, Serializer
@@ -32,7 +33,7 @@ data_base_dir = "data"
 os.makedirs(data_base_dir, exist_ok=True)
 
 
-def _embed(
+def serialize_embed(
     video_data_dir: str,
     output_dir: str,
 ) -> None:
@@ -68,17 +69,22 @@ def np_embed(
     os.makedirs(output_dir, exist_ok=True)
 
     feature_extractor = BaseCNN()
-    feature_extractor.extractor(mobilenet.MobileNet)  # mobilenet.MobileNet
+    feature_extractor.extractor(vgg16.VGG16)  # mobilenet.MobileNet
     for path in tqdm.tqdm(os.listdir(video_data_dir)):
         if os.path.exists(os.path.join(output_dir, "{}.npy".format(path))):
             continue
+        # if any(map(path.__contains__, ("0002_", "0003_", "0006_",
+        #                                "0016_", "0044_", "0055_",
+        #                                "0070_", "0108_", "0121_", "0169_"))):
         vidcap = cv2.VideoCapture(os.path.join(video_data_dir, path))
         success, image = vidcap.read()
 
         embeddings = ()
         while success:
-            embeddings += (feature_extractor.get_embed_cpu(cv2.resize(
-                image, (200, 200)), batched=False).flatten(),)
+            embeddings += (
+                feature_extractor.get_embed_cpu(
+                    cv2.resize(image, (200, 200)), batched=False
+                ).flatten(),)
             success, image = vidcap.read()
 
         embeddings = np.array(embeddings)
@@ -235,6 +241,7 @@ def torch_training(
     ds = MYDS(embedding_list_train, label_path, mapping_path, data_dir)
     dl = DataLoader(ds, batch_size=32, shuffle=True, num_workers=16)
 
+    model.train()
     for epoch in range(epochs):
         for i, (x, y) in enumerate(dl):
             x = x.to(device)
@@ -242,12 +249,46 @@ def torch_training(
             optimizer.zero_grad()
             y_pred = model(x)
             loss = criterion(y_pred, y)
-            f1_score = f1_torch((y_pred.cpu() > 0.5).int(), y.cpu().int())
             loss.backward()
             optimizer.step()
+
+            model.eval()
+            f1_score = f1_torch((y_pred.cpu() > 0.5).int(), y.cpu().int())
+            model.train()
+
         logging.info(
             "Epoch: {}/{}, Loss: {}, f1: {}".format(epoch, epochs, loss, f1_score))
     return model
+
+
+def torch_eval(model, test_loader, version='title', threshold=0.5):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    y_pred, y_true = (), ()
+
+    model.eval()
+    with torch.no_grad():
+        for i, (x, y) in enumerate(test_loader):
+            x = x.to(device)
+            y = y.to(device)
+            output = model(x)
+
+            y_pred += ((output.cpu() > threshold).int().tolist(),)
+            y_true += (y.cpu().int().tolist(),)
+
+    print('Classification Report:')
+    print(classification_report(y_true, y_pred, labels=[1, 0], digits=4))
+
+    cm = confusion_matrix(y_true, y_pred, labels=[1, 0])
+    ax = plt.subplot()
+    sns.heatmap(cm, annot=True, ax=ax, cmap='Blues', fmt="d")
+
+    ax.set_title('Confusion Matrix')
+
+    ax.set_xlabel('Predicted Labels')
+    ax.set_ylabel('True Labels')
+
+    ax.xaxis.set_ticklabels(['FAKE', 'REAL'])
+    ax.yaxis.set_ticklabels(['FAKE', 'REAL'])
 
 
 def testing(
@@ -256,8 +297,6 @@ def testing(
     data_dir: str,
     cache_path: str,
     model_path: str,
-
-
 ) -> None:
     embedding_list_test = np.load("{}.npz".format(
         cache_path), allow_pickle=True)["arr_1"]
@@ -313,9 +352,9 @@ def main():
     args = parser.parse_args()
 
     logging.info("[Embedding] Start ...")
-    _embed(
-        os.path.join(data_base_dir, "flicker-detection"),
-        os.path.join(data_base_dir, "TFRecords")
+    np_embed(
+        os.path.join(data_base_dir, "augmented"),
+        os.path.join(data_base_dir, "vgg16_emb")
     )
     logging.info("[Embedding] done.")
 
