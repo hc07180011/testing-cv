@@ -233,7 +233,12 @@ class InferenceModel:
                 os.path.join(self.plots_folder, metric)))
             plt.close()
 
-    def evaluate(self, y_true: np.array, y_pred: np.array, plots_folder="plots/") -> None:
+    @staticmethod
+    def evaluate(
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        plots_folder="plots/"
+    ) -> None:
         threshold_range = np.arange(0.1, 1.0, 0.001)
 
         f1_scores = list()
