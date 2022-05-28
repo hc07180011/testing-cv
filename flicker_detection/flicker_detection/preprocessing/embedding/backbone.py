@@ -18,10 +18,6 @@ class BaseCNN:
     """
     tf.keras.utils.set_random_seed(12345)
     tf.config.experimental.enable_op_determinism()
-    configproto = tf.compat.v1.ConfigProto()
-    configproto.gpu_options.allow_growth = True
-    sess = tf.compat.v1.Session(config=configproto)
-    tf.compat.v1.keras.backend.set_session(sess)
 
     def __init__(self) -> None:
         self.__target_shape = (200, 200)
@@ -34,12 +30,12 @@ class BaseCNN:
             images = np.expand_dims(images, axis=0)
         with self.strategy.scope():
             resized_images = tf.image.resize(
-                images, self.__target_shape, tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+                images, self.__target_shape, tf.image.ResizeMethod.NEAREST_NEIGHBOR)  # check resize differences
             return self.__embedding.predict(resnet.preprocess_input(resized_images))
 
     def get_embed_cpu(self, images: np.ndarray, batched=True) -> np.ndarray:
         if not batched:
-            images = np. expand_dims(images, axis=0)
+            images = np.expand_dims(images, axis=0)
         resized_images = np.array([cv2.resize(image, dsize=self.__target_shape,
                                               interpolation=cv2.INTER_CUBIC) for image in images])
         with self.strategy.scope():
@@ -140,7 +136,6 @@ class Serializer:
     def done_writing(self):
         self.data = None
         self.filename = None
-
         self.writer.close()
         self.writer = None
         gc.collect()
