@@ -8,6 +8,8 @@
 *.npz
 *.tfrecords
 *.pth
+model.pth
+metrics.pth
 data/embedding/
 data/embedding/*
 venv/*
