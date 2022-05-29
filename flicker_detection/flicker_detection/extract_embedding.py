@@ -128,10 +128,13 @@ def preprocessing(
         file for file in embedding_path_list
         if file not in embedding_list_val and file not in embedding_list_test
     )
+    length = max([len(embedding_list_test), len(
+        embedding_list_val), len(embedding_list_train)])
     pd.DataFrame({
-        "train": embedding_list_train,
-        "val": embedding_list_val,
-        "test": embedding_list_test}).to_csv("{}.csv".format(cache_path))
+        "train": embedding_list_train + ("",) * (length - len(embedding_list_train)),
+        "val": embedding_list_val + ("",) * (length - len(embedding_list_val)),
+        "test": embedding_list_test + ("",) * (length - len(embedding_list_test))
+    }).to_csv("{}.csv".format(cache_path))
 
     np.savez(cache_path, embedding_list_train,
              embedding_list_val, embedding_list_test)
