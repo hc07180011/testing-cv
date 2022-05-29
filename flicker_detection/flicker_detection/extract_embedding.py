@@ -4,6 +4,7 @@ import cv2
 import tqdm
 import logging
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import seaborn as sns
@@ -127,6 +128,10 @@ def preprocessing(
         file for file in embedding_path_list
         if file not in embedding_list_val and file not in embedding_list_test
     )
+    pd.DataFrame({
+        "train": embedding_list_train,
+        "val": embedding_list_val,
+        "test": embedding_list_test}).to_csv("{}.csv".format(cache_path))
 
     np.savez(cache_path, embedding_list_train,
              embedding_list_val, embedding_list_test)

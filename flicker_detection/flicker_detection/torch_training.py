@@ -1,6 +1,7 @@
 import os
 import logging
 import random
+import re
 import tqdm
 import torch
 import numpy as np
@@ -8,10 +9,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import torch.nn as nn
-from torchmetrics import F1Score
+
+from io import StringIO
 from argparse import ArgumentParser
 from mypyfunc.logger import init_logger
-from mypyfunc.torch_models import LSTMModel
+from mypyfunc.torch_models import LSTMModel, F1_Loss
 from mypyfunc.torch_data_loader import Streamer
 from sklearn.metrics import confusion_matrix, f1_score, precision_recall_curve, roc_curve, auc, roc_auc_score, classification_report
 
@@ -72,7 +74,19 @@ def load_metrics(load_path):
     state_dict = torch.load(load_path, map_location=device)
     logging.info(f'Model loaded from <== {load_path}')
 
-    return state_dict['loss_callback'], state_dict['f1_callback'], state_dict['val_loss_callback'], state_dict['valid_f1_callback']
+    return torch.Tensor(state_dict['loss_callback']).numpy(),\
+        torch.Tensor(state_dict['f1_callback']).numpy(),\
+        torch.Tensor(state_dict['val_loss_callback']).numpy(),\
+        torch.Tensor(state_dict['val_f1_callback']).numpy()
+
+
+def torch_seeding():
+    np.random.seed(42)
+    random.seed(42)
+    # torch.use_deterministic_algorithms(True)
+    torch.manual_seed(42)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(42)
 
 
 def torch_training(
@@ -82,7 +96,7 @@ def torch_training(
     optimizer: torch.optim.Optimizer,
     epochs: int = 1000,
     criterion=nn.BCELoss(),
-    f1_torch=F1Score(),
+    f1_torch=F1_Loss().cuda(),
 ) -> nn.Module:
 
     f1_callback, loss_callback, val_f1_callback, val_loss_callback = (), (), (), ()
@@ -102,7 +116,7 @@ def torch_training(
 
         model.eval()
         loss = minibatch_loss_train/n_train
-        f1_score = f1_torch((y_pred.cpu() > 0.5).int(), y.cpu().int())
+        f1_score = f1_torch((y_pred > 0.5), y)
         loss_callback += (loss,)
         f1_callback += (f1_score,)
 
@@ -138,20 +152,13 @@ def torch_training(
     return model
 
 
-def classification_report_csv(report: str) -> None:
-    report_data = []
-    lines = report.split('\n')
-    for line in lines[2:-3]:
-        row = {}
-        row_data = line.split('      ')
-        row['class'] = row_data[0]
-        row['precision'] = float(row_data[1])
-        row['recall'] = float(row_data[2])
-        row['f1_score'] = float(row_data[3])
-        row['support'] = float(row_data[4])
-        report_data.append(row)
-    dataframe = pd.DataFrame.from_dict(report_data)
-    dataframe.to_csv('classification_report.csv', index=False)
+def report_to_df(report):
+    report = re.sub(r" +", " ", report).replace("avg / total",
+                                                "avg/total").replace("\n ", "\n")
+    report_df = pd.read_csv(StringIO("Classes" + report),
+                            sep=' ', index_col=0, on_bad_lines='skip')
+    report_df.to_csv("report.csv")
+    return report_df
 
 
 def evaluate(
@@ -215,29 +222,48 @@ def evaluate(
     fig.savefig(os.path.join(plots_folder, "confusion_matrix.png"))
 
 
+def plot_callback(train_metric: np.ndarray, val_metric: np.ndarray, name: str, num=0):
+    plt.figure(num=num, figsize=(16, 4), dpi=200)
+    plt.plot(train_metric)
+    plt.plot(val_metric)
+    plt.legend(["{}".format(name), "val_{}".format(name)])
+    plt.xlabel("# Epochs")
+    plt.ylabel("{}".format(name))
+    plt.title("{} LSTM, Chunked, Oversampling".format(name))
+    plt.savefig("{}.png".format(
+        os.path.join("plots/", name)))
+    plt.close()
+
+
 def torch_eval(
     ds_test: Streamer,
     model: nn.Module,
     threshold: float = 0.5,
 ) -> None:
 
-    model.load_state_dict(torch.load('model.pth', map_location=device))
+    model.load_state_dict(torch.load('model.pth')['model_state_dict'])
     model.eval()
 
-    y_pred, y_true = (), ()
+    y_pred, y_true = None, None
     with torch.no_grad():
-        mini_batch_loss = 0
         for batch_step, (x, y) in enumerate(ds_test):
             x = x.to(device)
             y = y.to(device)
             output = model(x)
 
-            y_pred += ((output.cpu() > threshold).int(),)
-            y_true += (y.cpu().int(),)
+            y_pred = (output.cpu() > threshold).int() if y_pred is None else torch.hstack(
+                (y_pred, (output.cpu() > threshold).int()))
+            y_true = y.cpu().int() if y_true is None else torch.hstack((y_true, y.cpu().int()))
 
+    loss, f1, val_loss, val_f1 = load_metrics("metrics.pth")
+    plot_callback(loss, val_loss, "loss")
+    plot_callback(f1, val_f1, "f1")
+
+    y_pred, y_true = y_pred.numpy(), y_true.numpy()
     evaluate(y_true, y_pred)
-    report = classification_report(y_true, y_pred)
-    classification_report_csv(report)
+
+    report = classification_report(y_true, y_pred, labels=[1, 0], digits=4)
+    report_to_df(report)
 
 
 if __name__ == "__main__":
@@ -261,7 +287,7 @@ if __name__ == "__main__":
                        mapping_path, data_dir, batch_size=32)
 
     model = LSTMModel(input_dim=18432, hidden_dim=256,
-                      layer_dim=1, output_dim=1)
+                      layer_dim=1)
     logging.info("{}".format(model.train()))
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -278,6 +304,8 @@ if __name__ == "__main__":
         help="Whether to do testing"
     )
     args = parser.parse_args()
+
+    torch_seeding()
 
     if args.train:
         logging.info("Starting Training")

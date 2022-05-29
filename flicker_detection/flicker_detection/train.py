@@ -81,19 +81,9 @@ def _preprocess(
         "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
         "0169.mp4.npy"
     )
-    # embedding_list_train = embedding_list_test * 8
     embedding_list_train = tuple(
         file for file in embedding_path_list if not any(map(file.__contains__, ("_",))) and file not in embedding_list_test
-        # if any(map(file.__contains__, ("0002_", "0003_", "0006_",
-        #                                "0016_", "0044_", "0055_",
-        #                                "0070_", "0108_", "0121_", "0169_")))
-        # and not any(map(file.__contains__, ("_9",)))
     )
-    # embedding_list_train = set(embedding_path_list) - set(embedding_list_test)
-
-    # with open("test_vid.txt", "w") as f:
-    #     for video in [*embedding_list_test]:
-    #         f.write("{}\n".format(video))
 
     chunk_size = 32  # batch sizes must be even number
 
