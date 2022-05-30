@@ -9,7 +9,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import torch.nn as nn
-
+from torchmetrics import F1Score
 from io import StringIO
 from argparse import ArgumentParser
 from mypyfunc.logger import init_logger
@@ -96,12 +96,12 @@ def torch_training(
     optimizer: torch.optim.Optimizer,
     epochs: int = 1000,
     criterion=nn.BCELoss(),
-    f1_torch=F1_Loss().cuda(),
+    f1_torch=F1Score()  # F1_Loss().cuda(),
 ) -> nn.Module:
 
     f1_callback, loss_callback, val_f1_callback, val_loss_callback = (), (), (), ()
     for epoch in range(epochs):
-        minibatch_loss_train = 0
+        minibatch_loss_train, minibatch_f1 = 0, 0
         n_train = None
         for n_train, (x, y) in enumerate(ds_train):
             x = x.to(device)
@@ -109,38 +109,39 @@ def torch_training(
             optimizer.zero_grad()
             y_pred = model(x)
             loss = criterion(y_pred, y)
+            f1_score = f1_torch((y_pred.cpu() > 0.5).int(), y.cpu().int())
             loss.backward()
             optimizer.step()
 
             minibatch_loss_train += loss.item()
+            minibatch_f1 += f1_score.item()
 
         model.eval()
-        loss = minibatch_loss_train/n_train
-        f1_score = f1_torch((y_pred > 0.5), y)
-        loss_callback += (loss,)
-        f1_callback += (f1_score,)
+        loss_callback += (minibatch_loss_train/n_train,)
+        f1_callback += (minibatch_f1/n_train,)
 
         with torch.no_grad():
-            minibatch_loss_val = 0
+            minibatch_loss_val, minibatch_f1_val = 0, 0
             for n_val, (x, y) in enumerate(ds_val):
                 x = x.to(device)
                 y = y.to(device)
                 y_pred = model(x)
                 loss = criterion(y_pred, y)
+                val_f1 = f1_torch((y_pred.cpu() > 0.5).int(), y.cpu().int())
                 minibatch_loss_val += loss.item()
-            val_loss = minibatch_loss_val/n_val
-            val_f1 = f1_torch((y_pred.cpu() > 0.5).int(), y.cpu().int())
-            val_loss_callback += (val_loss,)
-            val_f1_callback += (val_f1,)
+                minibatch_f1_val += val_f1.item()
+
+            val_loss_callback += (minibatch_loss_val/n_val,)
+            val_f1_callback += (minibatch_f1_val/n_val,)
 
         logging.info(
             "Epoch: {}/{}, Loss - {:.3f},f1 - {:.3f}, val_loss - {:3f}, val_f1 - {:3f}".format(
-                epoch, epochs, loss, f1_score, val_loss, val_f1
+                epoch, epochs, loss_callback[-1], f1_callback[-1], val_loss_callback[-1], val_f1_callback[-1]
             ))
 
         if not bool(epoch % 10):
             save_checkpoint('model.pth', model,
-                            optimizer, loss, val_loss, f1_score, val_f1)
+                            optimizer, loss_callback[-1], f1_callback[-1], val_loss_callback[-1], val_f1_callback[-1])
             save_metrics('metrics.pth', loss_callback, f1_callback,
                          val_loss_callback, val_f1_callback)
 
@@ -251,15 +252,15 @@ def torch_eval(
             y = y.to(device)
             output = model(x)
 
-            y_pred = (output.cpu() > threshold).int() if y_pred is None else torch.hstack(
-                (y_pred, (output.cpu() > threshold).int()))
-            y_true = y.cpu().int() if y_true is None else torch.hstack((y_true, y.cpu().int()))
+            y_pred = output if y_pred is None else torch.hstack(
+                (y_pred, output))
+            y_true = y if y_true is None else torch.hstack((y_true, y))
 
     loss, f1, val_loss, val_f1 = load_metrics("metrics.pth")
     plot_callback(loss, val_loss, "loss")
     plot_callback(f1, val_f1, "f1")
 
-    y_pred, y_true = y_pred.numpy(), y_true.numpy()
+    y_pred, y_true = (y_pred.numpy() > threshold).int(), y_true.numpy().int()
     evaluate(y_true, y_pred)
 
     report = classification_report(y_true, y_pred, labels=[1, 0], digits=4)
@@ -283,14 +284,16 @@ if __name__ == "__main__":
                         mapping_path, data_dir, batch_size=32)
     ds_val = Streamer(embedding_list_val, label_path,
                       mapping_path, data_dir, batch_size=32)
-    ds_test = Streamer(embedding_list_train, label_path,
+    ds_test = Streamer(embedding_list_test, label_path,
                        mapping_path, data_dir, batch_size=32)
 
     model = LSTMModel(input_dim=18432, hidden_dim=256,
                       layer_dim=1)
     logging.info("{}".format(model.train()))
+
+    net = torch.nn.DataParallel(model, device_ids=[0, 1])  # FIX ME
     model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
 
     parser = ArgumentParser()
     parser.add_argument(

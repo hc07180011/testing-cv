@@ -65,9 +65,7 @@ def np_embed(
     for path in tqdm.tqdm(os.listdir(video_data_dir)):
         if os.path.exists(os.path.join(output_dir, "{}.npy".format(path))):
             continue
-        # if any(map(path.__contains__, ("0002_", "0003_", "0006_",
-        #                                "0016_", "0044_", "0055_",
-        #                                "0070_", "0108_", "0121_", "0169_"))):
+
         vidcap = cv2.VideoCapture(os.path.join(video_data_dir, path))
         success, image = vidcap.read()
 

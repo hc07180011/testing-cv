@@ -26,7 +26,7 @@ class LSTMModel(nn.Module):
 
         # ReLu layer
         self.fc1 = nn.Linear(hidden_dim, 128)
-        self.fc2 = nn.Linear(128, 1)  # 64
+        # self.fc2 = nn.Linear(128, 64)  # 64
 
         # flatten layer
         self.flatten = nn.Flatten()
@@ -53,7 +53,7 @@ class LSTMModel(nn.Module):
 
         # Apply relu
         out = self.fc1(out)
-        out = self.fc2(out)
+        # out = self.fc2(out)
 
         # Flatten for sigmoid
         out = self.flatten(out)
