@@ -114,7 +114,7 @@ def torch_training(
             optimizer.step()
 
             minibatch_loss_train += loss.item()
-            minibatch_f1 += f1_score.item()
+            minibatch_f1 += f1_score
 
         model.eval()
         loss_callback += (minibatch_loss_train/n_train,)
@@ -129,10 +129,13 @@ def torch_training(
                 loss = criterion(y_pred, y)
                 val_f1 = f1_torch((y_pred.cpu() > 0.5).int(), y.cpu().int())
                 minibatch_loss_val += loss.item()
-                minibatch_f1_val += val_f1.item()
-
-            val_loss_callback += (minibatch_loss_val/n_val,)
-            val_f1_callback += (minibatch_f1_val/n_val,)
+                minibatch_f1_val += val_f1
+            if n_val > 0:
+                val_loss_callback += (minibatch_loss_val/n_val,)
+                val_f1_callback += (minibatch_f1_val/n_val,)
+            else:
+                val_loss_callback += (minibatch_loss_val,)
+                val_f1_callback += (minibatch_f1_val,)
 
         logging.info(
             "Epoch: {}/{}, Loss - {:.3f},f1 - {:.3f}, val_loss - {:3f}, val_f1 - {:3f}".format(
@@ -225,9 +228,9 @@ def evaluate(
 
 def plot_callback(train_metric: np.ndarray, val_metric: np.ndarray, name: str, num=0):
     plt.figure(num=num, figsize=(16, 4), dpi=200)
-    plt.plot(train_metric)
     plt.plot(val_metric)
-    plt.legend(["{}".format(name), "val_{}".format(name)])
+    plt.plot(train_metric)
+    plt.legend(["val_{}".format(name), "{}".format(name), ])
     plt.xlabel("# Epochs")
     plt.ylabel("{}".format(name))
     plt.title("{} LSTM, Chunked, Oversampling".format(name))
@@ -260,7 +263,8 @@ def torch_eval(
     plot_callback(loss, val_loss, "loss")
     plot_callback(f1, val_f1, "f1")
 
-    y_pred, y_true = (y_pred.numpy() > threshold).int(), y_true.numpy().int()
+    y_pred, y_true = (y_pred.cpu().numpy() >
+                      threshold).astype(np.uint), y_true.cpu().numpy().astype(np.uint)
     evaluate(y_true, y_pred)
 
     report = classification_report(y_true, y_pred, labels=[1, 0], digits=4)
@@ -281,17 +285,17 @@ if __name__ == "__main__":
         __cache__[lst] for lst in __cache__)
 
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, batch_size=32)
+                        mapping_path, data_dir, mem_split=2, chunk_size=30, batch_size=1024)
     ds_val = Streamer(embedding_list_val, label_path,
-                      mapping_path, data_dir, batch_size=32)
+                      mapping_path, data_dir, mem_split=2, chunk_size=30, batch_size=1024)
     ds_test = Streamer(embedding_list_test, label_path,
-                       mapping_path, data_dir, batch_size=32)
+                       mapping_path, data_dir, mem_split=2, chunk_size=30, batch_size=1024)
 
     model = LSTMModel(input_dim=18432, hidden_dim=256,
                       layer_dim=1)
     logging.info("{}".format(model.train()))
 
-    net = torch.nn.DataParallel(model, device_ids=[0, 1])  # FIX ME
+    model = torch.nn.DataParallel(model, device_ids=[0, 1])  # FIX ME
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
 

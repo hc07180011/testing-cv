@@ -88,17 +88,19 @@ class Streamer():
                  label_path: str,
                  mapping_path: str,
                  data_dir: str,
-                 chunk_size: int = 32,
+                 mem_split: int = 4,
+                 chunk_size: int = 30,
                  batch_size: int = 32,
                  ) -> None:
         self.embedding_list_train = embedding_list_train
         self.chunk_embedding_list = np.array_split(
-            embedding_list_train, chunk_size)  # FIX ME
+            embedding_list_train, mem_split)  # FIX ME
 
         self.label_path = label_path
         self.mapping_path = mapping_path
         self.data_dir = data_dir
 
+        self.mem_split = mem_split
         self.chunk_size = chunk_size
         self.batch_size = batch_size
 
@@ -106,29 +108,33 @@ class Streamer():
         self.X_buffer, self.y_buffer = [], []
 
     def __len__(self):
-        return len(self.chunk_embedding_list)  # FIX ME
+        # FIX ME
+        return len(self.embedding_list_train)*len(self.chunk_embedding_list)
 
     def __iter__(self):
         return self
 
     def __next__(self):
-        if self.cur_chunk > len(self.chunk_embedding_list):
+        if self.cur_chunk == len(self.chunk_embedding_list):
             gc.collect()
             raise StopIteration
 
-        if len(self.X_buffer) == 0 and len(self.y_buffer) == 0:
+        if not self.X_buffer or not self.y_buffer:
             gc.collect()
             self.load_embeddings(
-                self.chunk_embedding_list[self.cur_chunk - 1])  # FIX ME
+                self.chunk_embedding_list[self.cur_chunk])
             self.cur_chunk += 1
-
-        X, y = np.array(self.X_buffer.pop()), np.array(self.y_buffer.pop())
-        if X.shape == (0,):
             return self.__next__()
+
+        X, y = np.array(self.X_buffer.pop()), np.array(
+            self.y_buffer.pop())  # FIX ME
+
         return torch.from_numpy(X).float(), torch.from_numpy(y).float()
 
     def new_embeddings(self, new_emb_list: list):
         self.embedding_list_train = new_emb_list
+        self.chunk_embedding_list = np.array_split(
+            new_emb_list, self.mem_split)
         self.cur_chunk = 0
         self.X_buffer, self.y_buffer = [], []
 
@@ -183,34 +189,25 @@ class Streamer():
 
 
 if __name__ == '__main__':
-
-    pass_videos = (
-        "0096.mp4", "0097.mp4", "0098.mp4",
-        "0125.mp4", "0126.mp4", "0127.mp4",
-        "0145.mp4", "0146.mp4", "0147.mp4",
-        "0178.mp4", "0179.mp4", "0180.mp4"
-    )
-    raw_labels = json.load(open("../data/label.json", "r"))
-    encoding_filename_mapping = json.load(
-        open("../data/mapping_aug_data.json", "r"))
-
-    embedding_path_list = sorted([
-        x.split(".npy")[0] for x in os.listdir("../data/embedding_original/")
-        if x.split(".npy")[0] not in pass_videos
-        and encoding_filename_mapping[x.replace(".npy", "")] in raw_labels
-    ])
-    print(len(embedding_path_list))
     label_path = "../data/label.json"
     mapping_path = "../data/mapping_aug_data.json"
-    data_dir = "../data/embedding_original/"
+    data_dir = "../data/vgg16_emb/"
     # ds = MYDS(embedding_path_list, label_path, mapping_path, data_dir)
     # dl = DataLoader(ds, batch_size=128, shuffle=False, num_workers=2)
     # for batch_idx, (x, y) in enumerate(dl):
     #     # loading batches only from x_paths[-1] and y_paths[-1] numpy files
     #     print(batch_idx, x.shape, y.shape)
+    __cache__ = np.load(
+        "{}.npz".format("../.cache/train_test"), allow_pickle=True)
+    embedding_list_train, embedding_list_val, embedding_list_test = tuple(
+        __cache__[lst] for lst in __cache__)
 
-    ds = Streamer(embedding_path_list, label_path,
-                  mapping_path, data_dir, batch_size=32)
+    ds_train = Streamer(embedding_list_train, label_path,
+                        mapping_path, data_dir, batch_size=1024)
+    ds_val = Streamer(embedding_list_val, label_path,
+                      mapping_path, data_dir, batch_size=32)
+    ds_test = Streamer(embedding_list_test, label_path,
+                       mapping_path, data_dir, batch_size=32)
 
-    for idx, (x, y) in enumerate(ds):
+    for idx, (x, y) in enumerate(ds_train):
         print(idx, x.shape, y.shape)
