@@ -2,6 +2,7 @@ import os
 import json
 import gc
 import tqdm
+import random
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -88,13 +89,13 @@ class Streamer():
                  label_path: str,
                  mapping_path: str,
                  data_dir: str,
-                 mem_split: int = 4,
+                 mem_split: int = 8,
                  chunk_size: int = 30,
                  batch_size: int = 32,
                  ) -> None:
         self.embedding_list_train = embedding_list_train
         self.chunk_embedding_list = np.array_split(
-            embedding_list_train, mem_split)  # FIX ME
+            embedding_list_train, mem_split)
 
         self.label_path = label_path
         self.mapping_path = mapping_path
@@ -131,10 +132,10 @@ class Streamer():
 
         return torch.from_numpy(X).float(), torch.from_numpy(y).float()
 
-    def new_embeddings(self, new_emb_list: list):
-        self.embedding_list_train = new_emb_list
+    def shuffle(self):
+        random.shuffle(self.embedding_list_train)
         self.chunk_embedding_list = np.array_split(
-            new_emb_list, self.mem_split)
+            self.embedding_list_train, self.mem_split)
         self.cur_chunk = 0
         self.X_buffer, self.y_buffer = [], []
 

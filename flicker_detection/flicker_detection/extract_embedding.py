@@ -110,21 +110,28 @@ def preprocessing(
         and encoding_filename_mapping[x.replace(".npy", "")] in raw_labels
     ])
 
-    embedding_list_train, embedding_list_test, _, _ = train_test_split(
-        tuple(file for file in embedding_path_list if "_" not in file),
-        # dummy buffer just to split embedding_path_list
-        tuple(
-            range(len(tuple(file for file in embedding_path_list if "_" not in file)))),
-        test_size=0.1,
-        random_state=42
-    )
-    embedding_list_val = embedding_list_test
-    # embedding_list_test = (
-    #     "0002.mp4.npy", "0003.mp4.npy", "0006.mp4.npy",
-    #     "0016.mp4.npy", "0044.mp4.npy", "0055.mp4.npy",
-    #     "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
-    #     "0169.mp4.npy"
+    # embedding_list_train, embedding_list_test, _, _ = train_test_split(
+    #     tuple(file for file in embedding_path_list if "_" not in file),
+    #     # dummy buffer just to split embedding_path_list
+    #     tuple(
+    #         range(len(tuple(file for file in embedding_path_list if "_" not in file)))),
+    #     test_size=0.1,
+    #     random_state=42
     # )
+    # embedding_list_val = embedding_list_test
+    embedding_list_test = (
+        "0002.mp4.npy", "0003.mp4.npy", "0006.mp4.npy",
+        "0016.mp4.npy", "0044.mp4.npy", "0055.mp4.npy",
+        "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
+        "0169.mp4.npy"
+    )
+    videos = tuple(set(embedding_path_list) - set(embedding_list_test))
+    embedding_list_train, embedding_list_val, _, _ = train_test_split(
+        videos,
+        tuple(range(len(videos))),
+        test_size=0.3,
+        random_state=42,
+    )
     # embedding_list_val = tuple(
     #     file for file in embedding_path_list
     #     if any(map(file.__contains__, ("0002_", "0003_", "0006_",

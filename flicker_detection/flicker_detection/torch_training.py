@@ -96,7 +96,7 @@ def torch_training(
     optimizer: torch.optim.Optimizer,
     epochs: int = 1000,
     criterion=nn.BCELoss(),
-    f1_torch=F1Score()  # F1_Loss().cuda(),
+    f1_torch=f1_score  # F1_Loss().cuda(),
 ) -> nn.Module:
 
     f1_callback, loss_callback, val_f1_callback, val_loss_callback = (), (), (), ()
@@ -117,8 +117,10 @@ def torch_training(
             minibatch_f1 += f1_score
 
         model.eval()
-        loss_callback += (minibatch_loss_train/n_train,)
-        f1_callback += (minibatch_f1/n_train,)
+        loss_callback += (minibatch_loss_train / (n_train)
+                          if n_train else minibatch_loss_train,)
+        f1_callback += ((minibatch_f1/(n_train)
+                        if n_train else minibatch_f1)/2,)
 
         with torch.no_grad():
             minibatch_loss_val, minibatch_f1_val = 0, 0
@@ -130,12 +132,12 @@ def torch_training(
                 val_f1 = f1_torch((y_pred.cpu() > 0.5).int(), y.cpu().int())
                 minibatch_loss_val += loss.item()
                 minibatch_f1_val += val_f1
-            if n_val > 0:
-                val_loss_callback += (minibatch_loss_val/n_val,)
-                val_f1_callback += (minibatch_f1_val/n_val,)
-            else:
-                val_loss_callback += (minibatch_loss_val,)
-                val_f1_callback += (minibatch_f1_val,)
+
+            ds_val.shuffle()
+            val_loss_callback += (minibatch_loss_val /
+                                  (n_val) if n_val else minibatch_loss_val,)
+            val_f1_callback += ((minibatch_f1_val/(n_val)
+                                if n_val else minibatch_f1)/2,)
 
         logging.info(
             "Epoch: {}/{}, Loss - {:.3f},f1 - {:.3f}, val_loss - {:3f}, val_f1 - {:3f}".format(
@@ -149,9 +151,7 @@ def torch_training(
                          val_loss_callback, val_f1_callback)
 
         model.train()
-
-        random.shuffle(embedding_list_train)
-        ds_train.new_embeddings(embedding_list_train)
+        ds_train.shuffle()
 
     return model
 
@@ -202,8 +202,12 @@ def evaluate(
     plt.close()
 
     threshold_range = np.arange(0.1, 1.0, 0.001)
+
     f1_scores = tuple(f1_score(y_true, (y_pred > lambda_).astype(int))
                       for lambda_ in threshold_range)
+
+    logging.info("f1: {}, at thres = 0.5".format(
+        f1_score(y_true, (y_pred > 0.5).astype(int))))
     logging.info("Max f1: {:.4f}, at thres = {:.4f}".format(
         np.max(f1_scores), threshold_range[np.argmax(f1_scores)]
     ))
@@ -285,19 +289,19 @@ if __name__ == "__main__":
         __cache__[lst] for lst in __cache__)
 
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, mem_split=2, chunk_size=30, batch_size=1024)
+                        mapping_path, data_dir, mem_split=8, chunk_size=32, batch_size=1024)
     ds_val = Streamer(embedding_list_val, label_path,
-                      mapping_path, data_dir, mem_split=2, chunk_size=30, batch_size=1024)
+                      mapping_path, data_dir, mem_split=4, chunk_size=32, batch_size=1024)
     ds_test = Streamer(embedding_list_test, label_path,
-                       mapping_path, data_dir, mem_split=2, chunk_size=30, batch_size=1024)
+                       mapping_path, data_dir, mem_split=2, chunk_size=32, batch_size=1024)
 
     model = LSTMModel(input_dim=18432, hidden_dim=256,
                       layer_dim=1)
     logging.info("{}".format(model.train()))
 
-    model = torch.nn.DataParallel(model, device_ids=[0, 1])  # FIX ME
+    model = torch.nn.DataParallel(model, device_ids=[0, 1])
     model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 
     parser = ArgumentParser()
     parser.add_argument(
