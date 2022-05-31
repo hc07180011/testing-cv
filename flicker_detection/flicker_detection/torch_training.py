@@ -94,6 +94,7 @@ def torch_training(
     ds_val: Streamer,
     model: nn.Module,
     optimizer: torch.optim.Optimizer,
+    model_path: str,
     epochs: int = 1000,
     criterion=nn.BCELoss(),
     f1_torch=f1_score  # F1_Loss().cuda(),
@@ -101,8 +102,14 @@ def torch_training(
 
     f1_callback, loss_callback, val_f1_callback, val_loss_callback = (), (), (), ()
     for epoch in range(epochs):
+
         minibatch_loss_train, minibatch_f1 = 0, 0
         n_train = None
+
+        if os.path.exists(model_path):
+            model = model.load_state_dict(torch.load(
+                model_path)['model_state_dict'])  # load model
+
         for n_train, (x, y) in enumerate(ds_train):
             x = x.to(device)
             y = y.to(device)
@@ -145,7 +152,7 @@ def torch_training(
             ))
 
         if not bool(epoch % 10):
-            save_checkpoint('model.pth', model,
+            save_checkpoint(model_path, model,
                             optimizer, loss_callback[-1], f1_callback[-1], val_loss_callback[-1], val_f1_callback[-1])
             save_metrics('metrics.pth', loss_callback, f1_callback,
                          val_loss_callback, val_f1_callback)
@@ -246,10 +253,11 @@ def plot_callback(train_metric: np.ndarray, val_metric: np.ndarray, name: str, n
 def torch_eval(
     ds_test: Streamer,
     model: nn.Module,
+    model_path: str,
     threshold: float = 0.5,
 ) -> None:
 
-    model.load_state_dict(torch.load('model.pth')['model_state_dict'])
+    model.load_state_dict(torch.load(model_path)['model_state_dict'])
     model.eval()
 
     y_pred, y_true = None, None
@@ -282,6 +290,7 @@ if __name__ == "__main__":
     mapping_path = "data/mapping_aug_data.json"
     data_dir = "data/vgg16_emb"
     cache_path = ".cache/train_test"
+    model_path = "model.pth"
 
     __cache__ = np.load(
         "{}.npz".format(cache_path), allow_pickle=True)
@@ -320,10 +329,10 @@ if __name__ == "__main__":
 
     if args.train:
         logging.info("Starting Training")
-        model = torch_training(ds_train, ds_val, model, optimizer)
+        model = torch_training(ds_train, ds_val, model, optimizer, model_path)
         logging.info("Done Training")
 
     if args.test:
         logging.info("Starting Evaluation")
-        torch_eval(ds_test, model)
+        torch_eval(ds_test, model, model_path)
         logging.info("Done Evaluation")

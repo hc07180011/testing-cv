@@ -106,16 +106,17 @@ class Streamer():
         self.batch_size = batch_size
 
         self.cur_chunk = 0
-        self.X_buffer, self.y_buffer = [], []
+        self.X_buffer, self.y_buffer = (), ()
+        self.xidx, self.yidx = None, None
 
-    def __len__(self):
+    def __len__(self) -> int:
         # FIX ME
         return len(self.embedding_list_train)*len(self.chunk_embedding_list)
 
-    def __iter__(self):
+    def __iter__(self) -> self:
         return self
 
-    def __next__(self):
+    def __next__(self) -> Tuple[torch.Tensor, torch.Tensor]:
         if self.cur_chunk == len(self.chunk_embedding_list):
             gc.collect()
             raise StopIteration
@@ -129,15 +130,17 @@ class Streamer():
 
         X, y = np.array(self.X_buffer.pop()), np.array(
             self.y_buffer.pop())  # FIX ME
+        random.shuffle(self.xidx)
+        random.shuffle(self.yidx)
+        return torch.from_numpy(X[self.xidx]).float(), torch.from_numpy(y[self.yidx]).float()
 
-        return torch.from_numpy(X).float(), torch.from_numpy(y).float()
-
-    def shuffle(self):
+    def shuffle(self) -> None:
         random.shuffle(self.embedding_list_train)
         self.chunk_embedding_list = np.array_split(
             self.embedding_list_train, self.mem_split)
         self.cur_chunk = 0
-        self.X_buffer, self.y_buffer = [], []
+        self.X_buffer, self.y_buffer = (), ()
+        gc.collect()
 
     @staticmethod
     def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
@@ -158,25 +161,28 @@ class Streamer():
         self,
         embedding_list_train: list,
     ) -> Tuple[np.ndarray, np.ndarray]:
+
         encoding_filename_mapping = json.load(open(self.mapping_path, "r"))
         raw_labels = json.load(open(self.label_path, "r"))
+
         for key in embedding_list_train:
             real_filename = encoding_filename_mapping[key.replace(
                 ".npy", "")]
             loaded = np.load("{}.npy".format(os.path.join(self.data_dir, key.replace(
                 ".npy", ""))))
-            self.X_buffer.extend(
-                self._get_chunk_array(loaded, self.chunk_size))
+            self.X_buffer += (
+                self._get_chunk_array(loaded, self.chunk_size),)
             # get flicker frame indexes
             flicker_idxs = np.array(raw_labels[real_filename]) - 1
             # buffer zeros array frame video embedding
             buf_label = np.zeros(loaded.shape[0], dtype=np.uint8)
             # set indexes in zeros array based on flicker frame indexes
             buf_label[flicker_idxs] = 1
-            self.y_buffer.extend(tuple(
+            # consider using tf reduce sum for multiclass
+            self.y_buffer += tuple(
                 1 if sum(x) else 0
                 for x in self._get_chunk_array(buf_label, self.chunk_size)
-            ))  # consider using tf reduce sum for multiclass
+            )
 
         self.X_buffer = [
             self.X_buffer[i:i+self.batch_size]
@@ -187,6 +193,8 @@ class Streamer():
             self.y_buffer[i:i+self.batch_size]
             for i in range(0, len(self.y_buffer), self.batch_size)
         ]
+        self.xidx, self.yidx = np.arange(len(self.X_buffer)),\
+            np.arange(len(self.y_buffer))
 
 
 if __name__ == '__main__':
