@@ -13,80 +13,12 @@ from torchmetrics import F1Score
 from io import StringIO
 from argparse import ArgumentParser
 from mypyfunc.logger import init_logger
-from mypyfunc.torch_models import LSTMModel, F1_Loss
+from mypyfunc.torch_models import LSTM, F1_Loss
 from mypyfunc.torch_data_loader import Streamer
+from mypyfunc.torch_utility import save_checkpoint, save_metrics, load_checkpoint, load_metrics, torch_seeding, device
 from sklearn.metrics import confusion_matrix, f1_score, precision_recall_curve, roc_curve, auc, roc_auc_score, classification_report
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# Save and Load Functions
-
-
-def save_checkpoint(save_path, model, optimizer, loss, f1, val_f1, val_loss):
-
-    if save_path == None:
-        return
-
-    state_dict = {'model_state_dict': model.state_dict(),
-                  'optimizer_state_dict': optimizer.state_dict(),
-                  'loss': loss,
-                  'f1': f1,
-                  'val_f1': val_f1,
-                  'valid_loss': val_loss}
-
-    torch.save(state_dict, save_path)
-    logging.info(f'Model saved to ==> {save_path}')
-
-
-def load_checkpoint(load_path, model, optimizer):
-
-    if load_path == None:
-        return
-
-    state_dict = torch.load(load_path, map_location=device)
-    logging.info(f'Model loaded from <== {load_path}')
-
-    model.load_state_dict(state_dict['model_state_dict'])
-    optimizer.load_state_dict(state_dict['optimizer_state_dict'])
-
-    return state_dict['loss'], state_dict['f1'], state_dict['valid_loss'], state_dict['valid_f1']
-
-
-def save_metrics(save_path, loss_callback, f1_callback, val_loss_callback, val_f1_callback):
-
-    if save_path == None:
-        return
-
-    state_dict = {'loss_callback': loss_callback,
-                  'f1_callback': f1_callback,
-                  'val_loss_callback': val_loss_callback,
-                  'val_f1_callback': val_f1_callback, }
-
-    torch.save(state_dict, save_path)
-    logging.info(f'Model saved to ==> {save_path}')
-
-
-def load_metrics(load_path):
-
-    if load_path == None:
-        return
-
-    state_dict = torch.load(load_path, map_location=device)
-    logging.info(f'Model loaded from <== {load_path}')
-
-    return torch.Tensor(state_dict['loss_callback']).numpy(),\
-        torch.Tensor(state_dict['f1_callback']).numpy(),\
-        torch.Tensor(state_dict['val_loss_callback']).numpy(),\
-        torch.Tensor(state_dict['val_f1_callback']).numpy()
-
-
-def torch_seeding():
-    np.random.seed(42)
-    random.seed(42)
-    # torch.use_deterministic_algorithms(True)
-    torch.manual_seed(42)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(42)
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def torch_training(
@@ -94,22 +26,15 @@ def torch_training(
     ds_val: Streamer,
     model: nn.Module,
     optimizer: torch.optim.Optimizer,
-    model_path: str,
     epochs: int = 1000,
     criterion=nn.BCELoss(),
-    f1_torch=f1_score  # F1_Loss().cuda(),
+    f1_torch=f1_score,  # F1_Loss().cuda(),
 ) -> nn.Module:
 
     f1_callback, loss_callback, val_f1_callback, val_loss_callback = (), (), (), ()
     for epoch in range(epochs):
-
         minibatch_loss_train, minibatch_f1 = 0, 0
         n_train = None
-
-        if os.path.exists(model_path):
-            model = model.load_state_dict(torch.load(
-                model_path)['model_state_dict'])  # load model
-
         for n_train, (x, y) in enumerate(ds_train):
             x = x.to(device)
             y = y.to(device)
@@ -117,6 +42,7 @@ def torch_training(
             y_pred = model(x)
             loss = criterion(y_pred, y)
             f1_score = f1_torch((y_pred.cpu() > 0.5).int(), y.cpu().int())
+            # f1_score = f1_torch(y, y_pred)
             loss.backward()
             optimizer.step()
 
@@ -124,10 +50,10 @@ def torch_training(
             minibatch_f1 += f1_score
 
         model.eval()
-        loss_callback += (minibatch_loss_train / (n_train)
+        loss_callback += (minibatch_loss_train / (n_train + 1)
                           if n_train else minibatch_loss_train,)
-        f1_callback += ((minibatch_f1/(n_train)
-                        if n_train else minibatch_f1)/2,)
+        f1_callback += ((minibatch_f1/(n_train + 1)
+                        if n_train else minibatch_f1),)
 
         with torch.no_grad():
             minibatch_loss_val, minibatch_f1_val = 0, 0
@@ -137,22 +63,23 @@ def torch_training(
                 y_pred = model(x)
                 loss = criterion(y_pred, y)
                 val_f1 = f1_torch((y_pred.cpu() > 0.5).int(), y.cpu().int())
+                # val_f1 = f1_torch(y, y_pred)
                 minibatch_loss_val += loss.item()
                 minibatch_f1_val += val_f1
 
             ds_val.shuffle()
             val_loss_callback += (minibatch_loss_val /
-                                  (n_val) if n_val else minibatch_loss_val,)
-            val_f1_callback += ((minibatch_f1_val/(n_val)
-                                if n_val else minibatch_f1)/2,)
+                                  (n_val + 1) if n_val else minibatch_loss_val,)
+            val_f1_callback += ((minibatch_f1_val/(n_val + 1)
+                                if n_val else minibatch_f1),)
 
         logging.info(
-            "Epoch: {}/{}, Loss - {:.3f},f1 - {:.3f}, val_loss - {:3f}, val_f1 - {:3f}".format(
+            "Epoch: {}/{}\n Loss - {:.3f},f1 - {:.3f}\n val_loss - {:.3f}, val_f1 - {:.3f}".format(
                 epoch, epochs, loss_callback[-1], f1_callback[-1], val_loss_callback[-1], val_f1_callback[-1]
             ))
 
         if not bool(epoch % 10):
-            save_checkpoint(model_path, model,
+            save_checkpoint('model.pth', model,
                             optimizer, loss_callback[-1], f1_callback[-1], val_loss_callback[-1], val_f1_callback[-1])
             save_metrics('metrics.pth', loss_callback, f1_callback,
                          val_loss_callback, val_f1_callback)
@@ -163,7 +90,7 @@ def torch_training(
     return model
 
 
-def report_to_df(report):
+def report_to_df(report):  # FIX ME
     report = re.sub(r" +", " ", report).replace("avg / total",
                                                 "avg/total").replace("\n ", "\n")
     report_df = pd.read_csv(StringIO("Classes" + report),
@@ -213,7 +140,7 @@ def evaluate(
     f1_scores = tuple(f1_score(y_true, (y_pred > lambda_).astype(int))
                       for lambda_ in threshold_range)
 
-    logging.info("f1: {}, at thres = 0.5".format(
+    logging.info("f1: {:.4f}, at thres = 0.5".format(
         f1_score(y_true, (y_pred > 0.5).astype(int))))
     logging.info("Max f1: {:.4f}, at thres = {:.4f}".format(
         np.max(f1_scores), threshold_range[np.argmax(f1_scores)]
@@ -235,6 +162,7 @@ def evaluate(
         np.max(f1_scores), threshold_range[np.argmax(f1_scores)]
     ))
     fig.savefig(os.path.join(plots_folder, "confusion_matrix.png"))
+    return np.max(f1_scores)
 
 
 def plot_callback(train_metric: np.ndarray, val_metric: np.ndarray, name: str, num=0):
@@ -253,16 +181,12 @@ def plot_callback(train_metric: np.ndarray, val_metric: np.ndarray, name: str, n
 def torch_eval(
     ds_test: Streamer,
     model: nn.Module,
-    model_path: str,
-    threshold: float = 0.5,
 ) -> None:
 
-    model.load_state_dict(torch.load(model_path)['model_state_dict'])
     model.eval()
-
     y_pred, y_true = None, None
     with torch.no_grad():
-        for batch_step, (x, y) in enumerate(ds_test):
+        for x, y in ds_test:
             x = x.to(device)
             y = y.to(device)
             output = model(x)
@@ -275,11 +199,11 @@ def torch_eval(
     plot_callback(loss, val_loss, "loss")
     plot_callback(f1, val_f1, "f1")
 
-    y_pred, y_true = (y_pred.cpu().numpy() >
-                      threshold).astype(np.uint), y_true.cpu().numpy().astype(np.uint)
-    evaluate(y_true, y_pred)
+    y_pred, y_true = y_pred.cpu().numpy(), y_true.cpu().numpy()
+    best = evaluate(y_true, y_pred)
 
-    report = classification_report(y_true, y_pred, labels=[1, 0], digits=4)
+    report = classification_report(y_true.astype(
+        np.uint), (y_pred > best).astype(np.uint), labels=[1, 0], digits=4)
     report_to_df(report)
 
 
@@ -298,20 +222,20 @@ if __name__ == "__main__":
         __cache__[lst] for lst in __cache__)
 
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, mem_split=8, chunk_size=32, batch_size=1024)
+                        mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=256)
     ds_val = Streamer(embedding_list_val, label_path,
-                      mapping_path, data_dir, mem_split=4, chunk_size=32, batch_size=1024)
+                      mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=256)
     ds_test = Streamer(embedding_list_test, label_path,
-                       mapping_path, data_dir, mem_split=2, chunk_size=32, batch_size=1024)
+                       mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=256)
 
-    model = LSTMModel(input_dim=18432, hidden_dim=256,
-                      layer_dim=1)
+    model = LSTM(input_dim=18432, hidden_dim=256,
+                 layer_dim=1)
     logging.info("{}".format(model.train()))
 
     model = torch.nn.DataParallel(model, device_ids=[0, 1])
     model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
-
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
+    # optimizer = torch.optim.SGD(model.parameters(), lr=0.00001)
     parser = ArgumentParser()
     parser.add_argument(
         "-train", "--train", action="store_true",
@@ -328,11 +252,13 @@ if __name__ == "__main__":
     torch_seeding()
 
     if args.train:
+        # model.load_state_dict(torch.load(model_path)['model_state_dict'])
         logging.info("Starting Training")
-        model = torch_training(ds_train, ds_val, model, optimizer, model_path)
+        model = torch_training(ds_train, ds_val, model, optimizer)
         logging.info("Done Training")
 
     if args.test:
+        model.load_state_dict(torch.load(model_path)['model_state_dict'])
         logging.info("Starting Evaluation")
-        torch_eval(ds_test, model, model_path)
+        torch_eval(ds_test, model)
         logging.info("Done Evaluation")

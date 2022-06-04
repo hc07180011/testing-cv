@@ -1,6 +1,5 @@
 import os
 import json
-import random
 import logging
 import numpy as np
 import tensorflow as tf
@@ -11,6 +10,7 @@ from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Flatten, Bidirectional, Dropout, GlobalMaxPooling1D
 from tensorflow.keras.optimizers import Adam
+from mypyfunc.keras_eval import Metrics
 from mypyfunc.transformers import TransformerEncoder, PositionalEmbedding
 from mypyfunc.torch_data_loader import Streamer
 
@@ -26,14 +26,9 @@ class Model:
 
     def __init__(
         self,
-        chunked_list, label_path, mapping_path, data_dir,
         summary: bool = True,
         overview: str = 'preprocessing/embedding/models/flicker_detection.txt'
     ) -> None:
-        self.chunked_list = chunked_list
-        self.label_path = label_path
-        self.mapping_path = mapping_path
-        self.data_dir = data_dir
         self.model_path = None
         self.summary = summary
         self.overview = overview
@@ -132,70 +127,58 @@ class Model:
             json.dump(self.history if isinstance(self.history, dict)
                       else self.history.history, file_pi)
 
-    def batch_train(self, epochs: int, metrics: tuple,
-                    _oversampling: Callable, load_embeddings: Callable,
-                    model_path: str = "h5_models/test.h5",
+    def batch_train(self, epochs: int,
+                    train_loader: Streamer,
+                    val_loader: Streamer,
+                    model: tf.keras.models.Sequential,
+                    loss_fn: tf.keras.losses,
+                    optimizer: tf.keras.optimizers,
+                    metrics: Metrics,
                     ) -> None:
 
         mirrored_strategy = tf.distribute.MirroredStrategy()
 
+        loss_callback, f1_callback, val_loss_callback, val_f1_callback = (), (), (), ()
         for epoch in range(epochs):
-
-            random.shuffle(self.chunked_list)
-            for vid_chunk in self.chunked_list:
-
-                X_train, y_train = _oversampling(*load_embeddings(
-                    vid_chunk, self.label_path, self.mapping_path, self.data_dir))  # FIX ME x val y val
-
+            mini_loss, mini_f1 = 0, 0
+            for train_idx, (x_batch, y_batch) in enumerate(train_loader):
                 with mirrored_strategy.scope():
+                    with tf.GradientTape() as tape:
+                        logits = self.model(x_batch, training=True)
+                        loss = loss_fn(y_batch, logits)
+                        mini_f1 += metrics.f1(y_batch, logits)
+                        mini_loss += loss
+                    grads = tape.gradient(loss, model.trainable_weights)
+                    optimizer.apply_gradients(
+                        zip(grads, model.trainable_weights))
 
-                    if self.model is None and os.path.exists("{}".format(model_path)):
-                        logging.info("{}".format(metrics))
-                        self.model = tf.keras.models.load_model(
-                            model_path,
-                            custom_objects=dict(
-                                map(lambda metric: (metric.__name__, metric), metrics))
-                        )
-                    elif self.model is None:
-                        self.compile(
-                            model=self.LSTM(X_train.shape[1:]),
-                            loss="binary_crossentropy",
-                            optimizer=Adam(learning_rate=1e-5),
-                            # , recall, precision, specificity),
-                            metrics=metrics,
-                        )
+            mini_val_loss, mini_val_f1 = 0, 0
+            for val_idx, (x_batch, y_batch) in enumerate(val_loader):
+                with mirrored_strategy.scope():
+                    val_logits = self.model(x_batch, training=False)
+                    mini_val_f1 += metrics.f1(y_batch, logits)
+                    mini_val_loss += loss_fn(y_batch, val_logits)
 
-                    train_metrics = self.model.train_on_batch(
-                        X_train, y_train)
-                    y_pred = self.model.predict(X_train)
-                    logging.debug("YPRED SHAPE - {}".format(y_pred.shape))
-                    val_metrics = self.model.evaluate(
-                        X_train, y_train)  # FIX ME x val y val
+            loss_, f1_, val_loss_, val_f1_ =\
+                mini_loss/train_idx+1, mini_f1 / train_idx + \
+                1, mini_val_loss/val_idx+1, mini_val_f1/val_idx+1
 
-                logging.info(
-                    "EPOCH {}: loss - {:.3f}, f1 - {:.3f}, val_loss - {:.3f}, val_f1 - {:.3f}".format(epoch, *train_metrics, *val_metrics))
+            logging.info(
+                "EPOCH {}:\n loss - {:.3f}, f1 - {:.3f}\n val_loss - {:.3f}, val_f1 - {:.3f}".format(
+                    epoch, loss_, f1_, val_loss_, val_f1_))
 
-                if self.model.metrics and self.history is None:
-                    self.metrics = self.model.metrics_names
-                    self.history = {}
-                    for metric in self.model.metrics_names:
-                        self.history[metric] = []
-                        self.history["val_{}".format(metric)] = []
-
-                    self.figures = tuple(map(lambda i: plt.figure(
-                        num=i, figsize=(16, 4), dpi=200), range(len(self.model.metrics_names))))
-
-            for idx, metric in enumerate(self.model.metrics_names):
-                self.history[metric].append(train_metrics[idx])
-                self.history["val_{}".format(metric)].append(
-                    val_metrics[idx])
+            loss_callback += (loss_,)
+            f1_callback += (f1_,)
+            val_loss_callback += (val_loss_,)
+            val_f1_callback += (val_f1_,)
+            train_loader.shuffle()
 
             if not (epoch % 1):
-                self.model.save("{}".format(model_path))
-                del self.model
-                self.model = None
                 tf.compat.v1.reset_default_graph()
                 tf.keras.backend.clear_session()
+
+        self.history = {"loss": loss_callback, "f1": f1_callback,
+                        "val_loss": val_loss_callback, "val_f1": val_f1_callback}
 
 
 class InferenceModel:

@@ -68,22 +68,23 @@ def _preprocess(
         and encoding_filename_mapping[x.replace(".npy", "")] in raw_labels
     ])
 
-    # embedding_list_train, embedding_list_test, _, _ = train_test_split(
-    #     embedding_path_list,
-    #     tuple(range(len(embedding_path_list))), # dummy buffer just to split embedding_path_list
-    #     test_size=0.1,
-    #     random_state=42
-    # )
+    embedding_list_train, embedding_list_test, _, _ = train_test_split(
+        tuple(file for file in embedding_path_list if "_" not in file),
+        # dummy buffer just to split embedding_path_list
+        tuple(range(len(tuple(file for file in embedding_path_list if "_" not in file)))),
+        test_size=0.1,
+        random_state=42
+    )
 
-    embedding_list_test = (
-        "0002.mp4.npy", "0003.mp4.npy", "0006.mp4.npy",
-        "0016.mp4.npy", "0044.mp4.npy", "0055.mp4.npy",
-        "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
-        "0169.mp4.npy"
-    )
-    embedding_list_train = tuple(
-        file for file in embedding_path_list if not any(map(file.__contains__, ("_",))) and file not in embedding_list_test
-    )
+    # embedding_list_test = (
+    #     "0002.mp4.npy", "0003.mp4.npy", "0006.mp4.npy",
+    #     "0016.mp4.npy", "0044.mp4.npy", "0055.mp4.npy",
+    #     "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
+    #     "0169.mp4.npy"
+    # )
+    # embedding_list_train = tuple(
+    #     file for file in embedding_path_list if not any(map(file.__contains__, ("_",))) and file not in embedding_list_test
+    # )
 
     chunk_size = 32  # batch sizes must be even number
 
@@ -240,12 +241,12 @@ def _main() -> None:
     logging.info("[Preprocessing] done.")
 
     if args.train:
-        logging.info("[Oversampling] Start ...")
-        X_train, y_train = _oversampling(
-            X_train,
-            y_train
-        )
-        logging.info("[Oversampling] done.")
+        # logging.info("[Oversampling] Start ...")
+        # X_train, y_train = _oversampling(
+        #     X_train,
+        #     y_train
+        # )
+        # logging.info("[Oversampling] done.")
 
         logging.info("[Training] Start ...")
         _ = _train(

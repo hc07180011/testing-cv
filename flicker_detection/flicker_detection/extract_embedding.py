@@ -1,3 +1,4 @@
+from cProfile import label
 import os
 import json
 import cv2
@@ -18,7 +19,8 @@ from mypyfunc.logger import init_logger
 from typing import Tuple
 from preprocessing.embedding.backbone import BaseCNN, Serializer
 from mypyfunc.keras_models import Model, InferenceModel
-from mypyfunc.keras_eval import f1, recall, precision, specificity
+from mypyfunc.keras_eval import Metrics
+from mypyfunc.torch_data_loader import Streamer
 
 
 data_base_dir = "data"
@@ -110,28 +112,28 @@ def preprocessing(
         and encoding_filename_mapping[x.replace(".npy", "")] in raw_labels
     ])
 
-    # embedding_list_train, embedding_list_test, _, _ = train_test_split(
-    #     tuple(file for file in embedding_path_list if "_" not in file),
-    #     # dummy buffer just to split embedding_path_list
-    #     tuple(
-    #         range(len(tuple(file for file in embedding_path_list if "_" not in file)))),
-    #     test_size=0.1,
-    #     random_state=42
+    embedding_list_train, embedding_list_test, _, _ = train_test_split(
+        tuple(file for file in embedding_path_list if "_" not in file),
+        # dummy buffer just to split embedding_path_list
+        tuple(
+            range(len(tuple(file for file in embedding_path_list if "_" not in file)))),
+        test_size=0.1,
+        random_state=42
+    )
+    embedding_list_val = embedding_list_test
+    # embedding_list_test = (
+    #     "0002.mp4.npy", "0003.mp4.npy", "0006.mp4.npy",
+    #     "0016.mp4.npy", "0044.mp4.npy", "0055.mp4.npy",
+    #     "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
+    #     "0169.mp4.npy"
     # )
-    # embedding_list_val = embedding_list_test
-    embedding_list_test = (
-        "0002.mp4.npy", "0003.mp4.npy", "0006.mp4.npy",
-        "0016.mp4.npy", "0044.mp4.npy", "0055.mp4.npy",
-        "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
-        "0169.mp4.npy"
-    )
-    videos = tuple(set(embedding_path_list) - set(embedding_list_test))
-    embedding_list_train, embedding_list_val, _, _ = train_test_split(
-        videos,
-        tuple(range(len(videos))),
-        test_size=0.3,
-        random_state=42,
-    )
+    # videos = tuple(set(embedding_path_list) - set(embedding_list_test))
+    # embedding_list_train, embedding_list_val, _, _ = train_test_split(
+    #     videos,
+    #     tuple(range(len(videos))),
+    #     test_size=0.3,
+    #     random_state=42,
+    # )
     # embedding_list_val = tuple(
     #     file for file in embedding_path_list
     #     if any(map(file.__contains__, ("0002_", "0003_", "0006_",
@@ -162,107 +164,52 @@ def decode_fn(record_bytes, key) -> tf.Tensor:
     return tf.io.parse_tensor(string[key], out_type=tf.float32)
 
 
-def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
-    chunks = np.array_split(
-        input_arr,
-        list(range(
-            chunk_size,
-            input_arr.shape[0] + 1,
-            chunk_size
-        ))
-    )
-    i_pad = np.zeros(chunks[0].shape)
-    i_pad[:len(chunks[-1])] = chunks[-1]
-    chunks[-1] = i_pad
-    return tuple(map(tuple, chunks))
-
-
-def load_embeddings(
-    embedding_list_train: list,
-    label_path: str,
-    mapping_path: str,
-    data_dir: str,
-    batch_size: int = 30,
-) -> Tuple[np.ndarray, np.ndarray]:
-    encoding_filename_mapping = json.load(open(mapping_path, "r"))
-    raw_labels = json.load(open(label_path, "r"))
-    X_train, y_train = (), ()
-    for key in embedding_list_train:
-        real_filename = encoding_filename_mapping[key.replace(
-            ".tfrecords", "")]
-        loaded = np.load("{}.npy".format(os.path.join(data_dir, key.replace(
-            ".tfrecords", ""))))
-        X_train += (*_get_chunk_array(loaded, batch_size),)
-        # get flicker frame indexes
-        flicker_idxs = np.array(raw_labels[real_filename]) - 1
-        # buffer zeros array frame video embedding
-        buf_label = np.zeros(loaded.shape[0], dtype=np.uint8)
-        # set indexes in zeros array based on flicker frame indexes
-        buf_label[flicker_idxs] = 1
-        y_train += tuple(
-            1 if sum(x) else 0
-            for x in _get_chunk_array(buf_label, batch_size)
-        )  # consider using tf reduce sum for multiclass
-        # logging.info("Video - {}".format(key))
-    return np.array(X_train), np.array(y_train)
-
-
-def _oversampling(
-    X_train: np.array,
-    y_train: np.array,
-) -> Tuple[np.array]:
-    """
-    batched alternative:
-    https://imbalanced-learn.org/stable/references/generated/imblearn.keras.BalancedBatchGenerator.html
-    """
-    sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=1)
-    original_X_shape = X_train.shape
-    X_train, y_train = sm.fit_resample(
-        np.reshape(X_train, (-1, np.prod(original_X_shape[1:]))),
-        y_train
-    )
-    X_train = np.reshape(X_train, (-1,) + original_X_shape[1:])
-    return (X_train, y_train)
-
-
 def training(
-    label_path: str,
-    mapping_path: str,
-    data_dir: str,
-    cache_path: str,
+    ds_train: Streamer,
+    ds_val: Streamer,
     epochs: int = 1,
-) -> Model:
-    embedding_list_train = np.array(np.load("{}.npz".format(
-        cache_path), allow_pickle=True)["arr_0"])
-    chunked_list = np.array_split(embedding_list_train, indices_or_sections=40)
-    buf = Model(chunked_list, label_path, mapping_path, data_dir)
-    buf.batch_train(epochs=epochs, metrics=(f1,), _oversampling=_oversampling,
-                    load_embeddings=load_embeddings)
-    buf.plot_history()
-    return buf
+) -> None:
+
+    loss_fn = tf.keras.losses.BinaryCrossentropy(from_logits=True)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=0.00001)
+    metrics = Metrics()
+
+    buf = Model()
+    model = buf.LSTM((18432, 32))
+    buf.compile(model, loss_fn, optimizer, (metrics.f1,))
+
+    buf.batch_train(
+        epochs=epochs,
+        train_loader=ds_train,
+        val_loader=ds_val,
+        model=model,
+        loss_fn=loss_fn,
+        optimizer=optimizer,
+        metrics=metrics)
+
+    buf.save_callback()
 
 
 def testing(
-    label_path: str,
-    mapping_path: str,
-    data_dir: str,
-    cache_path: str,
+    ds_test: Streamer,
     model_path: str,
 ) -> None:
-    embedding_list_test = np.load("{}.npz".format(
-        cache_path), allow_pickle=True)["arr_1"]
-    X_test, y_test = load_embeddings(
-        embedding_list_test, label_path, mapping_path, data_dir)
+    X_test, y_test = np.array([]), np.array([])
+    for x, y in ds_test:
+        X_test = np.concatenate((X_test, x))
+        y_test = np.concatenate((y_test, y))
 
+    metrics = Metrics()
     model = InferenceModel(
         model_path,
         custom_objects={
-            'f1': f1,
+            'f1': metrics.f1,
             # "PositionalEmbedding": PositionalEmbedding,
             # "TransformerEncoder": TransformerEncoder
         })
     y_pred = model.predict(X_test)
     model.evaluate(y_test, y_pred)
+    model.plot_callback()
 
 
 def main():
@@ -274,10 +221,12 @@ def main():
      You can do this by creating a new `tf.data.Options()` object then setting `options.experimenta
     l_distribute.auto_shard_policy = AutoShardPolicy.DATA` before applying the options object to the dataset via `dataset.with_options(options)`.
     """
-    data_base_dir = "data"
-    os.makedirs(data_base_dir, exist_ok=True)
-    cache_base_dir = ".cache"
-    os.makedirs(cache_base_dir, exist_ok=True)
+
+    videos_path = "data/augmented"
+    label_path = "data/label.json"
+    mapping_path = "data/mapping_aug_data.json"
+    data_path = "data/vgg16_emb/"
+    cache_path = ".cache/train_test.npz"
 
     # tf.keras.utils.set_random_seed(12345)
     # tf.config.experimental.enable_op_determinism()
@@ -304,35 +253,43 @@ def main():
 
     logging.info("[Embedding] Start ...")
     np_embed(
-        os.path.join(data_base_dir, "augmented"),
-        os.path.join(data_base_dir, "vgg16_emb")
+        videos_path,
+        data_path
     )
     logging.info("[Embedding] done.")
 
     logging.info("[Preprocessing] Start ...")
     preprocessing(
-        os.path.join(data_base_dir, "label.json"),
-        os.path.join(data_base_dir, "mapping_aug_data.json"),
-        os.path.join(data_base_dir, "vgg16_emb"),  # or embedding
-        os.path.join(cache_base_dir, "train_test")
+        label_path,
+        mapping_path,
+        data_path,
+        cache_path,
     )
     logging.info("[Preprocessing] done.")
+
+    __cache__ = np.load("{}.npz".format(cache_path), allow_pickle=True)
+
+    embedding_list_train, embedding_list_val, embedding_list_test = tuple(
+        __cache__[lst] for lst in __cache__)
+
+    ds_train = Streamer(embedding_list_train, label_path,
+                        mapping_path, data_path, mem_split=1, batch_size=256, oversample=False)
+    ds_val = Streamer(embedding_list_val, label_path,
+                      mapping_path, data_path, mem_split=1, batch_size=256, oversample=False)
+    ds_test = Streamer(embedding_list_test, label_path,
+                       mapping_path, data_path, mem_split=1, batch_size=256, oversample=False)
+
     if args.train:
         logging.info("[Training] Start ...")
         training(
-            os.path.join(data_base_dir, "label.json"),
-            os.path.join(data_base_dir, "mapping_aug_data.json"),
-            os.path.join(data_base_dir, "vgg16_emb"),
-            os.path.join(cache_base_dir, "train_test")
+            ds_train,
+            ds_val,
         )
         logging.info("[Training] done.")
     if args.test:
         logging.info("[Testing] start ...")
         testing(
-            os.path.join(data_base_dir, "label.json"),
-            os.path.join(data_base_dir, "mapping_aug_data.json"),
-            os.path.join(data_base_dir, "vgg16_emb"),
-            os.path.join(cache_base_dir, "train_test"),
+            ds_test,
             "h5_models/test.h5"
         )
         logging.info("[Testing] done.")
