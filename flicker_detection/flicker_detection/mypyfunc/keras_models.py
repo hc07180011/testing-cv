@@ -12,6 +12,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Flatten, Bidirectional, Dropout, GlobalMaxPooling1D
 from tensorflow.keras.optimizers import Adam
 from mypyfunc.transformers import TransformerEncoder, PositionalEmbedding
+from mypyfunc.torch_data_loader import Streamer
 
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("tensorflow").setLevel(logging.WARNING)

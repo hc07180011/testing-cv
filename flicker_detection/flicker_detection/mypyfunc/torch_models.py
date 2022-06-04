@@ -10,9 +10,9 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
-class LSTMModel(nn.Module):
+class LSTM(nn.Module):
     def __init__(self, input_dim, hidden_dim, layer_dim):
-        super(LSTMModel, self).__init__()
+        super(LSTM, self).__init__()
         # Hidden dimensions
         self.hidden_dim = hidden_dim
 
@@ -25,14 +25,19 @@ class LSTMModel(nn.Module):
         self.lstm = nn.LSTM(input_dim, hidden_dim, layer_dim, batch_first=True)
 
         # ReLu layer
-        self.fc1 = nn.Linear(hidden_dim, 128)
-        # self.fc2 = nn.Linear(128, 64)  # 64
+        self.relu = nn.Linear(hidden_dim, 128)
 
         # flatten layer
         self.flatten = nn.Flatten()
 
         # sigmoid layer
         self.sig = nn.Sigmoid()
+
+        for name, param in self.named_parameters():
+            if 'weight' in name:
+                nn.init.normal_(param.data, std=0.05)
+            elif "bias" in name:
+                nn.init.zeros_(param.data)
 
     def forward(self, x):
         # Initialize hidden state with zeros
@@ -52,7 +57,7 @@ class LSTMModel(nn.Module):
         out, (hn, cn) = self.lstm(x, (h0.detach(), c0.detach()))
 
         # Apply relu
-        out = self.fc1(out)
+        out = self.relu(out)
         # out = self.fc2(out)
 
         # Flatten for sigmoid

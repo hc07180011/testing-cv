@@ -5,6 +5,7 @@ import tqdm
 import random
 import numpy as np
 import torch
+from imblearn.over_sampling import SMOTE
 from torch.utils.data import Dataset, DataLoader
 from typing import Tuple
 
@@ -62,9 +63,9 @@ class MYDS(Dataset):
         X_train, y_train = (), ()
         for key in embedding_list_train:
             real_filename = encoding_filename_mapping[key.replace(
-                ".tfrecords", "")]
+                ".npy", "")]
             loaded = np.load("{}.npy".format(os.path.join(self.data_dir, key.replace(
-                ".tfrecords", ""))))
+                ".npy", ""))))
             X_train += (*self._get_chunk_array(loaded, self.chunk_size),)
             # get flicker frame indexes
             flicker_idxs = np.array(raw_labels[real_filename]) - 1
@@ -92,6 +93,7 @@ class Streamer():
                  mem_split: int = 8,
                  chunk_size: int = 30,
                  batch_size: int = 32,
+                 oversample: bool = False,
                  ) -> None:
         self.embedding_list_train = embedding_list_train
         self.chunk_embedding_list = np.array_split(
@@ -104,35 +106,38 @@ class Streamer():
         self.mem_split = mem_split
         self.chunk_size = chunk_size
         self.batch_size = batch_size
+        self.oversample = oversample
 
         self.cur_chunk = 0
+        self.sampler = SMOTE()
         self.X_buffer, self.y_buffer = (), ()
-        self.xidx, self.yidx = None, None
 
     def __len__(self) -> int:
         # FIX ME
         return len(self.embedding_list_train)*len(self.chunk_embedding_list)
 
-    def __iter__(self) -> self:
+    def __iter__(self):
         return self
 
     def __next__(self) -> Tuple[torch.Tensor, torch.Tensor]:
-        if self.cur_chunk == len(self.chunk_embedding_list):
+
+        if (not self.X_buffer or not self.y_buffer) and self.cur_chunk == len(self.chunk_embedding_list):
             gc.collect()
             raise StopIteration
 
-        if not self.X_buffer or not self.y_buffer:
+        if (not self.X_buffer or not self.y_buffer):
             gc.collect()
+
             self.load_embeddings(
                 self.chunk_embedding_list[self.cur_chunk])
             self.cur_chunk += 1
-            return self.__next__()
+            # return self.__next__()
 
         X, y = np.array(self.X_buffer.pop()), np.array(
             self.y_buffer.pop())  # FIX ME
-        random.shuffle(self.xidx)
-        random.shuffle(self.yidx)
-        return torch.from_numpy(X[self.xidx]).float(), torch.from_numpy(y[self.yidx]).float()
+        idx = np.arange(X.shape[0]) - 1
+        random.shuffle(idx)
+        return torch.from_numpy(X[idx]).float(), torch.from_numpy(y[idx]).float()
 
     def shuffle(self) -> None:
         random.shuffle(self.embedding_list_train)
@@ -157,10 +162,28 @@ class Streamer():
         chunks[-1] = i_pad
         return tuple(map(tuple, chunks))
 
+    @staticmethod
+    def _oversampling(
+        X_train: np.array,
+        y_train: np.array,
+    ) -> Tuple[np.array, np.array]:
+        """
+        batched alternative:
+        https://imbalanced-learn.org/stable/references/generated/imblearn.keras.BalancedBatchGenerator.html
+        """
+        sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=1)
+        original_X_shape = X_train.shape
+        X_train, y_train = sm.fit_resample(
+            np.reshape(X_train, (-1, np.prod(original_X_shape[1:]))),
+            y_train
+        )
+        X_train = np.reshape(X_train, (-1,) + original_X_shape[1:])
+        return (X_train, y_train)
+
     def load_embeddings(
         self,
         embedding_list_train: list,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> None:
 
         encoding_filename_mapping = json.load(open(self.mapping_path, "r"))
         raw_labels = json.load(open(self.label_path, "r"))
@@ -170,8 +193,7 @@ class Streamer():
                 ".npy", "")]
             loaded = np.load("{}.npy".format(os.path.join(self.data_dir, key.replace(
                 ".npy", ""))))
-            self.X_buffer += (
-                self._get_chunk_array(loaded, self.chunk_size),)
+            self.X_buffer += (*self._get_chunk_array(loaded, self.chunk_size),)
             # get flicker frame indexes
             flicker_idxs = np.array(raw_labels[real_filename]) - 1
             # buffer zeros array frame video embedding
@@ -184,39 +206,51 @@ class Streamer():
                 for x in self._get_chunk_array(buf_label, self.chunk_size)
             )
 
-        self.X_buffer = [
-            self.X_buffer[i:i+self.batch_size]
-            for i in range(0, len(self.X_buffer), self.batch_size)
-        ]
+        X, y = self._oversampling(
+            np.array(self.X_buffer), np.array(self.y_buffer)
+        ) if self.oversample else (self.X_buffer, self.y_buffer)
 
-        self.y_buffer = [
-            self.y_buffer[i:i+self.batch_size]
-            for i in range(0, len(self.y_buffer), self.batch_size)
+        # X, y = self.X_buffer, self.y_buffer
+
+        self.X_buffer = [
+            X[i:i+self.batch_size]
+            for i in range(0, len(X), self.batch_size)
         ]
-        self.xidx, self.yidx = np.arange(len(self.X_buffer)),\
-            np.arange(len(self.y_buffer))
+        self.y_buffer = [
+            y[i:i+self.batch_size]
+            for i in range(0, len(y), self.batch_size)
+        ]
 
 
 if __name__ == '__main__':
     label_path = "../data/label.json"
     mapping_path = "../data/mapping_aug_data.json"
     data_dir = "../data/vgg16_emb/"
-    # ds = MYDS(embedding_path_list, label_path, mapping_path, data_dir)
-    # dl = DataLoader(ds, batch_size=128, shuffle=False, num_workers=2)
-    # for batch_idx, (x, y) in enumerate(dl):
-    #     # loading batches only from x_paths[-1] and y_paths[-1] numpy files
-    #     print(batch_idx, x.shape, y.shape)
-    __cache__ = np.load(
-        "{}.npz".format("../.cache/train_test"), allow_pickle=True)
+    __cache__ = np.load("{}.npz".format(
+        "../.cache/train_test"), allow_pickle=True)
     embedding_list_train, embedding_list_val, embedding_list_test = tuple(
         __cache__[lst] for lst in __cache__)
 
-    ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, batch_size=1024)
-    ds_val = Streamer(embedding_list_val, label_path,
-                      mapping_path, data_dir, batch_size=32)
-    ds_test = Streamer(embedding_list_test, label_path,
-                       mapping_path, data_dir, batch_size=32)
+    # d_train = MYDS(embedding_list_train, label_path, mapping_path, data_dir)
+    # ds = MYDS(embedding_list_val, label_path, mapping_path, data_dir)
+    # ds = MYDS(embedding_list_test, label_path, mapping_path, data_dir)
+    # dl = DataLoader(ds, batch_size=256, shuffle=True, num_workers=16)
 
-    for idx, (x, y) in enumerate(ds_train):
+    # t_sample = 0
+    # for batch_idx, (x, y) in enumerate(d_train):
+    #     print(batch_idx, x.shape, y.shape)
+    #     t_sample += y.shape[0]
+    # print(t_sample)
+
+    ds_train = Streamer(embedding_list_train, label_path,
+                        mapping_path, data_dir, batch_size=256, oversample=True)
+    ds_val = Streamer(embedding_list_val, label_path,
+                      mapping_path, data_dir, batch_size=256)
+    ds_test = Streamer(embedding_list_test, label_path,
+                       mapping_path, data_dir, mem_split=1, batch_size=256, oversample=True)
+
+    sample = 0
+    for idx, (x, y) in enumerate(ds_test):
         print(idx, x.shape, y.shape)
+        sample += y.shape[0]
+    print(sample)
