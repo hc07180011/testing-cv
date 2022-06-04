@@ -8,6 +8,7 @@
 *.npz
 *.tfrecords
 *.pth
+*.jpg
 model.pth
 metrics.pth
 data/embedding/
