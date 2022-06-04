@@ -210,8 +210,6 @@ class Streamer():
             np.array(self.X_buffer), np.array(self.y_buffer)
         ) if self.oversample else (self.X_buffer, self.y_buffer)
 
-        # X, y = self.X_buffer, self.y_buffer
-
         self.X_buffer = [
             X[i:i+self.batch_size]
             for i in range(0, len(X), self.batch_size)
