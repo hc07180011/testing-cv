@@ -4,15 +4,15 @@ import cv2
 import numpy as np
 
 
-def save_flicker_img(vid_path: str, frame_cap: tuple):
+def save_flicker_img(vid_path: str, init_sec):
     cap = cv2.VideoCapture(vid_path)
-    h, w, total = cap.get(cv2.CAP_PROP_FRAME_HEIGHT), cap.get(
-        cv2.CAP_PROP_FRAME_WIDTH), cap.get(cv2.CAP_PROP_FRAME_COUNT)
+    h, w, total, fps = cap.get(cv2.CAP_PROP_FRAME_HEIGHT), cap.get(
+        cv2.CAP_PROP_FRAME_WIDTH), cap.get(cv2.CAP_PROP_FRAME_COUNT), cap.get(cv2.CAP_PROP_FPS)
     vid_arr = np.zeros((int(total)+1, int(h), int(w), 3))
     success, frame = True, 0
     while success:
         success, vid_arr[frame] = cap.read()
-        if frame in frame_cap:
+        if frame >= (init_sec * fps) and frame <= (init_sec + 1) * fps:
             cv2.imwrite(
                 f"flicker_images/{vid_path[-8:-4]}_frame_{frame}.jpg", vid_arr[frame])
         frame += int(success)
@@ -33,4 +33,4 @@ def label_aug():
 
 
 if __name__ == "__main__":
-    save_flicker_img("flicker-detection/0147.mp4", np.arange(300, 400, 1))
+    save_flicker_img("flicker-detection/0125.mp4", 15)
