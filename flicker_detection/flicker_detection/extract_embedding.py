@@ -120,29 +120,15 @@ def preprocessing(
         test_size=0.1,
         random_state=42
     )
-    embedding_list_val = embedding_list_test
     # embedding_list_test = (
     #     "0002.mp4.npy", "0003.mp4.npy", "0006.mp4.npy",
     #     "0016.mp4.npy", "0044.mp4.npy", "0055.mp4.npy",
     #     "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
     #     "0169.mp4.npy"
     # )
-    # videos = tuple(set(embedding_path_list) - set(embedding_list_test))
-    # embedding_list_train, embedding_list_val, _, _ = train_test_split(
-    #     videos,
-    #     tuple(range(len(videos))),
-    #     test_size=0.3,
-    #     random_state=42,
-    # )
-    # embedding_list_val = tuple(
-    #     file for file in embedding_path_list
-    #     if any(map(file.__contains__, ("0002_", "0003_", "0006_",
-    #                                    "0016_", "0044_", "0055_",
-    #                                    "0070_", "0108_", "0121_", "0169_"))))
-    # embedding_list_train = tuple(
-    #     file for file in embedding_path_list
-    #     if file not in embedding_list_val and file not in embedding_list_test
-    # )
+
+    # embedding_list_train = set(embedding_path_list) - set(embedding_list_test)
+    embedding_list_val = embedding_list_test
 
     length = max([len(embedding_list_test), len(
         embedding_list_val), len(embedding_list_train)])

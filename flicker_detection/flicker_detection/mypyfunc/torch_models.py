@@ -11,7 +11,7 @@ warnings.filterwarnings('ignore')
 
 
 class LSTM(nn.Module):
-    def __init__(self, input_dim, hidden_dim, layer_dim):
+    def __init__(self, input_dim, hidden_dim, layer_dim) -> None:
         super(LSTM, self).__init__()
         # Hidden dimensions
         self.hidden_dim = hidden_dim
@@ -23,49 +23,63 @@ class LSTM(nn.Module):
         # batch_first=True causes input/output tensors to be of shape
         # (batch_dim, seq_dim, feature_dim)
         self.lstm = nn.LSTM(input_dim, hidden_dim, layer_dim, batch_first=True)
-
-        # ReLu layer
-        self.relu = nn.Linear(hidden_dim, 128)
-
-        # flatten layer
+        # Linear Dense
+        self.fc1 = nn.Linear(hidden_dim, 128)
+        # Linear Dense
+        self.fc2 = nn.Linear(128, 64)
+        # Linear Dense
+        self.fc3 = nn.Linear(64, 1)
+        # Flatten Dense
         self.flatten = nn.Flatten()
-
         # sigmoid layer
         self.sig = nn.Sigmoid()
 
-        for name, param in self.named_parameters():
-            if 'weight' in name:
-                nn.init.normal_(param.data, std=0.05)
-            elif "bias" in name:
-                nn.init.zeros_(param.data)
+        self.initialization()
 
-    def forward(self, x):
-        # Initialize hidden state with zeros
-        #######################
-        #  USE GPU FOR MODEL  #
-        #######################
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    def forward(self, x) -> torch.Tensor:
 
         h0 = torch.zeros(self.layer_dim, x.size(
-            0), self.hidden_dim).requires_grad_().to(device)
+            0), self.hidden_dim, device="cuda").requires_grad_()  # .to(device)
 
         # Initialize cell state
         c0 = torch.zeros(self.layer_dim, x.size(
-            0), self.hidden_dim).requires_grad_().to(device)
+            0), self.hidden_dim, device="cuda").requires_grad_()  # .to(device)
 
         # One time step
         out, (hn, cn) = self.lstm(x, (h0.detach(), c0.detach()))
-
-        # Apply relu
-        out = self.relu(out)
-        # out = self.fc2(out)
-
-        # Flatten for sigmoid
+        # Dense lstm
+        out = self.fc1(out)
+        # Dense Relu
+        out = self.fc2(out)
+        # Dense for sigmoid
+        out = self.fc3(out)
+        # Flatten
         out = self.flatten(out)
-
         # Apply sigmoid
         out = self.sig(out)
         return out[:, -1]
+
+    def initialization(self) -> None:
+        # for name, param in self.named_parameters():
+        #     if 'weight' in name:
+        #         nn.init.normal_(param.data, std=0.05)
+        #     elif "bias" in name:
+        #          nn.init.zeros_(param.data)
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.normal_(param.data, std=0.05)
+            elif isinstance(m, nn.LSTM):
+                for name, param in m.named_parameters():
+                    if 'weight_ih' in name:
+                        for i in range(4):
+                            mul = param.shape[0]//4
+                            nn.init.xavier_uniform_(param[i*mul:(i+1)*mul])
+                    elif 'weight_hh' in name:
+                        for i in range(4):
+                            mul = param.shape[0]//4
+                            nn.init.xavier_uniform_(param[i*mul:(i+1)*mul])
+                    elif 'bias' in name:
+                        nn.init.zeros_(param.data)
 
 
 class F1_Loss(nn.Module):

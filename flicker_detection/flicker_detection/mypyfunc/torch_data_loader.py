@@ -80,7 +80,7 @@ class MYDS(Dataset):
         return np.array(X_train), np.asarray(y_train)
 
 
-class Streamer():
+class Streamer(object):
     """
     https://jamesmccaffrey.wordpress.com/2021/03/08/working-with-huge-training-data-files-for-pytorch/
     """
@@ -120,7 +120,6 @@ class Streamer():
         return self
 
     def __next__(self) -> Tuple[torch.Tensor, torch.Tensor]:
-
         if (not self.X_buffer or not self.y_buffer) and self.cur_chunk == len(self.chunk_embedding_list):
             gc.collect()
             raise StopIteration
@@ -131,7 +130,7 @@ class Streamer():
                 self.chunk_embedding_list[self.cur_chunk])
             self.cur_chunk += 1
 
-        X, y = self.X_buffer.pop(), self.y_buffer.pop()  # FIX ME
+        X, y = self.X_buffer.pop(), self.y_buffer.pop()
         idx = np.arange(X.shape[0]) - 1
         random.shuffle(idx)
         return torch.from_numpy(X[idx]).float(), torch.from_numpy(y[idx]).float()
@@ -215,6 +214,29 @@ class Streamer():
             y[i:i+self.batch_size]
             for i in range(0, len(y), self.batch_size)
         ]
+
+
+class MultiProcessedLoader(Streamer):
+    def __init__(self,
+                 embedding_list_train: list,
+                 label_path: str,
+                 mapping_path: str,
+                 data_dir: str,
+                 mem_split: int = 8,
+                 chunk_size: int = 30,
+                 batch_size: int = 32,
+                 oversample: bool = False,
+                 ) -> None:
+        super.__init__(
+            embedding_list_train,
+            label_path,
+            mapping_path,
+            data_dir,
+            mem_split,
+            chunk_size,
+            batch_size,
+            oversample,
+        )
 
 
 if __name__ == '__main__':

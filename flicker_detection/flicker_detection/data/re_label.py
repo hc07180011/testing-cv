@@ -12,7 +12,7 @@ def save_flicker_img(vid_path: str, init_sec):
     success, frame = True, 0
     while success:
         success, vid_arr[frame] = cap.read()
-        if frame >= (init_sec * fps) and frame <= (init_sec + 1) * fps:
+        if frame >= (init_sec * fps) and frame <= (init_sec + 2) * fps:
             cv2.imwrite(
                 f"flicker_images/{vid_path[-8:-4]}_frame_{frame}.jpg", vid_arr[frame])
         frame += int(success)
@@ -33,4 +33,4 @@ def label_aug():
 
 
 if __name__ == "__main__":
-    save_flicker_img("flicker-detection/0125.mp4", 15)
+    save_flicker_img("flicker-detection/0096.mp4", 5)

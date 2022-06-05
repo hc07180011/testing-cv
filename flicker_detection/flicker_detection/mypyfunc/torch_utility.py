@@ -155,7 +155,7 @@ def evaluate(
         np.max(f1_scores), threshold_range[np.argmax(f1_scores)]
     ))
     fig.savefig(os.path.join(plots_folder, "confusion_matrix.png"))
-    return np.max(f1_scores)
+    return threshold_range[np.argmax(f1_scores)]
 
 
 def plot_callback(train_metric: np.ndarray, val_metric: np.ndarray, name: str, num=0):

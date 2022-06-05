@@ -70,8 +70,11 @@ def torch_training(
 
         logging.info(
             "Epoch: {}/{} Loss - {:.3f},f1 - {:.3f} val_loss - {:.3f}, val_f1 - {:.3f}".format(
-                epoch +
-                1, epochs, loss_callback[-1], f1_callback[-1], val_loss_callback[-1], val_f1_callback[-1]
+                epoch + 1, epochs,
+                loss_callback[-1],
+                f1_callback[-1],
+                val_loss_callback[-1],
+                val_f1_callback[-1]
             ))
 
         if not bool(epoch % 10):
@@ -100,9 +103,10 @@ def torch_eval(
             y = y.to(device)
             output = model(x)
 
-            y_pred = output if y_pred is None else torch.hstack(
-                (y_pred, output))
-            y_true = y if y_true is None else torch.hstack((y_true, y))
+            y_pred = output if y_pred is None else\
+                torch.hstack((y_pred, output))
+            y_true = y if y_true is None else\
+                torch.hstack((y_true, y))
 
     loss, f1, val_loss, val_f1 = load_metrics("metrics.pth")
     plot_callback(loss, val_loss, "loss")
@@ -131,11 +135,11 @@ if __name__ == "__main__":
         __cache__[lst] for lst in __cache__)
 
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=256, oversample=True)
+                        mapping_path, data_dir, mem_split=2, chunk_size=32, batch_size=256, oversample=True)
     ds_val = Streamer(embedding_list_val, label_path,
-                      mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=256, oversample=True)
+                      mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=256, oversample=False)
     ds_test = Streamer(embedding_list_test, label_path,
-                       mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=256)
+                       mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=256, oversample=False)
 
     model = LSTM(input_dim=18432, hidden_dim=256,
                  layer_dim=1)
