@@ -1,24 +1,15 @@
-import os
 import logging
-import random
-import re
-import tqdm
+
 import torch
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 import torch.nn as nn
 from torchmetrics import F1Score
-from io import StringIO
 from argparse import ArgumentParser
 from mypyfunc.logger import init_logger
 from mypyfunc.torch_models import LSTM, F1_Loss
 from mypyfunc.torch_data_loader import Streamer
-from mypyfunc.torch_utility import save_checkpoint, save_metrics, load_checkpoint, load_metrics, torch_seeding, device
-from sklearn.metrics import confusion_matrix, f1_score, precision_recall_curve, roc_curve, auc, roc_auc_score, classification_report
-
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+from mypyfunc.torch_utility import save_checkpoint, save_metrics, load_checkpoint, load_metrics, torch_seeding, evaluate, plot_callback, report_to_df, device
+from sklearn.metrics import classification_report, f1_score
 
 
 def torch_training(
@@ -26,34 +17,37 @@ def torch_training(
     ds_val: Streamer,
     model: nn.Module,
     optimizer: torch.optim.Optimizer,
+    scheduler: torch.optim.lr_scheduler,
     epochs: int = 1000,
     criterion=nn.BCELoss(),
     f1_torch=f1_score,  # F1_Loss().cuda(),
 ) -> nn.Module:
-
     f1_callback, loss_callback, val_f1_callback, val_loss_callback = (), (), (), ()
     for epoch in range(epochs):
         minibatch_loss_train, minibatch_f1 = 0, 0
-        n_train = None
-        for n_train, (x, y) in enumerate(ds_train):
-            x = x.to(device)
-            y = y.to(device)
-            optimizer.zero_grad()
+
+        for n_train, (data, targets) in enumerate(ds_train):
+            x = data.to(device)
+            y = targets.to(device)
             y_pred = model(x)
             loss = criterion(y_pred, y)
-            f1_score = f1_torch((y_pred.cpu() > 0.5).int(), y.cpu().int())
+            f1_score = f1_torch(
+                (y_pred.cpu() > 0.5).int(), y.cpu().int())
             # f1_score = f1_torch(y, y_pred)
+
+            optimizer.zero_grad()
             loss.backward()
+            torch.nn.utils.clip_grad_norm(model.parameters(), 1.0)
             optimizer.step()
 
             minibatch_loss_train += loss.item()
-            minibatch_f1 += f1_score
-
+            minibatch_f1 += f1_score.item()
         model.eval()
         loss_callback += (minibatch_loss_train / (n_train + 1)
                           if n_train else minibatch_loss_train,)
         f1_callback += ((minibatch_f1/(n_train + 1)
                         if n_train else minibatch_f1),)
+        # scheduler.step(loss_callback[-1])
 
         with torch.no_grad():
             minibatch_loss_val, minibatch_f1_val = 0, 0
@@ -62,10 +56,11 @@ def torch_training(
                 y = y.to(device)
                 y_pred = model(x)
                 loss = criterion(y_pred, y)
-                val_f1 = f1_torch((y_pred.cpu() > 0.5).int(), y.cpu().int())
+                val_f1 = f1_torch(
+                    (y_pred.cpu() > 0.5).int(), y.cpu().int())
                 # val_f1 = f1_torch(y, y_pred)
                 minibatch_loss_val += loss.item()
-                minibatch_f1_val += val_f1
+                minibatch_f1_val += val_f1.item()
 
             ds_val.shuffle()
             val_loss_callback += (minibatch_loss_val /
@@ -74,8 +69,9 @@ def torch_training(
                                 if n_val else minibatch_f1),)
 
         logging.info(
-            "Epoch: {}/{}\n Loss - {:.3f},f1 - {:.3f}\n val_loss - {:.3f}, val_f1 - {:.3f}".format(
-                epoch, epochs, loss_callback[-1], f1_callback[-1], val_loss_callback[-1], val_f1_callback[-1]
+            "Epoch: {}/{} Loss - {:.3f},f1 - {:.3f} val_loss - {:.3f}, val_f1 - {:.3f}".format(
+                epoch +
+                1, epochs, loss_callback[-1], f1_callback[-1], val_loss_callback[-1], val_f1_callback[-1]
             ))
 
         if not bool(epoch % 10):
@@ -87,95 +83,8 @@ def torch_training(
         model.train()
         ds_train.shuffle()
 
+    torch.cuda.empty_cache()
     return model
-
-
-def report_to_df(report):  # FIX ME
-    report = re.sub(r" +", " ", report).replace("avg / total",
-                                                "avg/total").replace("\n ", "\n")
-    report_df = pd.read_csv(StringIO("Classes" + report),
-                            sep=' ', index_col=0, on_bad_lines='skip')
-    report_df.to_csv("report.csv")
-    return report_df
-
-
-def evaluate(
-    y_true: np.ndarray,
-    y_pred: np.ndarray,
-    plots_folder="plots/"
-) -> None:
-
-    # plot ROC Curve
-    fpr, tpr, thresholds = roc_curve(y_true, y_pred)
-    plt.plot([0, 1], [0, 1], linestyle="dashed")
-    plt.plot(fpr, tpr, marker="o")
-    plt.plot([0, 0, 1], [0, 1, 1], linestyle="dashed", c="red")
-    plt.legend([
-        "No Skill",
-        "ROC curve (area = {:.2f})".format(auc(fpr, tpr)),
-        "Perfect"
-    ])
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
-    plt.title("ROC Curve")
-    plt.savefig(os.path.join(plots_folder, "roc_curve.png"))
-    plt.close()
-
-    # plot PR Curve
-    precision, recall, thresholds = precision_recall_curve(y_true, y_pred)
-    plt.plot([0, 1], [0, 0], linestyle="dashed")
-    plt.plot(recall, precision, marker="o")
-    plt.legend([
-        "No Skill",
-        "Model"
-    ])
-    plt.xlabel("Recall")
-    plt.ylabel("Precision")
-    plt.title("Precision-recall Curve")
-    plt.savefig(os.path.join(plots_folder, "pc_curve.png"))
-    plt.close()
-
-    threshold_range = np.arange(0.1, 1.0, 0.001)
-
-    f1_scores = tuple(f1_score(y_true, (y_pred > lambda_).astype(int))
-                      for lambda_ in threshold_range)
-
-    logging.info("f1: {:.4f}, at thres = 0.5".format(
-        f1_score(y_true, (y_pred > 0.5).astype(int))))
-    logging.info("Max f1: {:.4f}, at thres = {:.4f}".format(
-        np.max(f1_scores), threshold_range[np.argmax(f1_scores)]
-    ))
-
-    # plot Confusion Matrix
-    # https://towardsdatascience.com/understanding-the-confusion-matrix-from-scikit-learn-c51d88929c79
-    cm = confusion_matrix(
-        y_true,
-        (y_pred > threshold_range[np.argmax(f1_scores)]).astype(int),
-        labels=[1, 0]
-    )
-    fig = plt.figure(num=-1)
-    ax = fig.add_subplot()
-    sns.heatmap(cm, annot=True, fmt='g', ax=ax)
-    ax.set_xlabel('Predicted')
-    ax.set_ylabel('Actual')
-    ax.set_title("Max f1: {:.4f}, at thres = {:.4f}".format(
-        np.max(f1_scores), threshold_range[np.argmax(f1_scores)]
-    ))
-    fig.savefig(os.path.join(plots_folder, "confusion_matrix.png"))
-    return np.max(f1_scores)
-
-
-def plot_callback(train_metric: np.ndarray, val_metric: np.ndarray, name: str, num=0):
-    plt.figure(num=num, figsize=(16, 4), dpi=200)
-    plt.plot(val_metric)
-    plt.plot(train_metric)
-    plt.legend(["val_{}".format(name), "{}".format(name), ])
-    plt.xlabel("# Epochs")
-    plt.ylabel("{}".format(name))
-    plt.title("{} LSTM, Chunked, Oversampling".format(name))
-    plt.savefig("{}.png".format(
-        os.path.join("plots/", name)))
-    plt.close()
 
 
 def torch_eval(
@@ -222,9 +131,9 @@ if __name__ == "__main__":
         __cache__[lst] for lst in __cache__)
 
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=256)
+                        mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=256, oversample=True)
     ds_val = Streamer(embedding_list_val, label_path,
-                      mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=256)
+                      mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=256, oversample=True)
     ds_test = Streamer(embedding_list_test, label_path,
                        mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=256)
 
@@ -235,7 +144,10 @@ if __name__ == "__main__":
     model = torch.nn.DataParallel(model, device_ids=[0, 1])
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
-    # optimizer = torch.optim.SGD(model.parameters(), lr=0.00001)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, patience=5, verbose=True)
+    # lower gpu float precision for larger batch size
+
     parser = ArgumentParser()
     parser.add_argument(
         "-train", "--train", action="store_true",
@@ -254,7 +166,8 @@ if __name__ == "__main__":
     if args.train:
         # model.load_state_dict(torch.load(model_path)['model_state_dict'])
         logging.info("Starting Training")
-        model = torch_training(ds_train, ds_val, model, optimizer)
+        model = torch_training(ds_train, ds_val, model,
+                               optimizer, scheduler)
         logging.info("Done Training")
 
     if args.test:

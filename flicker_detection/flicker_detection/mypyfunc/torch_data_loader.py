@@ -127,14 +127,11 @@ class Streamer():
 
         if (not self.X_buffer or not self.y_buffer):
             gc.collect()
-
             self.load_embeddings(
                 self.chunk_embedding_list[self.cur_chunk])
             self.cur_chunk += 1
-            # return self.__next__()
 
-        X, y = np.array(self.X_buffer.pop()), np.array(
-            self.y_buffer.pop())  # FIX ME
+        X, y = self.X_buffer.pop(), self.y_buffer.pop()  # FIX ME
         idx = np.arange(X.shape[0]) - 1
         random.shuffle(idx)
         return torch.from_numpy(X[idx]).float(), torch.from_numpy(y[idx]).float()
@@ -208,7 +205,7 @@ class Streamer():
 
         X, y = self._oversampling(
             np.array(self.X_buffer), np.array(self.y_buffer)
-        ) if self.oversample else (self.X_buffer, self.y_buffer)
+        ) if self.oversample else (np.array(self.X_buffer), np.array(self.y_buffer))
 
         self.X_buffer = [
             X[i:i+self.batch_size]

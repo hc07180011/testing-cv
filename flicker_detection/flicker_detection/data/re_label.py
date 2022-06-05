@@ -8,7 +8,7 @@ def save_flicker_img(vid_path: str, frame_cap: tuple):
     cap = cv2.VideoCapture(vid_path)
     h, w, total = cap.get(cv2.CAP_PROP_FRAME_HEIGHT), cap.get(
         cv2.CAP_PROP_FRAME_WIDTH), cap.get(cv2.CAP_PROP_FRAME_COUNT)
-    vid_arr = np.zeros((int(total), int(h), int(w), 3))
+    vid_arr = np.zeros((int(total)+1, int(h), int(w), 3))
     success, frame = True, 0
     while success:
         success, vid_arr[frame] = cap.read()
@@ -33,4 +33,4 @@ def label_aug():
 
 
 if __name__ == "__main__":
-    save_flicker_img("flicker-detection/0098.mp4", np.arange(100, 200, 1))
+    save_flicker_img("flicker-detection/0147.mp4", np.arange(300, 400, 1))
