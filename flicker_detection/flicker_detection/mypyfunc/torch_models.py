@@ -64,7 +64,7 @@ class LSTM(nn.Module):
         #     if 'weight' in name:
         #         nn.init.normal_(param.data, std=0.05)
         #     elif "bias" in name:
-        #          nn.init.zeros_(param.data)
+        #         nn.init.zeros_(param.data)
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.normal_(param.data, std=0.05)

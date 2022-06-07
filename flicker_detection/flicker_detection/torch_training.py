@@ -22,8 +22,13 @@ def torch_training(
     criterion=nn.BCELoss(),
     f1_torch=f1_score,  # F1_Loss().cuda(),
 ) -> nn.Module:
+
+    val_max_f1 = 0
     f1_callback, loss_callback, val_f1_callback, val_loss_callback = (), (), (), ()
     for epoch in range(epochs):
+        if loss_callback and epoch > 10 and loss_callback[-1] < 0.005:
+            break
+
         minibatch_loss_train, minibatch_f1 = 0, 0
 
         for n_train, (data, targets) in enumerate(ds_train):
@@ -42,6 +47,7 @@ def torch_training(
 
             minibatch_loss_train += loss.item()
             minibatch_f1 += f1_score.item()
+
         model.eval()
         loss_callback += (minibatch_loss_train / (n_train + 1)
                           if n_train else minibatch_loss_train,)
@@ -62,11 +68,18 @@ def torch_training(
                 minibatch_loss_val += loss.item()
                 minibatch_f1_val += val_f1.item()
 
-            ds_val.shuffle()
-            val_loss_callback += (minibatch_loss_val /
-                                  (n_val + 1) if n_val else minibatch_loss_val,)
-            val_f1_callback += ((minibatch_f1_val/(n_val + 1)
-                                if n_val else minibatch_f1),)
+        ds_val.shuffle()
+        val_loss_callback += (minibatch_loss_val /
+                              (n_val + 1) if n_val else minibatch_loss_val,)
+        val_f1_callback += ((minibatch_f1_val/(n_val + 1)
+                            if n_val else minibatch_f1),)
+
+        if epoch > 10 and val_f1_callback[-1] > val_max_f1:
+            save_checkpoint('model.pth', model,
+                            optimizer, loss_callback[-1], f1_callback[-1], val_loss_callback[-1], val_f1_callback[-1])
+            save_metrics('metrics.pth', loss_callback, f1_callback,
+                         val_loss_callback, val_f1_callback)
+            val_max_f1 = val_f1_callback[-1]
 
         logging.info(
             "Epoch: {}/{} Loss - {:.3f},f1 - {:.3f} val_loss - {:.3f}, val_f1 - {:.3f}".format(
@@ -76,12 +89,6 @@ def torch_training(
                 val_loss_callback[-1],
                 val_f1_callback[-1]
             ))
-
-        if not bool(epoch % 10):
-            save_checkpoint('model.pth', model,
-                            optimizer, loss_callback[-1], f1_callback[-1], val_loss_callback[-1], val_f1_callback[-1])
-            save_metrics('metrics.pth', loss_callback, f1_callback,
-                         val_loss_callback, val_f1_callback)
 
         model.train()
         ds_train.shuffle()
@@ -115,8 +122,10 @@ def torch_eval(
     y_pred, y_true = y_pred.cpu().numpy(), y_true.cpu().numpy()
     best = evaluate(y_true, y_pred)
 
-    report = classification_report(y_true.astype(
-        np.uint), (y_pred > best).astype(np.uint), labels=[1, 0], digits=4)
+    report = classification_report(
+        y_true.astype(np.uint),
+        (y_pred > best).astype(np.uint),
+        labels=[1, 0], digits=4)
     report_to_df(report)
 
 
@@ -135,11 +144,11 @@ if __name__ == "__main__":
         __cache__[lst] for lst in __cache__)
 
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, mem_split=2, chunk_size=32, batch_size=256, oversample=True)
+                        mapping_path, data_dir, mem_split=20, chunk_size=32, batch_size=1024, oversample=True)
     ds_val = Streamer(embedding_list_val, label_path,
-                      mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=256, oversample=False)
+                      mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=1024, oversample=False)
     ds_test = Streamer(embedding_list_test, label_path,
-                       mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=256, oversample=False)
+                       mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=1024, oversample=True)
 
     model = LSTM(input_dim=18432, hidden_dim=256,
                  layer_dim=1)

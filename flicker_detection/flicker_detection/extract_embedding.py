@@ -112,22 +112,24 @@ def preprocessing(
         and encoding_filename_mapping[x.replace(".npy", "")] in raw_labels
     ])
 
-    embedding_list_train, embedding_list_test, _, _ = train_test_split(
-        tuple(file for file in embedding_path_list if "_" not in file),
-        # dummy buffer just to split embedding_path_list
-        tuple(
-            range(len(tuple(file for file in embedding_path_list if "_" not in file)))),
-        test_size=0.1,
-        random_state=42
-    )
-    # embedding_list_test = (
-    #     "0002.mp4.npy", "0003.mp4.npy", "0006.mp4.npy",
-    #     "0016.mp4.npy", "0044.mp4.npy", "0055.mp4.npy",
-    #     "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
-    #     "0169.mp4.npy"
+    # embedding_list_train, embedding_list_test, _, _ = train_test_split(
+    #     tuple(file for file in embedding_path_list if "_" not in file),
+    #     # dummy buffer just to split embedding_path_list
+    #     tuple(
+    #         range(len(tuple(file for file in embedding_path_list if "_" not in file)))),
+    #     test_size=0.1,
+    #     random_state=42
     # )
+    embedding_list_test = (
+        "0002.mp4.npy", "0003.mp4.npy", "0006.mp4.npy",
+        "0016.mp4.npy", "0044.mp4.npy", "0055.mp4.npy",
+        "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
+        "0169.mp4.npy"
+    )
 
-    # embedding_list_train = set(embedding_path_list) - set(embedding_list_test)
+    embedding_list_train = tuple(
+        set(embedding_path_list) - set(embedding_list_test)
+    )
     embedding_list_val = embedding_list_test
 
     length = max([len(embedding_list_test), len(
@@ -211,8 +213,8 @@ def main():
     videos_path = "data/augmented"
     label_path = "data/label.json"
     mapping_path = "data/mapping_aug_data.json"
-    data_path = "data/vgg16_emb/"
-    cache_path = ".cache/train_test.npz"
+    data_path = "data/vgg16_emb"
+    cache_path = ".cache/train_test"
 
     # tf.keras.utils.set_random_seed(12345)
     # tf.config.experimental.enable_op_determinism()

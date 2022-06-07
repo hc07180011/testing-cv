@@ -125,7 +125,6 @@ class Streamer(object):
             raise StopIteration
 
         if (not self.X_buffer or not self.y_buffer):
-            gc.collect()
             self.load_embeddings(
                 self.chunk_embedding_list[self.cur_chunk])
             self.cur_chunk += 1
@@ -214,6 +213,7 @@ class Streamer(object):
             y[i:i+self.batch_size]
             for i in range(0, len(y), self.batch_size)
         ]
+        gc.collect()
 
 
 class MultiProcessedLoader(Streamer):
