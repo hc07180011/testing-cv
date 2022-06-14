@@ -17,3 +17,5 @@ venv/*
 TFRecords/
 TFRecords/*
 
+*.html
+
