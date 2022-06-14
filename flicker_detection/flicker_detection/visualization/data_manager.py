@@ -4,7 +4,7 @@ import glob
 
 from tqdm import tqdm
 
-LENGTH = 20
+LENGTH = 181
 
 class DataManager:
     def __init__(self, input_directory):
@@ -18,27 +18,25 @@ class DataManager:
 
         pbar = tqdm(total=LENGTH)
 
-        for count, np_name in enumerate(glob.glob(input_directory + '*.np[yz]')):
+        for count, np_name in enumerate(glob.glob(self.input_directory + '*.np[yz]')):
             if (count == 0):
-                embeddings = np.load(np_name).T
-                embeddings_shape = embeddings.shape[1]
+                self.embeddings = np.load(np_name).T
+                self.embeddings_shape = self.embeddings.shape[1]
             else:
                 np_embedding = np.load(np_name).T
-                embeddings_shape = np_embedding.shape[1]
-                embeddings = np.concatenate([embeddings, np_embedding], axis=1)
+                self.embeddings_shape = np_embedding.shape[1]
+                self.embeddings = np.concatenate([self.embeddings, np_embedding], axis=1)
             
-            self.totalDimensions += embeddings_shape
+            self.totalDimensions += self.embeddings_shape
             self.videoIndexes.append(self.totalDimensions)
 
             formatted_name = os.path.basename(np_name).removesuffix('.mp4.npy')
             self.legendNames.append(formatted_name)
 
-            for i in range(embeddings_shape):
+            for i in range(self.embeddings_shape):
                 self.tags.append(formatted_name + '_' +str(i))
                 self.ids.append(formatted_name)
                 self.numbered_ids.append(int(formatted_name))
-            
-            print("Processed: {}".format(np_name))
 
             pbar.update(n=1)
             if (count == LENGTH):
