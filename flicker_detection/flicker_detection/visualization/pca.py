@@ -1,63 +1,18 @@
 # import seaborn as sns
 # import tensorflow as tf
-import os
 import numpy as np
-import glob
 from sklearn.decomposition import PCA
 import pandas as pd
 import plotly.graph_objects as go
 from sklearn.preprocessing import StandardScaler, scale
 from visualization.kmeans import kmeans, multipleKmeans
-from visualization.meanShift import meanshift
-
-# from sklearn import model_selection
-# from tensorboard.plugins import projector
-
-from tqdm import tqdm
-LENGTH = 181
+from visualization.mean_shift import meanshift
+from visualization.data_manager import DataManager
 
 def pca(input_directory):
-    # To keep track of how many files we're processing
-    count = 0
-
-    videoIndexes = [0]
-    totalDimensions = 0
-    tags = []
-    ids = []
-    numbered_ids = []
-    legendNames = []
-
-    pbar = tqdm(total=LENGTH)
-
-    for np_name in glob.glob(input_directory + '*.np[yz]'):
-        if (count == 0):
-            embeddings = np.load(np_name).T
-            embeddings_shape = embeddings.shape[1]
-        else:
-            np_embedding = np.load(np_name).T
-            embeddings_shape = np_embedding.shape[1]
-            embeddings = np.concatenate([embeddings, np_embedding], axis=1)
-        
-        totalDimensions += embeddings_shape
-        videoIndexes.append(totalDimensions)
-
-        formatted_name = os.path.basename(np_name).removesuffix('.mp4.npy')
-        legendNames.append(formatted_name)
-
-        for i in range(embeddings_shape):
-            tags.append(formatted_name + '_' +str(i))
-            ids.append(formatted_name)
-            numbered_ids.append(int(formatted_name))
-
-        print("Processed: {}".format(np_name))
-
-        count += 1
-
-        pbar.update(n=1)
-        if (count == LENGTH):
-            break
+    PcaData = DataManager(input_directory)
     
-    scaledEmbeddings = StandardScaler().fit_transform(embeddings)
+    scaledEmbeddings = StandardScaler().fit_transform(PcaData.embeddings)
     model = PCA(n_components=2)
     model_result = model.fit_transform(scaledEmbeddings)
     print('Explained variance per dimension:')
@@ -66,8 +21,6 @@ def pca(input_directory):
     print('Total explained variance: {:.2%}'.format(np.sum(model.explained_variance_ratio_)))
     print('PCA done')
 
-    # multipleKmeans(scaledEmbeddings)
-    # kmeans(model_result, 20)
     meanshift(model_result, scaledEmbeddings)
     return
 
@@ -136,8 +89,6 @@ def pca(input_directory):
     # fig.write_html('./visualization/results.html')
 
     f.write_html('./visualization/results.html')
-<<<<<<< HEAD
-=======
 
     
     model = PCA(n_components=2).fit(embeddings)
@@ -167,27 +118,5 @@ def pca(input_directory):
     )
     fig = go.Figure(scatterGl)
     fig.write_html('./visualization/results.html')
->>>>>>> d4a10a4 (pca scatter plot added)
-=======
->>>>>>> f9fda84c53abdf7da6aefe32485b97f4bc64a6e9
+
     print('Scatter figure complete')
-    
-    # Using seaborn to make a scatter plot
-    """
-    scatterplot = sns.scatterplot(
-                    data=category_vector_frame, 
-                    x='col1', 
-                    y='col2', 
-                    hue=tags, 
-                    palette="deep")
-    fig = scatterplot.get_figure()
-    fig.savefig('result.png')
-    """
-
-
-    # Trying out pad_sequences
-    """
-    embeddings = tf.keras.preprocessing.sequence.pad_sequences(npy_files, padding='post')
-    embedding_var = tf.Variable(embeddings, name='embedding_var')
-    tf.reshape(embedding_var, [-1])
-    print(embedding_var)"""
