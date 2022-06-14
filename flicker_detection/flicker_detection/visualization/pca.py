@@ -136,6 +136,7 @@ def pca(input_directory):
     # fig.write_html('./visualization/results.html')
 
     f.write_html('./visualization/results.html')
+<<<<<<< HEAD
 =======
 
     
@@ -167,6 +168,8 @@ def pca(input_directory):
     fig = go.Figure(scatterGl)
     fig.write_html('./visualization/results.html')
 >>>>>>> d4a10a4 (pca scatter plot added)
+=======
+>>>>>>> f9fda84c53abdf7da6aefe32485b97f4bc64a6e9
     print('Scatter figure complete')
     
     # Using seaborn to make a scatter plot
