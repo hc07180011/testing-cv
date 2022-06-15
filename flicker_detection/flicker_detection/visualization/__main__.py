@@ -1,6 +1,8 @@
 import sys, getopt
 from visualization.pca import pca
 from visualization.kernel_pca import kernel_pca
+from visualization.ipca import ipca
+from visualization.truncated_svd import truncated_svd
 
 def _main(argv):
     input_directory = ''
@@ -21,6 +23,12 @@ def _main(argv):
         if (alg == 'kernel_pca'):
             print('Kernel PCA')
             kernel_pca(input_directory)
+        elif (alg == 'ipca'):
+            print('Incremental PCA')
+            ipca(input_directory)
+        elif (alg == 'tsvd'):
+            print('Truncated SVD')
+            truncated_svd(input_directory)
         else:
             print('PCA')
             pca(input_directory)

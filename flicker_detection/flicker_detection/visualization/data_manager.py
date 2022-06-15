@@ -40,4 +40,5 @@ class DataManager:
 
             pbar.update(n=1)
             if (count == LENGTH):
+                print(self.embeddings.shape)
                 break
