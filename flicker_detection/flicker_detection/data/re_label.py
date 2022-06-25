@@ -1,6 +1,7 @@
 import os
 import json
 import cv2
+import matplotlib
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -8,14 +9,15 @@ import matplotlib.pyplot as plt
 def save_flicker_img(vid_path: str, init_sec, flicker_frames: list = None, raw_name=None):
     cap = cv2.VideoCapture(vid_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
-
+    window = [0]*3
     success, frame = True, 0
     while success:
         success, img = cap.read()
-
+        window[frame % 3] = img
         if flicker_frames and frame in flicker_frames:
-            cv2.imwrite(
-                f"flicker_images/{vid_path[-8:-4] if raw_name is None else raw_name}_frame_{frame}.jpg", img)
+            show_images(window,
+                        save=True,
+                        filename=f"flicker_images/{vid_path[-8:-4] if raw_name is None else raw_name}_frame_{frame}.jpg")
         elif flicker_frames is None and frame >= (init_sec * fps) and frame <= (init_sec + 2) * fps:
             cv2.imwrite(
                 f"flicker_images/{vid_path[-8:-4] if raw_name is None else raw_name}_frame_{frame}.jpg", img)
@@ -64,6 +66,8 @@ def read_proto_string():
 
 
 def writeimg_new_labels():
+    matplotlib.use('Agg')
+    plt.ioff()
     raw_labels = json.load(open('new_label.json', 'r'))
     mapping = json.load(open('mapping.json', "r"))
     inv_map = {v: k for k, v in mapping.items()}
@@ -71,10 +75,11 @@ def writeimg_new_labels():
         if inv_map[vid] in mapping.keys():
             save_flicker_img(
                 f'flicker-detection/{inv_map[vid]}', 1, raw_labels[vid], raw_name=vid)
+        plt.close('all')
         print(vid)
 
 
-def show_images(images: list[np.ndarray], save: bool = False, raw_vid: str = None) -> None:
+def show_images(images: list[np.ndarray], save=False, filename=None) -> None:
     n: int = len(images)
     f = plt.figure(figsize=(10, 6))
     for i in range(n):
@@ -82,13 +87,14 @@ def show_images(images: list[np.ndarray], save: bool = False, raw_vid: str = Non
         f.add_subplot(1, n, i + 1)
         plt.imshow(images[i])
     if save:
-        plt.savefig(f"{raw_vid}.jpg")
-    plt.show(block=True)
+        plt.savefig(filename)
+    else:
+        plt.show(block=True)
 
 
 def merge(d1, d2, merge):
     result = dict(d1)
-    for k, v in d2.iteritems():
+    for k, v in d2.items():
         if k in result:
             result[k] = merge(result[k], v)
         else:
@@ -108,32 +114,40 @@ def manual_label(vid_path: str,):
     cap.release()
 
     labels[vid_path] = []
-    cur_frame = 2
+    cur_frame = int(
+        input(f"Choose frame idx: frames from 0 - {int(total)}\n"))
     while cur_frame < total:
 
         show_images(
             [vid_arr[cur_frame-2], vid_arr[cur_frame-1], vid_arr[cur_frame]])
-        if str(input("Save set?[y/n]\n")) == 'y':
-            labels[vid_path].extend([cur_frame-2, cur_frame-1, cur_frame])
-            show_images(
-                [vid_arr[cur_frame-2], vid_arr[cur_frame-1], vid_arr[cur_frame]], save=True, raw_vid=vid_path)
-
-        if str(input("break?[q]\n")) == 'q':
+        r = str(input("Save set?[y/n/q]\n"))
+        if r == 'q':
             break
+        if r == 'y':
+            labels[vid_path].extend([cur_frame])
+
         cur_frame = int(
             input(f"Choose frame idx: frames from 0 - {int(total)}\n"))
 
-    with open("manual_labels.json", 'r') as infile:
-        existing = json.load(infile)
+    if os.path.exists("manual_labels.json"):
+        with open("manual_labels.json", 'r') as infile:
+            existing = json.load(infile)
+            labels = merge(existing, labels, lambda x, y: (x, y))
 
     with open("manual_labels.json", "w") as out:
-        labels = merge(existing, labels, lambda x, y: (x, y))
         json.dump(labels, out)
     return h, w, total
 
 
 if __name__ == "__main__":
+    """
+    ffmpeg -i video.mp4 -vf select='between(n\,x\,y)' -vsync 0 -start_number x frames%d.png
+    for ex if the label frame is 475, i will run:
+    ffmpeg -i in.mp4 -vf select='between(n\,460\,490)' -vsync 0 -start_number 475 frames%d.png
+    correct:
+    ffmpeg -i in.mp4 -vf select='between(n\,460\,490)' -vsync 0 -start_number 460 frames%d.png
+    """
     # save_flicker_img("flicker-detection/0096.mp4", 5)
     # read_proto_string()
-    # writeimg_new_labels()
-    manual_label('flicker-detection/0136.mp4')
+    writeimg_new_labels()
+    # manual_label('flicker-detection/0136.mp4')
