@@ -96,10 +96,8 @@ def preprocessing(
         return tuple(__cache__[k] for k in __cache__)
 
     pass_videos = (
-        "0096.mp4", "0097.mp4", "0098.mp4",
-        "0125.mp4", "0126.mp4", "0127.mp4",
-        "0145.mp4", "0146.mp4", "0147.mp4",
-        "0178.mp4", "0179.mp4", "0180.mp4"
+        "0126.mp4", "0127.mp4",
+        "0178.mp4", "0180.mp4"
     )
     pass_videos += tuple(vid[:4]+f"_{i}.mp4.npy"for i in range(10)
                          for vid in pass_videos)
@@ -124,7 +122,8 @@ def preprocessing(
         "0002.mp4.npy", "0003.mp4.npy", "0006.mp4.npy",
         "0016.mp4.npy", "0044.mp4.npy", "0055.mp4.npy",
         "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
-        "0169.mp4.npy"
+        "0169.mp4.npy", "0145.mp4.npy", "0179.mp4.npy",
+        "0098.mp4.npy", "0147.mp4.npy", "0125.mp4.npy"
     )
 
     embedding_list_train = tuple(
@@ -211,7 +210,7 @@ def main():
     """
 
     videos_path = "data/augmented"
-    label_path = "data/label.json"
+    label_path = "data/new_label.json"
     mapping_path = "data/mapping_aug_data.json"
     data_path = "data/vgg16_emb"
     cache_path = ".cache/train_test"

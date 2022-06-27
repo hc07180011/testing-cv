@@ -132,7 +132,7 @@ def torch_eval(
 if __name__ == "__main__":
     init_logger()
 
-    label_path = "data/label.json"
+    label_path = "data/new_label.json"
     mapping_path = "data/mapping_aug_data.json"
     data_dir = "data/vgg16_emb"
     cache_path = ".cache/train_test"

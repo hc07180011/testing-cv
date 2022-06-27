@@ -5,6 +5,7 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import seaborn as sns
+import tensorflow_addons as tfa
 from typing import Tuple, Callable
 from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score, precision_recall_curve, roc_curve, auc, roc_auc_score
 from tensorflow.keras.models import Sequential
@@ -130,7 +131,7 @@ class Model:
                     model: tf.keras.models.Sequential,
                     loss_fn: tf.keras.losses,
                     optimizer: tf.keras.optimizers,
-                    metrics: Metrics,
+                    metrics: tfa.metrics.F1Score,
                     ) -> None:
 
         # mirrored_strategy = tf.distribute.MirroredStrategy()
@@ -145,8 +146,10 @@ class Model:
                 with tf.GradientTape() as tape:
                     logits = self.model(x_batch, training=True)
                     loss = loss_fn(y_batch, logits)
-                    mini_f1 += metrics.f1(y_batch, logits)
+                    f1 = metrics.update_state(y_batch, logits)
+                    mini_f1 += f1.result()
                     mini_loss += loss
+                    logging.info(f"{loss}-{f1}")
                 grads = tape.gradient(loss, model.trainable_weights)
                 optimizer.apply_gradients(
                     zip(grads, model.trainable_weights))
@@ -155,11 +158,11 @@ class Model:
             for val_idx, (x_batch, y_batch) in enumerate(val_loader):
                 # with mirrored_strategy.scope():
                 val_logits = self.model(x_batch, training=False)
-                mini_val_f1 += metrics.f1(y_batch, logits)
+                mini_val_f1 += metrics.update_state(y_batch, logits).result()
                 mini_val_loss += loss_fn(y_batch, val_logits)
 
             loss_, f1_, val_loss_, val_f1_ =\
-                mini_loss/train_idx+1, mini_f1 / train_idx + \
+                0.1*mini_loss/train_idx+1, mini_f1 / train_idx + \
                 1, mini_val_loss/val_idx+1, mini_val_f1/val_idx+1
 
             logging.info(
