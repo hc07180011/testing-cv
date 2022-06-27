@@ -295,7 +295,11 @@ class MultiProcessedLoader(Streamer):
         embedding_list_train: list,
     ) -> None:
         idx = 0
-        while psutil.virtual_memory().percent < 80:
+        while True:
+            if idx >= len(embedding_list_train):
+                break
+            if psutil.virtual_memory().percent > 80:
+                continue
             real_filename = self.encoding_filename_mapping[embedding_list_train[idx].replace(
                 ".npy", "")]
             loaded = np.load("{}.npy".format(os.path.join(self.data_dir, embedding_list_train[idx].replace(
@@ -314,6 +318,7 @@ class MultiProcessedLoader(Streamer):
                 for x in self._get_chunk_array(buf_label, self.chunk_size)
             ))
             idx += 1
+
         gc.collect()
 
 

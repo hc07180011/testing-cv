@@ -148,7 +148,7 @@ if __name__ == "__main__":
     ds_val = Streamer(embedding_list_val, label_path,
                       mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=1024, oversample=False)
     ds_test = Streamer(embedding_list_test, label_path,
-                       mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=1024, oversample=True)
+                       mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=1024, oversample=False)
 
     model = LSTM(input_dim=18432, hidden_dim=256,
                  layer_dim=1)
