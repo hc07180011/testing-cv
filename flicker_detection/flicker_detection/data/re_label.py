@@ -14,11 +14,12 @@ def save_flicker_img(vid_path: str, init_sec, flicker_frames: list = None, raw_n
     while success:
         success, img = cap.read()
         window[frame % 3] = img
-        if flicker_frames and frame in flicker_frames:
-            show_images(window,
+
+        if flicker_frames and (frame in flicker_frames):
+            show_images([window[(frame - 2) % 3], window[(frame - 1) % 3], window[frame % 3]],
                         save=True,
                         filename=f"flicker_images/{vid_path[-8:-4] if raw_name is None else raw_name}_frame_{frame}.jpg")
-        elif flicker_frames is None and frame >= (init_sec * fps) and frame <= (init_sec + 2) * fps:
+        elif flicker_frames is None and frame >= (init_sec * fps) and frame <= (init_sec + 1) * fps:
             cv2.imwrite(
                 f"flicker_images/{vid_path[-8:-4] if raw_name is None else raw_name}_frame_{frame}.jpg", img)
 
@@ -31,7 +32,6 @@ def label_aug():
     mapping = json.load(open("mapping.json", "r"))
     # print(mapping.keys())
     vids = dict(map(lambda s: (s[:4], s), mapping.keys()))
-    print(vids)
     for aug_vid in os.listdir("data/augmented/"):
         if aug_vid[:4] in vids:
             mapping[aug_vid] = mapping[vids[aug_vid[:4]]]
@@ -80,16 +80,11 @@ def writeimg_new_labels():
 
 
 def show_images(images: list[np.ndarray], save=False, filename=None) -> None:
-    n: int = len(images)
     f = plt.figure(figsize=(10, 6))
-    for i in range(n):
-        # Debug, plot figure
-        f.add_subplot(1, n, i + 1)
-        plt.imshow(images[i])
-    if save:
-        plt.savefig(filename)
-    else:
-        plt.show(block=True)
+    for idx, img in enumerate(images):
+        f.add_subplot(1, len(images), idx + 1)
+        plt.imshow(img)
+    plt.savefig(filename) if save else plt.show(block=True)
 
 
 def merge(d1, d2, merge):
@@ -141,13 +136,19 @@ def manual_label(vid_path: str,):
 
 if __name__ == "__main__":
     """
+    sudomen
+
     ffmpeg -i video.mp4 -vf select='between(n\,x\,y)' -vsync 0 -start_number x frames%d.png
     for ex if the label frame is 475, i will run:
     ffmpeg -i in.mp4 -vf select='between(n\,460\,490)' -vsync 0 -start_number 475 frames%d.png
     correct:
     ffmpeg -i in.mp4 -vf select='between(n\,460\,490)' -vsync 0 -start_number 460 frames%d.png
+
+    fyi the command to get the frame pts
+    ffprobe -i test_01.mp4 -show_frames | grep pkt_pts_time
+
     """
-    # save_flicker_img("flicker-detection/0096.mp4", 5)
+    save_flicker_img("flicker-detection/0145.mp4", 13)
     # read_proto_string()
-    writeimg_new_labels()
+    # writeimg_new_labels()
     # manual_label('flicker-detection/0136.mp4')

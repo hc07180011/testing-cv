@@ -14,7 +14,7 @@ https://stackoverflow.com/questions/41032551/how-to-compute-receiving-operating-
 
 class Metrics():
     def __init__(self):
-        super.__init__()
+        pass
 
     @staticmethod
     def recall(y_true, y_pred):
@@ -42,8 +42,7 @@ class Metrics():
         fn = K.sum(K.round(K.clip(y_true * (1 - y_pred), 0, 1)))
         return tn / (tn + fn + K.epsilon())
 
-    @staticmethod
-    def f1(y_true, y_pred):
+    def f1(self, y_true, y_pred):
         p = self.precision(y_true, y_pred)
         r = self.recall(y_true, y_pred)
         return 2 * ((p * r) / (p + r + K.epsilon()))

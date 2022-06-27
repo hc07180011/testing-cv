@@ -163,7 +163,7 @@ def training(
     metrics = Metrics()
 
     buf = Model()
-    model = buf.LSTM((18432, 32))
+    model = buf.LSTM((30, 18432))
     buf.compile(model, loss_fn, optimizer, (metrics.f1,))
 
     buf.batch_train(
@@ -261,11 +261,11 @@ def main():
         __cache__[lst] for lst in __cache__)
 
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_path, mem_split=1, batch_size=256, oversample=False)
-    ds_val = Streamer(embedding_list_val, label_path,
-                      mapping_path, data_path, mem_split=1, batch_size=256, oversample=False)
+                        mapping_path, data_path, mem_split=20, batch_size=256, oversample=True, keras=True)
+    ds_val = Streamer(embedding_list_test, label_path,
+                      mapping_path, data_path, mem_split=1, batch_size=256, oversample=True, keras=True)
     ds_test = Streamer(embedding_list_test, label_path,
-                       mapping_path, data_path, mem_split=1, batch_size=256, oversample=False)
+                       mapping_path, data_path, mem_split=1, batch_size=256, oversample=True, keras=True)
 
     if args.train:
         logging.info("[Training] Start ...")

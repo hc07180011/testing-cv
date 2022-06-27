@@ -29,7 +29,7 @@ class Model:
         summary: bool = True,
         overview: str = 'preprocessing/embedding/models/flicker_detection.txt'
     ) -> None:
-        self.model_path = None
+        self.model_path = "model0.h5"
         self.summary = summary
         self.overview = overview
         self.history = None
@@ -100,12 +100,9 @@ class Model:
         epochs: int,
         validation_split: float,
         batch_size: int,
-        model_path: str = "model0.h5",
         monitor: str = "val_f1",
         mode: str = "max"
     ) -> None:
-        if self.model_path is None:
-            self.model_path = model_path
         self.history = self.model.fit(
             X_train, y_train,
             epochs=epochs,
@@ -113,14 +110,14 @@ class Model:
             batch_size=batch_size,
             callbacks=[
                 tf.keras.callbacks.ModelCheckpoint(
-                    model_path,
+                    self.model_path,
                     save_best_only=True,
                     monitor=monitor,
                     mode=mode
                 )
             ]
         )
-        self.model.save(model_path)
+        self.model.save(self.model_path)
 
     def save_callback(self) -> None:  # FIX ME
         with open('history.json', 'w') as file_pi:
@@ -136,28 +133,30 @@ class Model:
                     metrics: Metrics,
                     ) -> None:
 
-        mirrored_strategy = tf.distribute.MirroredStrategy()
-
+        # mirrored_strategy = tf.distribute.MirroredStrategy()
+        val_max_f1 = 0
         loss_callback, f1_callback, val_loss_callback, val_f1_callback = (), (), (), ()
         for epoch in range(epochs):
+            if loss_callback and epoch > 10 and loss_callback[-1] < 0.005:
+                break
             mini_loss, mini_f1 = 0, 0
             for train_idx, (x_batch, y_batch) in enumerate(train_loader):
-                with mirrored_strategy.scope():
-                    with tf.GradientTape() as tape:
-                        logits = self.model(x_batch, training=True)
-                        loss = loss_fn(y_batch, logits)
-                        mini_f1 += metrics.f1(y_batch, logits)
-                        mini_loss += loss
-                    grads = tape.gradient(loss, model.trainable_weights)
-                    optimizer.apply_gradients(
-                        zip(grads, model.trainable_weights))
+                # with mirrored_strategy.scope():
+                with tf.GradientTape() as tape:
+                    logits = self.model(x_batch, training=True)
+                    loss = loss_fn(y_batch, logits)
+                    mini_f1 += metrics.f1(y_batch, logits)
+                    mini_loss += loss
+                grads = tape.gradient(loss, model.trainable_weights)
+                optimizer.apply_gradients(
+                    zip(grads, model.trainable_weights))
 
             mini_val_loss, mini_val_f1 = 0, 0
             for val_idx, (x_batch, y_batch) in enumerate(val_loader):
-                with mirrored_strategy.scope():
-                    val_logits = self.model(x_batch, training=False)
-                    mini_val_f1 += metrics.f1(y_batch, logits)
-                    mini_val_loss += loss_fn(y_batch, val_logits)
+                # with mirrored_strategy.scope():
+                val_logits = self.model(x_batch, training=False)
+                mini_val_f1 += metrics.f1(y_batch, logits)
+                mini_val_loss += loss_fn(y_batch, val_logits)
 
             loss_, f1_, val_loss_, val_f1_ =\
                 mini_loss/train_idx+1, mini_f1 / train_idx + \
@@ -173,16 +172,17 @@ class Model:
             val_f1_callback += (val_f1_,)
             train_loader.shuffle()
 
-            if not (epoch % 1):
-                tf.compat.v1.reset_default_graph()
-                tf.keras.backend.clear_session()
+            if epoch > 10 and val_f1_callback[-1] > val_max_f1:
+                # tf.compat.v1.reset_default_graph()
+                # tf.keras.backend.clear_session()
+                self.model.save(self.model_path)
+                val_max_f1 = val_f1_callback[-1]
 
         self.history = {"loss": loss_callback, "f1": f1_callback,
                         "val_loss": val_loss_callback, "val_f1": val_f1_callback}
 
 
 class InferenceModel:
-
     def __init__(
         self,
         model_path: str,

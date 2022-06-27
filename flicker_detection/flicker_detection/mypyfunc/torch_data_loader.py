@@ -1,10 +1,10 @@
 import os
 import json
 import gc
-import tqdm
 import random
 import numpy as np
 import torch
+import tensorflow as tf
 from imblearn.over_sampling import SMOTE
 from torch.utils.data import Dataset, DataLoader
 from typing import Tuple
@@ -94,7 +94,9 @@ class Streamer(object):
                  chunk_size: int = 30,
                  batch_size: int = 32,
                  oversample: bool = False,
+                 keras: bool = False,
                  ) -> None:
+        self.keras = keras
         self.embedding_list_train = embedding_list_train
         self.chunk_embedding_list = np.array_split(
             embedding_list_train, mem_split)
@@ -132,6 +134,8 @@ class Streamer(object):
         X, y = self.X_buffer.pop(), self.y_buffer.pop()
         idx = np.arange(X.shape[0]) - 1
         random.shuffle(idx)
+        if self.keras:
+            return tf.convert_to_tensor(X[idx], dtype=tf.float32), tf.convert_to_tensor(y[idx], dtype=tf.float32)
         return torch.from_numpy(X[idx]).float(), torch.from_numpy(y[idx]).float()
 
     def shuffle(self) -> None:
