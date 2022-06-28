@@ -144,7 +144,7 @@ def evaluate(
     cm = confusion_matrix(
         y_true,
         (y_pred > threshold_range[np.argmax(f1_scores)]).astype(int),
-        labels=[1, 0]
+        # labels=[1, 0]
     )
     fig = plt.figure(num=-1)
     ax = fig.add_subplot()
@@ -169,3 +169,15 @@ def plot_callback(train_metric: np.ndarray, val_metric: np.ndarray, name: str, n
     plt.savefig("{}.png".format(
         os.path.join("plots/", name)))
     plt.close()
+
+
+def multi_acc(y_pred, y_test):
+    y_pred_softmax = torch.log_softmax(y_pred, dim=1)
+    _, y_pred_tags = torch.max(y_pred_softmax, dim=1)
+
+    correct_pred = (y_pred_tags == y_test).float()
+    acc = correct_pred.sum() / len(correct_pred)
+
+    acc = torch.round(acc * 100)
+
+    return acc

@@ -4,13 +4,14 @@ import gc
 import random
 import psutil
 import numpy as np
+from sklearn.manifold import smacof
 import torch
 import tensorflow as tf
 import multiprocessing as mp
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import NearMiss
 from torch.utils.data import Dataset, DataLoader
-from typing import Tuple
+from typing import Callable, Tuple
 
 
 class MYDS(Dataset):
@@ -96,8 +97,7 @@ class Streamer(object):
                  mem_split: int = 8,
                  chunk_size: int = 30,
                  batch_size: int = 32,
-                 oversample: bool = False,
-                 undersample: bool = False,
+                 sampler: Callable = None,
                  keras: bool = False,
                  ) -> None:
         self.keras = keras
@@ -112,11 +112,9 @@ class Streamer(object):
         self.mem_split = mem_split
         self.chunk_size = chunk_size
         self.batch_size = batch_size
-        self.oversample = oversample
-        self.undersample = undersample
+        self.sampler = sampler
 
         self.cur_chunk = 0
-        self.sampler = SMOTE()
         self.X_buffer, self.y_buffer = (), ()
 
     def __len__(self) -> int:
@@ -136,18 +134,7 @@ class Streamer(object):
                 self.chunk_embedding_list[self.cur_chunk])
             self.cur_chunk += 1
 
-        # X, y = self.X_buffer.pop(), self.y_buffer.pop()
-        if self.oversample:
-            X, y = self._oversampling(
-                np.array(self.X_buffer.pop()), np.array(self.y_buffer.pop())
-            )
-        elif self.undersample:
-            X, y = self._undersampling(
-                np.array(self.X_buffer.pop()), np.array(self.y_buffer.pop())
-            )
-        else:
-            X, y = np.array(self.X_buffer.pop()), np.array(self.y_buffer.pop())
-
+        X, y = self.X_buffer.pop(), self.y_buffer.pop()
         idx = np.arange(X.shape[0]) - 1
         random.shuffle(idx)
         if self.keras:
@@ -194,31 +181,17 @@ class Streamer(object):
         return tuple(map(tuple, chunks))
 
     @staticmethod
-    def _oversampling(
+    def _sampling(
         X_train: np.array,
         y_train: np.array,
+        sampler: Callable,
     ) -> Tuple[np.array, np.array]:
         """
         batched alternative:
         https://imbalanced-learn.org/stable/references/generated/imblearn.keras.BalancedBatchGenerator.html
         """
-        sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=3)
         original_X_shape = X_train.shape
-        X_train, y_train = sm.fit_resample(
-            np.reshape(X_train, (-1, np.prod(original_X_shape[1:]))),
-            y_train
-        )
-        X_train = np.reshape(X_train, (-1,) + original_X_shape[1:])
-        return (X_train, y_train)
-
-    @staticmethod
-    def _undersampling(
-        X_train: np.array,
-        y_train: np.array,
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        nm = NearMiss(version=3, n_jobs=-1, n_neighbors=3)
-        original_X_shape = X_train.shape
-        X_train, y_train = nm.fit_resample(
+        X_train, y_train = sampler.fit_resample(
             np.reshape(X_train, (-1, np.prod(original_X_shape[1:]))),
             y_train
         )
@@ -244,11 +217,16 @@ class Streamer(object):
             buf_label[flicker_idxs] = 1
             # consider using tf reduce sum for multiclass
             self.y_buffer += tuple(
-                1 if sum(x) else 0
+                sum(x)  # 1 if sum(x) else 0
                 for x in self._get_chunk_array(buf_label, self.chunk_size)
             )
-        self.X_buffer, self.y_buffer = self.batch_sample(
-            self.X_buffer, self.y_buffer)
+        if self.sampler is not None:
+            X, y = self._sampling(np.array(self.X_buffer),
+                                  np.array(self.y_buffer),
+                                  self.sampler)
+        else:
+            X, y = np.array(self.X_buffer), np.array(self.y_buffer)
+        self.X_buffer, self.y_buffer = self.batch_sample(X, y)
         gc.collect()
 
 
@@ -327,6 +305,9 @@ class MultiProcessedLoader(Streamer):
         self,
         embedding_list_train: list,
     ) -> None:
+        """
+        This loop is what needs multiprocessing
+        """
         idx = 0
         while True:
             if idx >= len(embedding_list_train):
@@ -374,13 +355,14 @@ if __name__ == '__main__':
     #     print(batch_idx, x.shape, y.shape)
     #     t_sample += y.shape[0]
     # print(t_sample)
-
+    sm = SMOTE(random_state=42, n_jobs=-1)  # , k_neighbors=3)
+    nm = NearMiss(version=3, n_jobs=-1)  # , n_neighbors=3)
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, batch_size=256, oversample=False)
+                        mapping_path, data_dir, batch_size=256)
     ds_val = Streamer(embedding_list_val, label_path,
                       mapping_path, data_dir, batch_size=256)
     ds_test = Streamer(embedding_list_test, label_path,
-                       mapping_path, data_dir, mem_split=1, batch_size=256, oversample=False, undersample=False)
+                       mapping_path, data_dir, mem_split=1, batch_size=256, sampler=None)
 
     sample = 0
     for idx, (x, y) in enumerate(ds_test):

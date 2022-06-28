@@ -33,7 +33,7 @@ class LSTM(nn.Module):
         # # Flatten Dense
         self.flatten = nn.Flatten()  # unflatten for multiclass
         # softmax layer
-        self.softmax = nn.Softmax()
+        self.softmax = nn.Sigmoid()  # study how to use softmax and crossentropy
 
         self.initialization()
 

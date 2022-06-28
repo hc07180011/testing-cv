@@ -1,7 +1,8 @@
 import logging
-
 import torch
 import numpy as np
+from imblearn.over_sampling import SMOTE
+from imblearn.under_sampling import NearMiss
 import torch.nn as nn
 from torchmetrics import F1Score
 from argparse import ArgumentParser
@@ -14,6 +15,7 @@ from sklearn.metrics import classification_report, f1_score
 
 def torch_validation(
     ds_val: Streamer,
+    criterion,
     f1_torch=f1_score,  # F1_Loss().cuda(),
 ):
     with torch.no_grad():
@@ -75,7 +77,7 @@ def torch_training(
                         if n_train else minibatch_f1),)
         # scheduler.step(loss_callback[-1])
         model.eval()
-        val_loss, val_f1 = torch_validation(ds_val)
+        val_loss, val_f1 = torch_validation(ds_val, criterion)
         val_loss_callback += val_loss
         val_f1_callback += val_f1
 
@@ -167,13 +169,14 @@ if __name__ == "__main__":
         "{}.npz".format(cache_path), allow_pickle=True)
     embedding_list_train, embedding_list_val, embedding_list_test = tuple(
         __cache__[lst] for lst in __cache__)
-
+    sm = SMOTE(random_state=42, n_jobs=-1)  # , k_neighbors=1)
+    nm = NearMiss(version=3, n_jobs=-1)  # , n_neighbors=1)
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, mem_split=20, chunk_size=32, batch_size=1024, oversample=False, undersample=True)
+                        mapping_path, data_dir, mem_split=20, chunk_size=32, batch_size=128, sampler=nm)
     ds_val = Streamer(embedding_list_val, label_path,
-                      mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=1024, oversample=False)
+                      mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=128, sampler=None)
     ds_test = Streamer(embedding_list_test, label_path,
-                       mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=1024, oversample=False)
+                       mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=128, sampler=None)
 
     model = LSTM(input_dim=18432, hidden_dim=256,
                  layer_dim=1, bidirectional=False)
