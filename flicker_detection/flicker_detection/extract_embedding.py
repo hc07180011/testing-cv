@@ -2,6 +2,8 @@ from cProfile import label
 import os
 import json
 import cv2
+from cv2 import threshold
+from sklearn.metrics import f1_score
 import tqdm
 import logging
 import numpy as np
@@ -15,6 +17,7 @@ from argparse import ArgumentParser
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.applications import DenseNet121, mobilenet, vgg16, InceptionResNetV2, InceptionV3
 from tensorflow.keras import Model
+from tensorflow_addons.metrics import F1Score
 from mypyfunc.logger import init_logger
 from typing import Tuple
 from preprocessing.embedding.backbone import BaseCNN, Serializer
@@ -160,6 +163,7 @@ def training(
     loss_fn = tf.keras.losses.BinaryCrossentropy(from_logits=True)
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.00001)
     metrics = Metrics()
+    # metrics = F1Score(num_classes=2,threshold=0.5)
 
     buf = Model()
     model = buf.LSTM((30, 18432))

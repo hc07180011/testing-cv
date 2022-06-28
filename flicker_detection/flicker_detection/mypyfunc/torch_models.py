@@ -11,7 +11,7 @@ warnings.filterwarnings('ignore')
 
 
 class LSTM(nn.Module):
-    def __init__(self, input_dim, hidden_dim, layer_dim) -> None:
+    def __init__(self, input_dim, hidden_dim, layer_dim, bidirectional=False) -> None:
         super(LSTM, self).__init__()
         # Hidden dimensions
         self.hidden_dim = hidden_dim
@@ -22,17 +22,18 @@ class LSTM(nn.Module):
         # Building your LSTM
         # batch_first=True causes input/output tensors to be of shape
         # (batch_dim, seq_dim, feature_dim)
-        self.lstm = nn.LSTM(input_dim, hidden_dim, layer_dim, batch_first=True)
+        self.lstm = nn.LSTM(input_dim, hidden_dim, layer_dim,
+                            batch_first=True, bidirectional=bidirectional)
         # Linear Dense
         self.fc1 = nn.Linear(hidden_dim, 128)
         # Linear Dense
         self.fc2 = nn.Linear(128, 64)
         # Linear Dense
         self.fc3 = nn.Linear(64, 1)
-        # Flatten Dense
-        self.flatten = nn.Flatten()
-        # sigmoid layer
-        self.sig = nn.Sigmoid()
+        # # Flatten Dense
+        self.flatten = nn.Flatten()  # unflatten for multiclass
+        # softmax layer
+        self.softmax = nn.Softmax()
 
         self.initialization()
 
@@ -53,10 +54,10 @@ class LSTM(nn.Module):
         out = self.fc2(out)
         # Dense for sigmoid
         out = self.fc3(out)
-        # Flatten
+        # # Flatten
         out = self.flatten(out)
-        # Apply sigmoid
-        out = self.sig(out)
+        # # Apply softmax
+        out = self.softmax(out)
         return out[:, -1]
 
     def initialization(self) -> None:

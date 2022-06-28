@@ -8,6 +8,7 @@ import torch
 import tensorflow as tf
 import multiprocessing as mp
 from imblearn.over_sampling import SMOTE
+from imblearn.under_sampling import NearMiss
 from torch.utils.data import Dataset, DataLoader
 from typing import Tuple
 
@@ -96,6 +97,7 @@ class Streamer(object):
                  chunk_size: int = 30,
                  batch_size: int = 32,
                  oversample: bool = False,
+                 undersample: bool = False,
                  keras: bool = False,
                  ) -> None:
         self.keras = keras
@@ -111,6 +113,7 @@ class Streamer(object):
         self.chunk_size = chunk_size
         self.batch_size = batch_size
         self.oversample = oversample
+        self.undersample = undersample
 
         self.cur_chunk = 0
         self.sampler = SMOTE()
@@ -133,12 +136,39 @@ class Streamer(object):
                 self.chunk_embedding_list[self.cur_chunk])
             self.cur_chunk += 1
 
-        X, y = self.X_buffer.pop(), self.y_buffer.pop()
+        # X, y = self.X_buffer.pop(), self.y_buffer.pop()
+        if self.oversample:
+            X, y = self._oversampling(
+                np.array(self.X_buffer.pop()), np.array(self.y_buffer.pop())
+            )
+        elif self.undersample:
+            X, y = self._undersampling(
+                np.array(self.X_buffer.pop()), np.array(self.y_buffer.pop())
+            )
+        else:
+            X, y = np.array(self.X_buffer.pop()), np.array(self.y_buffer.pop())
+
         idx = np.arange(X.shape[0]) - 1
         random.shuffle(idx)
         if self.keras:
             return tf.convert_to_tensor(X[idx], dtype=tf.float32), tf.convert_to_tensor(y[idx], dtype=tf.float32)
+        # cross entropy uses long
         return torch.from_numpy(X[idx]).float(), torch.from_numpy(y[idx]).float()
+
+    def batch_sample(
+        self,
+        X: np.ndarray,
+        y: np.ndarray
+    ) -> Tuple[list, list]:
+        X = [
+            X[i:i+self.batch_size]
+            for i in range(0, len(X), self.batch_size)
+        ]
+        y = [
+            y[i:i+self.batch_size]
+            for i in range(0, len(y), self.batch_size)
+        ]
+        return X, y
 
     def shuffle(self) -> None:
         random.shuffle(self.embedding_list_train)
@@ -172,9 +202,23 @@ class Streamer(object):
         batched alternative:
         https://imbalanced-learn.org/stable/references/generated/imblearn.keras.BalancedBatchGenerator.html
         """
-        sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=1)
+        sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=3)
         original_X_shape = X_train.shape
         X_train, y_train = sm.fit_resample(
+            np.reshape(X_train, (-1, np.prod(original_X_shape[1:]))),
+            y_train
+        )
+        X_train = np.reshape(X_train, (-1,) + original_X_shape[1:])
+        return (X_train, y_train)
+
+    @staticmethod
+    def _undersampling(
+        X_train: np.array,
+        y_train: np.array,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        nm = NearMiss(version=3, n_jobs=-1, n_neighbors=3)
+        original_X_shape = X_train.shape
+        X_train, y_train = nm.fit_resample(
             np.reshape(X_train, (-1, np.prod(original_X_shape[1:]))),
             y_train
         )
@@ -203,19 +247,8 @@ class Streamer(object):
                 1 if sum(x) else 0
                 for x in self._get_chunk_array(buf_label, self.chunk_size)
             )
-
-        X, y = self._oversampling(
-            np.array(self.X_buffer), np.array(self.y_buffer)
-        ) if self.oversample else (np.array(self.X_buffer), np.array(self.y_buffer))
-
-        self.X_buffer = [
-            X[i:i+self.batch_size]
-            for i in range(0, len(X), self.batch_size)
-        ]
-        self.y_buffer = [
-            y[i:i+self.batch_size]
-            for i in range(0, len(y), self.batch_size)
-        ]
+        self.X_buffer, self.y_buffer = self.batch_sample(
+            self.X_buffer, self.y_buffer)
         gc.collect()
 
 
@@ -323,7 +356,7 @@ class MultiProcessedLoader(Streamer):
 
 
 if __name__ == '__main__':
-    label_path = "../data/label.json"
+    label_path = "../data/new_label.json"
     mapping_path = "../data/mapping_aug_data.json"
     data_dir = "../data/vgg16_emb/"
     __cache__ = np.load("{}.npz".format(
@@ -343,14 +376,15 @@ if __name__ == '__main__':
     # print(t_sample)
 
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, batch_size=256, oversample=True)
+                        mapping_path, data_dir, batch_size=256, oversample=False)
     ds_val = Streamer(embedding_list_val, label_path,
                       mapping_path, data_dir, batch_size=256)
     ds_test = Streamer(embedding_list_test, label_path,
-                       mapping_path, data_dir, mem_split=1, batch_size=256, oversample=True)
+                       mapping_path, data_dir, mem_split=1, batch_size=256, oversample=False, undersample=False)
 
     sample = 0
     for idx, (x, y) in enumerate(ds_test):
         print(idx, x.shape, y.shape)
+        print(y)
         sample += y.shape[0]
     print(sample)

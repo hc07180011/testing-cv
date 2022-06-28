@@ -133,7 +133,19 @@ class Model:
                     optimizer: tf.keras.optimizers,
                     metrics: tfa.metrics.F1Score,
                     ) -> None:
-
+        """
+        Traceback (most recent call last):
+        File "/tmp2/test/testing-cv/flicker_detection/flicker_detection/extract_embedding.py", line 290, in <module>
+            main()
+        File "/tmp2/test/testing-cv/flicker_detection/flicker_detection/extract_embedding.py", line 275, in main
+            training(
+        File "/tmp2/test/testing-cv/flicker_detection/flicker_detection/extract_embedding.py", line 172, in training
+            buf.batch_train(  File "/tmp2/test/testing-cv/flicker_detection/flicker_detection/mypyfunc/keras_models.py", line 165, in batch_train
+            *mini_loss/train_idx+1, mini_f1 / train_idx + \
+        File "/tmp2/test/testing-cv/flicker_detection/flicker_detection/.env/lib/python3.9/site-packages/tensorflow/python/framework/ops.py", line 649, in __iter__
+            raise TypeError("Cannot iterate over a scalar tensor.")
+        TypeError: Cannot iterate over a scalar tensor.
+        """
         # mirrored_strategy = tf.distribute.MirroredStrategy()
         val_max_f1 = 0
         loss_callback, f1_callback, val_loss_callback, val_f1_callback = (), (), (), ()
@@ -146,10 +158,10 @@ class Model:
                 with tf.GradientTape() as tape:
                     logits = self.model(x_batch, training=True)
                     loss = loss_fn(y_batch, logits)
-                    f1 = metrics.update_state(y_batch, logits)
-                    mini_f1 += f1.result()
+                    f1 = metrics.f1(y_batch, logits)
+                    mini_f1 += f1
                     mini_loss += loss
-                    logging.info(f"{loss}-{f1}")
+                    logging.info(f"mini_loss: {loss}\n mini_f1:{f1}")
                 grads = tape.gradient(loss, model.trainable_weights)
                 optimizer.apply_gradients(
                     zip(grads, model.trainable_weights))
@@ -158,11 +170,11 @@ class Model:
             for val_idx, (x_batch, y_batch) in enumerate(val_loader):
                 # with mirrored_strategy.scope():
                 val_logits = self.model(x_batch, training=False)
-                mini_val_f1 += metrics.update_state(y_batch, logits).result()
+                mini_val_f1 += metrics.f1(y_batch, logits)
                 mini_val_loss += loss_fn(y_batch, val_logits)
 
             loss_, f1_, val_loss_, val_f1_ =\
-                0.1*mini_loss/train_idx+1, mini_f1 / train_idx + \
+                *mini_loss/train_idx+1, mini_f1 / train_idx + \
                 1, mini_val_loss/val_idx+1, mini_val_f1/val_idx+1
 
             logging.info(

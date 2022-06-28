@@ -12,6 +12,27 @@ from mypyfunc.torch_utility import save_checkpoint, save_metrics, load_checkpoin
 from sklearn.metrics import classification_report, f1_score
 
 
+def torch_validation(
+    ds_val: Streamer,
+    f1_torch=f1_score,  # F1_Loss().cuda(),
+):
+    with torch.no_grad():
+        minibatch_loss_val, minibatch_f1_val = 0, 0
+        for n_val, (x, y) in enumerate(ds_val):
+            x = x.to(device)
+            y = y.to(device)
+            y_pred = model(x)
+            loss = criterion(y_pred, y)
+            val_f1 = f1_torch(
+                (y_pred.cpu() > 0.5).int(), y.cpu().int())
+            # val_f1 = f1_torch(y, y_pred)
+            minibatch_loss_val += loss.item()
+            minibatch_f1_val += val_f1.item()
+    ds_val.shuffle()
+    return (minibatch_loss_val/(n_val + 1) if n_val else minibatch_loss_val,),\
+        ((minibatch_f1_val/(n_val + 1) if n_val else minibatch_f1_val),)
+
+
 def torch_training(
     ds_train: Streamer,
     ds_val: Streamer,
@@ -48,31 +69,15 @@ def torch_training(
             minibatch_loss_train += loss.item()
             minibatch_f1 += f1_score.item()
 
-        model.eval()
         loss_callback += (minibatch_loss_train / (n_train + 1)
                           if n_train else minibatch_loss_train,)
         f1_callback += ((minibatch_f1/(n_train + 1)
                         if n_train else minibatch_f1),)
         # scheduler.step(loss_callback[-1])
-
-        with torch.no_grad():
-            minibatch_loss_val, minibatch_f1_val = 0, 0
-            for n_val, (x, y) in enumerate(ds_val):
-                x = x.to(device)
-                y = y.to(device)
-                y_pred = model(x)
-                loss = criterion(y_pred, y)
-                val_f1 = f1_torch(
-                    (y_pred.cpu() > 0.5).int(), y.cpu().int())
-                # val_f1 = f1_torch(y, y_pred)
-                minibatch_loss_val += loss.item()
-                minibatch_f1_val += val_f1.item()
-
-        ds_val.shuffle()
-        val_loss_callback += (minibatch_loss_val /
-                              (n_val + 1) if n_val else minibatch_loss_val,)
-        val_f1_callback += ((minibatch_f1_val/(n_val + 1)
-                            if n_val else minibatch_f1),)
+        model.eval()
+        val_loss, val_f1 = torch_validation(ds_val)
+        val_loss_callback += val_loss
+        val_f1_callback += val_f1
 
         if epoch > 10 and val_f1_callback[-1] > val_max_f1:
             save_checkpoint('model.pth', model,
@@ -97,7 +102,7 @@ def torch_training(
     return model
 
 
-def torch_eval(
+def torch_testing(
     ds_test: Streamer,
     model: nn.Module,
 ) -> None:
@@ -130,6 +135,26 @@ def torch_eval(
 
 
 if __name__ == "__main__":
+    """
+    Traceback (most recent call last):
+    File "/tmp2/test/testing-cv/flicker_detection/flicker_detection/torch_training.py", line 189, in <module>
+        model = torch_training(ds_train, ds_val, model,
+    File "/tmp2/test/testing-cv/flicker_detection/flicker_detection/torch_training.py", line 64, in torch_training
+        loss.backward()
+    File "/tmp2/test/testing-cv/flicker_detection/flicker_detection/.env/lib/python3.9/site-packages/torch/_tensor.py", line 363, in backward
+        torch.autograd.backward(self, gradient, retain_graph, create_graph, inputs=inputs)
+    File "/tmp2/test/testing-cv/flicker_detection/flicker_detection/.env/lib/python3.9/site-packages/torch/autograd/__init__.py", line 173, in backward
+        Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+    RuntimeError: CUDA error: device-side assert triggered
+    CUDA kernel errors might be asynchronously reported at some other API call,so the stacktrace below might be incorrect.
+    For debugging consider passing CUDA_LAUNCH_BLOCKING=1.
+    ../aten/src/ATen/native/cuda/Loss.cu:257: nll_loss_forward_reduce_cuda_kernel_2d: block: [0,0,0], thread: [0,0,0] Assertion `t >= 0 && t < n_classes` failed.
+    ../aten/src/ATen/native/cuda/Loss.cu:257: nll_loss_forward_reduce_cuda_kernel_2d: block: [0,0,0], thread: [1,0,0] Assertion `t >= 0 && t < n_classes` failed.
+    ../aten/src/ATen/native/cuda/Loss.cu:257: nll_loss_forward_reduce_cuda_kernel_2d: block: [0,0,0], thread: [2,0,0] Assertion `t >= 0 && t < n_classes` failed.
+    ../aten/src/ATen/native/cuda/Loss.cu:257: nll_loss_forward_reduce_cuda_kernel_2d: block: [0,0,0], thread: [6,0,0] Assertion `t >= 0 && t < n_classes` failed.
+    ../aten/src/ATen/native/cuda/Loss.cu:257: nll_loss_forward_reduce_cuda_kernel_2d: block: [0,0,0], thread: [7,0,0] Assertion `t >= 0 && t < n_classes` failed.
+    ../aten/src/ATen/native/cuda/Loss.cu:257: nll_loss_forward_reduce_cuda_kernel_2d: block: [0,0,0], thread: [10,0,0] Assertion `t >= 0 && t < n_classes` failed.
+    """
     init_logger()
 
     label_path = "data/new_label.json"
@@ -144,19 +169,20 @@ if __name__ == "__main__":
         __cache__[lst] for lst in __cache__)
 
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, mem_split=20, chunk_size=32, batch_size=1024, oversample=True)
+                        mapping_path, data_dir, mem_split=20, chunk_size=32, batch_size=1024, oversample=False, undersample=True)
     ds_val = Streamer(embedding_list_val, label_path,
                       mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=1024, oversample=False)
     ds_test = Streamer(embedding_list_test, label_path,
                        mapping_path, data_dir, mem_split=1, chunk_size=32, batch_size=1024, oversample=False)
 
     model = LSTM(input_dim=18432, hidden_dim=256,
-                 layer_dim=1)
+                 layer_dim=1, bidirectional=False)
     logging.info("{}".format(model.train()))
 
     model = torch.nn.DataParallel(model, device_ids=[0, 1])
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
+    criterion = nn.CrossEntropyLoss()
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, patience=5, verbose=True)
     # lower gpu float precision for larger batch size
@@ -186,5 +212,5 @@ if __name__ == "__main__":
     if args.test:
         model.load_state_dict(torch.load(model_path)['model_state_dict'])
         logging.info("Starting Evaluation")
-        torch_eval(ds_test, model)
+        torch_testing(ds_test, model)
         logging.info("Done Evaluation")
