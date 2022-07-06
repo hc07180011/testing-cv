@@ -213,6 +213,7 @@ Thumbs.db
 .img/
 *.png
 *.textproto
+*.proto
 
 # data folders
 embeddings/
