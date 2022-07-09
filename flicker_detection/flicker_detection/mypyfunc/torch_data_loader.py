@@ -4,12 +4,15 @@ import gc
 import random
 import psutil
 import numpy as np
-from sklearn.manifold import smacof
+
 import torch
 import tensorflow as tf
 import multiprocessing as mp
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import NearMiss
+from sklearn.manifold import smacof
+from sklearn.decomposition import IncrementalPCA
+from scipy import sparse
 from torch.utils.data import Dataset, DataLoader
 from typing import Callable, Tuple
 
@@ -140,7 +143,7 @@ class Streamer(object):
         if self.keras:
             return tf.convert_to_tensor(X[idx], dtype=tf.float32), tf.convert_to_tensor(y[idx], dtype=tf.float32)
         # cross entropy uses long
-        return torch.from_numpy(X[idx]).float(), torch.from_numpy(y[idx]).float()
+        return torch.from_numpy(X[idx]).float(), torch.from_numpy(y[idx]).long()
 
     def batch_sample(
         self,
@@ -217,8 +220,7 @@ class Streamer(object):
             buf_label[flicker_idxs] = 1
             # consider using tf reduce sum for multiclass
             self.y_buffer += tuple(
-                1 if sum(x) else 0
-                for x in self._get_chunk_array(buf_label, self.chunk_size)
+                sum(x) for x in self._get_chunk_array(buf_label, self.chunk_size)
             )
         if self.sampler is not None:
             X, y = self._sampling(np.array(self.X_buffer),
@@ -339,7 +341,7 @@ class MultiProcessedLoader(Streamer):
 if __name__ == '__main__':
     label_path = "../data/new_label.json"
     mapping_path = "../data/mapping_aug_data.json"
-    data_dir = "../data/vgg16_emb/"
+    data_dir = "../data/InceptionResNetV2_emb/"
     __cache__ = np.load("{}.npz".format(
         "../.cache/train_test"), allow_pickle=True)
     embedding_list_train, embedding_list_val, embedding_list_test = tuple(
@@ -356,16 +358,15 @@ if __name__ == '__main__':
     #     t_sample += y.shape[0]
     # print(t_sample)
     sm = SMOTE(random_state=42, n_jobs=-1)  # , k_neighbors=3)
-    nm = NearMiss(version=3, n_jobs=-1)  # , n_neighbors=3)
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, batch_size=256)
+                        mapping_path, data_dir, batch_size=256, sampler=None)
     ds_val = Streamer(embedding_list_val, label_path,
                       mapping_path, data_dir, batch_size=256)
     ds_test = Streamer(embedding_list_test, label_path,
                        mapping_path, data_dir, mem_split=1, batch_size=256, sampler=None)
 
     sample = 0
-    for idx, (x, y) in enumerate(ds_test):
+    for idx, (x, y) in enumerate(ds_train):
         print(idx, x.shape, y.shape)
         print(y)
         sample += y.shape[0]

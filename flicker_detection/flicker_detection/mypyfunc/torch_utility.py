@@ -144,7 +144,7 @@ def evaluate(
     cm = confusion_matrix(
         y_true,
         (y_pred > threshold_range[np.argmax(f1_scores)]).astype(int),
-        # labels=[1, 0]
+        labels=[1, 0]
     )
     fig = plt.figure(num=-1)
     ax = fig.add_subplot()
