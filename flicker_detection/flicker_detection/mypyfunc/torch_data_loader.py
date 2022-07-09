@@ -116,6 +116,7 @@ class Streamer(object):
         self.chunk_size = chunk_size
         self.batch_size = batch_size
         self.sampler = sampler
+        self.ipca = ipca = IncrementalPCA(n_components=2)
 
         self.cur_chunk = 0
         self.X_buffer, self.y_buffer = (), ()
@@ -200,6 +201,11 @@ class Streamer(object):
         )
         X_train = np.reshape(X_train, (-1,) + original_X_shape[1:])
         return (X_train, y_train)
+
+    @staticmethod
+    def fit_ipa(X_train: np.ndarray) -> None:
+
+        pass
 
     def load_embeddings(
         self,

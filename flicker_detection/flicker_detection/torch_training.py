@@ -161,7 +161,7 @@ if __name__ == "__main__":
 
     model = LSTM(input_dim=24576, output_dim=chunk_size+1, hidden_dim=256,
                  layer_dim=1, bidirectional=False)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     logging.info("{}".format(model.train()))
 
     model = torch.nn.DataParallel(model, device_ids=[0, 1])
