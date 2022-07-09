@@ -4,8 +4,6 @@ from typing import Tuple
 from sklearn.metrics import f1_score
 from torch.nn import functional as F
 from torch import nn
-from torch_data_loader import Streamer
-from torch_models import LSTM
 
 
 class F1Score:
@@ -96,7 +94,7 @@ class F1Score:
 
         f1_score = 0
         # print(labels)
-        for label_id in range(len(labels.unique())):
+        for label_id in range(1, len(labels.unique())+1):
             f1, true_count = self.calc_f1_count_for_label(
                 predictions, labels, label_id)
 
@@ -154,32 +152,6 @@ class F1_Loss(nn.Module):
         return 1 - f1.mean()
 
 
-def test() -> None:
-    label_path = "../data/new_label.json"
-    mapping_path = "../data/mapping_aug_data.json"
-    data_dir = "../data/InceptionResNetV2_emb/"
-    __cache__ = np.load("{}.npz".format(
-        "../.cache/train_test"), allow_pickle=True)
-    embedding_list_train, embedding_list_val, embedding_list_test = tuple(
-        __cache__[lst] for lst in __cache__)
-
-    ds_test = Streamer(embedding_list_test, label_path,
-                       mapping_path, data_dir, mem_split=1, batch_size=256, sampler=None)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    f1_metric = F1Score()
-    model = LSTM(input_dim=24576, output_dim=32, hidden_dim=256,
-                 layer_dim=1, bidirectional=False)
-    model.to(device)
-    for x, y in ds_train:
-        x, y = x.to(device), y.to(device)
-        y_pred = model(x)
-        y_pred = torch.topk(y_pred, k=1, dim=1).indices.flatten()
-        print(y_pred, '\n', y)
-        f1 = f1_metric(y_pred, y)
-        print(f"f1-score: {f1}")
-
-
 def test_sk() -> None:
     errors = 0
     for _ in range(10):
@@ -204,4 +176,4 @@ def test_sk() -> None:
 
 
 if __name__ == "__main__":
-    test()
+    test_sk()

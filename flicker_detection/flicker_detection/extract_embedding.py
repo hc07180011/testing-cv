@@ -113,34 +113,34 @@ def preprocessing(
         and encoding_filename_mapping[x.replace(".npy", "")] in raw_labels
     ])
 
-    # embedding_list_train, embedding_list_test, _, _ = train_test_split(
-    #     tuple(file for file in embedding_path_list if "_" not in file),
-    #     # dummy buffer just to split embedding_path_list
-    #     tuple(
-    #         range(len(tuple(file for file in embedding_path_list if "_" not in file)))),
-    #     test_size=0.1,
-    #     random_state=42
+    embedding_list_train, embedding_list_test, _, _ = train_test_split(
+        tuple(file for file in embedding_path_list if "_" not in file),
+        # dummy buffer just to split embedding_path_list
+        tuple(
+            range(len(tuple(file for file in embedding_path_list if "_" not in file)))),
+        test_size=0.1,
+        random_state=42
+    )
+    # embedding_list_test = (
+    #     "0002.mp4.npy", "0003.mp4.npy", "0006.mp4.npy",
+    #     "0016.mp4.npy", "0044.mp4.npy", "0055.mp4.npy",
+    #     "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
+    #     "0169.mp4.npy", "0145.mp4.npy", "0179.mp4.npy",
+    #     "0098.mp4.npy", "0147.mp4.npy", "0125.mp4.npy"
     # )
-    embedding_list_test = (
-        "0002.mp4.npy", "0003.mp4.npy", "0006.mp4.npy",
-        "0016.mp4.npy", "0044.mp4.npy", "0055.mp4.npy",
-        "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
-        "0169.mp4.npy", "0145.mp4.npy", "0179.mp4.npy",
-        "0098.mp4.npy", "0147.mp4.npy", "0125.mp4.npy"
-    )
 
-    embedding_list_train = tuple(
-        set(embedding_path_list) - set(embedding_list_test)
-    )
+    # embedding_list_train = tuple(
+    #     set(embedding_path_list) - set(embedding_list_test)
+    # )
     embedding_list_val = embedding_list_test
 
-    length = max([len(embedding_list_test), len(
-        embedding_list_val), len(embedding_list_train)])
-    pd.DataFrame({
-        "train": tuple(embedding_list_train) + ("",) * (length - len(embedding_list_train)),
-        "val": tuple(embedding_list_val) + ("",) * (length - len(embedding_list_val)),
-        "test": tuple(embedding_list_test) + ("",) * (length - len(embedding_list_test))
-    }).to_csv("{}.csv".format(cache_path))
+    # length = max([len(embedding_list_test), len(
+    #     embedding_list_val), len(embedding_list_train)])
+    # pd.DataFrame({
+    #     "train": tuple(embedding_list_train) + ("",) * (length - len(embedding_list_train)),
+    #     "val": tuple(embedding_list_val) + ("",) * (length - len(embedding_list_val)),
+    #     "test": tuple(embedding_list_test) + ("",) * (length - len(embedding_list_test))
+    # }).to_csv("{}.csv".format(cache_path))
 
     np.savez(cache_path, embedding_list_train,
              embedding_list_val, embedding_list_test)
@@ -264,11 +264,11 @@ def main():
         __cache__[lst] for lst in __cache__)
 
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_path, mem_split=20, batch_size=256, oversample=True, keras=True)
+                        mapping_path, data_path, mem_split=20, batch_size=256, keras=True)
     ds_val = Streamer(embedding_list_test, label_path,
-                      mapping_path, data_path, mem_split=1, batch_size=256, oversample=True, keras=True)
+                      mapping_path, data_path, mem_split=1, batch_size=256, keras=True)
     ds_test = Streamer(embedding_list_test, label_path,
-                       mapping_path, data_path, mem_split=1, batch_size=256, oversample=True, keras=True)
+                       mapping_path, data_path, mem_split=1, batch_size=256, keras=True)
 
     if args.train:
         logging.info("[Training] Start ...")

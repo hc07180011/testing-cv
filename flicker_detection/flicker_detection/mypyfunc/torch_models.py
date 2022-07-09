@@ -45,7 +45,7 @@ class LSTM(nn.Module):
         # Initialize cell state
         c0 = torch.zeros(self.layer_dim, x.size(
             0), self.hidden_dim, device="cuda").requires_grad_()  # .to(device)
-        return h0.detach(), c0.detach()
+        return h0, c0
 
     def forward(self, x) -> torch.Tensor:
         # One time step
