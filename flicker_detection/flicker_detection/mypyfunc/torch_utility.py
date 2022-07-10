@@ -2,6 +2,7 @@ import logging
 import re
 import os
 import random
+from tkinter import Y
 import torch
 import numpy as np
 import pandas as pd
@@ -9,7 +10,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from io import StringIO
-from sklearn.metrics import f1_score, confusion_matrix, f1_score, precision_recall_curve, roc_curve, auc, roc_auc_score
+from sklearn.metrics import confusion_matrix, precision_recall_curve, roc_curve, auc, roc_auc_score
+from sklearn.preprocessing import label_binarize
+from mypyfunc.torch_eval import F1Score
+
 # Save and Load Functions
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -92,29 +96,45 @@ def report_to_df(report):  # FIX ME
     return report_df
 
 
-def evaluate(
+def roc_auc(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    classes: int = 32,
+    plots_folder="plots/"
+):
+    """
+    plot ROC Curve
+    """
+    roc_auc, fpr, tpr = {}, {}, {}
+    for i in range(y_pred.shape[1]):
+        fpr[i], tpr[i], _ = roc_curve(y_true[:, i], y_pred[:, i])
+        roc_auc[i] = auc(fpr[i], tpr[i])
+    # Plot of a ROC curve for a specific class
+    for i in range(classes+1):
+        plt.figure()
+        plt.plot([0, 1], [0, 1], linestyle="dashed")
+        plt.plot(fpr[i], tpr[i], marker="o")
+        plt.plot([0, 0, 1], [0, 1, 1], linestyle="dashed", c="red")
+        plt.legend([
+            "No Skill",
+            "ROC curve (area = {:.2f})".format(roc_auc[i]),
+            "Perfect"
+        ])
+        plt.xlabel("False Positive Rate")
+        plt.ylabel("True Positive Rate")
+        plt.title("ROC Curve")
+        plt.savefig(os.path.join(plots_folder, f"roc_curve_{i}.png"))
+    plt.close()
+
+
+def pr_curve(
     y_true: np.ndarray,
     y_pred: np.ndarray,
     plots_folder="plots/"
 ) -> None:
-
-    # plot ROC Curve
-    fpr, tpr, thresholds = roc_curve(y_true, y_pred)
-    plt.plot([0, 1], [0, 1], linestyle="dashed")
-    plt.plot(fpr, tpr, marker="o")
-    plt.plot([0, 0, 1], [0, 1, 1], linestyle="dashed", c="red")
-    plt.legend([
-        "No Skill",
-        "ROC curve (area = {:.2f})".format(auc(fpr, tpr)),
-        "Perfect"
-    ])
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
-    plt.title("ROC Curve")
-    plt.savefig(os.path.join(plots_folder, "roc_curve.png"))
-    plt.close()
-
-    # plot PR Curve
+    """
+    plot PR Curve
+    """
     precision, recall, thresholds = precision_recall_curve(y_true, y_pred)
     plt.plot([0, 1], [0, 0], linestyle="dashed")
     plt.plot(recall, precision, marker="o")
@@ -127,23 +147,25 @@ def evaluate(
     plt.title("Precision-recall Curve")
     plt.savefig(os.path.join(plots_folder, "pc_curve.png"))
     plt.close()
+    return thresholds
 
-    threshold_range = np.arange(0.1, 1.0, 0.001)
 
-    f1_scores = tuple(f1_score(y_true, (y_pred > lambda_).astype(int))
-                      for lambda_ in threshold_range)
+def cm(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    f1_metric: F1Score = F1Score(),
+    plots_folder="plots/"
+) -> None:
+    pred_classes = torch.topk(y_pred, k=1, dim=1).indices.flatten()
+    f1_score = f1_metric(pred_classes, y_true)
 
-    logging.info("f1: {:.4f}, at thres = 0.5".format(
-        f1_score(y_true, (y_pred > 0.5).astype(int))))
-    logging.info("Max f1: {:.4f}, at thres = {:.4f}".format(
-        np.max(f1_scores), threshold_range[np.argmax(f1_scores)]
-    ))
+    logging.info("f1: {:.4f}".format(f1_score))
 
     # plot Confusion Matrix
     # https://towardsdatascience.com/understanding-the-confusion-matrix-from-scikit-learn-c51d88929c79
     cm = confusion_matrix(
         y_true,
-        (y_pred > threshold_range[np.argmax(f1_scores)]).astype(int),
+        pred_classes,
         labels=[1, 0]
     )
     fig = plt.figure(num=-1)
@@ -151,11 +173,8 @@ def evaluate(
     sns.heatmap(cm, annot=True, fmt='g', ax=ax)
     ax.set_xlabel('Predicted')
     ax.set_ylabel('Actual')
-    ax.set_title("Max f1: {:.4f}, at thres = {:.4f}".format(
-        np.max(f1_scores), threshold_range[np.argmax(f1_scores)]
-    ))
+    ax.set_title("f1: {:.4f}".format(f1_score))
     fig.savefig(os.path.join(plots_folder, "confusion_matrix.png"))
-    return threshold_range[np.argmax(f1_scores)]
 
 
 def plot_callback(train_metric: np.ndarray, val_metric: np.ndarray, name: str, num=0):

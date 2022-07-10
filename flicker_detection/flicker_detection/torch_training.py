@@ -1,8 +1,9 @@
 import os
 import logging
+from sklearn.decomposition import IncrementalPCA
 import torch
 import numpy as np
-
+import pickle as pk
 import torch.nn as nn
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import NearMiss
@@ -13,14 +14,14 @@ from mypyfunc.logger import init_logger
 from mypyfunc.torch_eval import F1Score, F1_Loss
 from mypyfunc.torch_models import LSTM
 from mypyfunc.torch_data_loader import Streamer
-from mypyfunc.torch_utility import save_checkpoint, save_metrics, load_checkpoint, load_metrics, torch_seeding, evaluate, plot_callback, report_to_df
+from mypyfunc.torch_utility import save_checkpoint, save_metrics, load_checkpoint, load_metrics, torch_seeding, plot_callback, report_to_df, roc_auc, pr_curve, cm
 from sklearn.metrics import classification_report, f1_score
 
 
 def torch_validation(
     ds_val: Streamer,
     criterion: Callable,
-    f1_torch: F1Score,
+    f1_metric: Callable = F1Score(),
 ):
     with torch.no_grad():
         minibatch_loss_val, minibatch_f1_val = 0, 0
@@ -29,7 +30,7 @@ def torch_validation(
             y = y.to(device)
             y_pred = model(x)
             loss = criterion(y_pred, y)
-            val_f1 = f1_torch(
+            val_f1 = f1_metric(
                 torch.topk(y_pred, k=1, dim=1).indices.flatten(), y)
             minibatch_loss_val += loss.item()
             minibatch_f1_val += val_f1.item()
@@ -44,7 +45,7 @@ def torch_training(
     model: nn.Module,
     optimizer: torch.optim.Optimizer,
     # scheduler: torch.optim.lr_scheduler,
-    f1_torch: Callable,
+    f1_metric=F1Score(),
     epochs: int = 1000,
     criterion=nn.BCELoss(),
 ) -> nn.Module:
@@ -59,12 +60,13 @@ def torch_training(
         for n_train, (x, y) in enumerate(ds_train):
             x, y = x.to(device), y.to(device)
             y_pred = model(x)
+
             loss = criterion(y_pred, y)
             optimizer.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm(model.parameters(), 1.0)
             optimizer.step()
-            f1 = f1_torch(torch.topk(y_pred, k=1, dim=1).indices.flatten(), y)
+            f1 = f1_metric(torch.topk(y_pred, k=1, dim=1).indices.flatten(), y)
 
             minibatch_loss_train += loss.item()
             minibatch_f1 += f1.item()
@@ -75,7 +77,7 @@ def torch_training(
         f1_callback += ((minibatch_f1/(n_train + 1))
                         if n_train else minibatch_f1,)
         # scheduler.step(loss_callback[-1])
-        val_loss, val_f1 = torch_validation(ds_val, criterion, f1_torch)
+        val_loss, val_f1 = torch_validation(ds_val, criterion)
         val_loss_callback += val_loss
         val_f1_callback += val_f1
 
@@ -125,13 +127,19 @@ def torch_testing(
     plot_callback(f1, val_f1, "f1")
 
     y_pred, y_true = y_pred.cpu().numpy(), y_true.cpu().numpy()
-    best = evaluate(y_true, y_pred)
+    y_bin = np.zeros((y_true.size, ds_test.chunk_size+1))
+    idx = np.array([[i] for i in y_true])
+    np.put_along_axis(y_bin, idx, 1, axis=1)
 
-    report = classification_report(
-        y_true.astype(np.uint),
-        (y_pred > best).astype(np.uint),
-        labels=[1, 0], digits=4)
-    report_to_df(report)
+    roc_auc(y_bin, y_pred,
+            classes=ds_test.chunk_size)
+    pr_curve(y_bin, y_pred)
+    cm(y_bin, y_pred)
+    # report = classification_report(
+    #     y_true.astype(np.uint),
+    #     (y_pred > best).astype(np.uint),
+    #     labels=[1, 0], digits=4)
+    # report_to_df(report)
 
 
 if __name__ == "__main__":
@@ -148,16 +156,22 @@ if __name__ == "__main__":
         "{}.npz".format(cache_path), allow_pickle=True)
     embedding_list_train, embedding_list_val, embedding_list_test = tuple(
         __cache__[lst] for lst in __cache__)
-    sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=1)
+    sm = SMOTE(random_state=42, n_jobs=-1)  # k_neighbors=1)
     nm = NearMiss(version=3, n_jobs=-1)  # , n_neighbors=1)
+    ipca = IncrementalPCA(n_components=2) if pk.load(open("ipca.pk1","rb")) is None else  pk.load(open("ipca.pk1","rb"))
 
-    chunk_size = 32
+    chunk_size = 5
+    batch_size = 1024
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=512, sampler=None)
+                        mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None, ipca=ipca)
     ds_val = Streamer(embedding_list_val, label_path,
-                      mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=512, sampler=None)
+                      mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
     ds_test = Streamer(embedding_list_test, label_path,
-                       mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=512, sampler=None)
+                       mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
+
+    logging.info("Preprocessing start...")
+    ev = ds_train.fit_ipca()
+    logging.info("Explained variance: {}".format(ev))
 
     model = LSTM(input_dim=24576, output_dim=chunk_size+1, hidden_dim=256,
                  layer_dim=1, bidirectional=False)
@@ -167,10 +181,10 @@ if __name__ == "__main__":
     model = torch.nn.DataParallel(model, device_ids=[0, 1])
     model.to(device)
     criterion = nn.CrossEntropyLoss()
-    f1_metric = F1Score()
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     #     optimizer, patience=5, verbose=True)
     # lower gpu float precision for larger batch size
+    logging.info("Preprocessing Done.")
 
     parser = ArgumentParser()
     parser.add_argument(
@@ -191,7 +205,7 @@ if __name__ == "__main__":
         # model.load_state_dict(torch.load(model_path)['model_state_dict'])
         logging.info("Starting Training")
         model = torch_training(ds_train, ds_val, model,
-                               optimizer, f1_metric, criterion=criterion)
+                               optimizer, criterion=criterion)
         logging.info("Done Training")
 
     if args.test:

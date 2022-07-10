@@ -4,7 +4,7 @@ import gc
 import random
 import psutil
 import numpy as np
-
+import pickle as pk
 import torch
 import tensorflow as tf
 import multiprocessing as mp
@@ -101,6 +101,7 @@ class Streamer(object):
                  chunk_size: int = 30,
                  batch_size: int = 32,
                  sampler: Callable = None,
+                 ipca: Callable = None,
                  keras: bool = False,
                  ) -> None:
         self.keras = keras
@@ -116,7 +117,8 @@ class Streamer(object):
         self.chunk_size = chunk_size
         self.batch_size = batch_size
         self.sampler = sampler
-        self.ipca = ipca = IncrementalPCA(n_components=2)
+        self.ipca = ipca
+        self.ipca_fitted = False
 
         self.cur_chunk = 0
         self.X_buffer, self.y_buffer = (), ()
@@ -137,6 +139,9 @@ class Streamer(object):
             self.load_embeddings(
                 self.chunk_embedding_list[self.cur_chunk])
             self.cur_chunk += 1
+            X, y = self.re_sample()
+            self.X_buffer, self.y_buffer = self.batch_sample(X, y)
+            gc.collect()
 
         X, y = self.X_buffer.pop(), self.y_buffer.pop()
         idx = np.arange(X.shape[0]) - 1
@@ -145,6 +150,20 @@ class Streamer(object):
             return tf.convert_to_tensor(X[idx], dtype=tf.float32), tf.convert_to_tensor(y[idx], dtype=tf.float32)
         # cross entropy uses long
         return torch.from_numpy(X[idx]).float(), torch.from_numpy(y[idx]).long()
+
+    def re_sample(self,) -> None:
+        if self.sampler is not None:
+            X, y = self._sampling(np.array(self.X_buffer),
+                                  np.array(self.y_buffer),
+                                  self.sampler)
+        elif self.ipca is not None and self.ipca_fitted:
+            # TO DO bugged
+            X, y = self.ipca.transform(
+                np.array(self.X_buffer)), np.array(self.y_buffer)
+            X = self.ipca.inverse_transform(X)
+        else:
+            X, y = np.array(self.X_buffer), np.array(self.y_buffer)
+        return X, y
 
     def batch_sample(
         self,
@@ -202,10 +221,15 @@ class Streamer(object):
         X_train = np.reshape(X_train, (-1,) + original_X_shape[1:])
         return (X_train, y_train)
 
-    @staticmethod
-    def fit_ipa(X_train: np.ndarray) -> None:
-
-        pass
+    def fit_ipca(self) -> None:
+        if self.ipca is None:
+            raise NotImplementedError
+        for x, _ in self:
+            x_origin = x.shape
+            self.ipca.partial_fit(np.reshape(x, (-1, np.prod(x_origin[1:]))))
+        self.ipca_fitted = True
+        pk.dump(self.ipca, open("ipca.pk1", "wb"))
+        return "Explained variance: {}".format(ds_train.ipca.explained_variance_)
 
     def load_embeddings(
         self,
@@ -228,14 +252,6 @@ class Streamer(object):
             self.y_buffer += tuple(
                 sum(x) for x in self._get_chunk_array(buf_label, self.chunk_size)
             )
-        if self.sampler is not None:
-            X, y = self._sampling(np.array(self.X_buffer),
-                                  np.array(self.y_buffer),
-                                  self.sampler)
-        else:
-            X, y = np.array(self.X_buffer), np.array(self.y_buffer)
-        self.X_buffer, self.y_buffer = self.batch_sample(X, y)
-        gc.collect()
 
 
 class MultiProcessedLoader(Streamer):

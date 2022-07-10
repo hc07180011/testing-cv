@@ -30,10 +30,7 @@ class LSTM(nn.Module):
         self.fc2 = nn.Linear(128, 64)
         # Linear Dense
         self.fc3 = nn.Linear(64, output_dim)
-        # # Flatten Dense
-        # self.flatten = nn.Flatten()  # unflatten for multiclass
         # softmax layer
-        # study how to use softmax and crossentropy
         self.softmax = nn.Softmax()
 
         self.initialization()
@@ -56,13 +53,8 @@ class LSTM(nn.Module):
         out = self.fc2(out)
         # Dense for sigmoid
         out = self.fc3(out)
-        # # Flatten
-        # out = self.flatten(out)
         # # Apply softmax
         out = self.softmax(out)
-        # print(out.shape)
-        # print(out[:, -1].shape)
-        # print("WTF")
         return out[:, -1]
 
     def initialization(self) -> None:
