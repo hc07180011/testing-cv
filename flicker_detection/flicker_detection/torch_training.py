@@ -21,6 +21,7 @@ from sklearn.metrics import classification_report, f1_score
 def torch_validation(
     ds_val: Streamer,
     criterion: Callable,
+    objective: Callable = nn.Softmax(),
     f1_metric: Callable = F1Score(),
 ):
     with torch.no_grad():
@@ -31,10 +32,10 @@ def torch_validation(
             y_pred = model(x)
             loss = criterion(y_pred, y)
             val_f1 = f1_metric(
-                torch.topk(y_pred, k=1, dim=1).indices.flatten(), y)
+                torch.topk(objective(y_pred), k=1, dim=1).indices.flatten(), y)
             minibatch_loss_val += loss.item()
             minibatch_f1_val += val_f1.item()
-    ds_val.shuffle()
+    ds_val._shuffle()
     return ((minibatch_loss_val/(n_val + 1)) if n_val else minibatch_loss_val,),\
         ((minibatch_f1_val/(n_val + 1)) if n_val else minibatch_f1_val,)
 
@@ -44,10 +45,10 @@ def torch_training(
     ds_val: Streamer,
     model: nn.Module,
     optimizer: torch.optim.Optimizer,
-    # scheduler: torch.optim.lr_scheduler,
-    f1_metric=F1Score(),
+    f1_metric: Callable = F1Score(),
     epochs: int = 1000,
-    criterion=nn.BCELoss(),
+    criterion: Callable = nn.BCELoss(),
+    objective: Callable = nn.Softmax()
 ) -> nn.Module:
 
     val_max_f1 = 0
@@ -66,7 +67,8 @@ def torch_training(
             loss.backward()
             torch.nn.utils.clip_grad_norm(model.parameters(), 1.0)
             optimizer.step()
-            f1 = f1_metric(torch.topk(y_pred, k=1, dim=1).indices.flatten(), y)
+            f1 = f1_metric(torch.topk(objective(y_pred),
+                           k=1, dim=1).indices.flatten(), y)
 
             minibatch_loss_train += loss.item()
             minibatch_f1 += f1.item()
@@ -77,7 +79,8 @@ def torch_training(
         f1_callback += ((minibatch_f1/(n_train + 1))
                         if n_train else minibatch_f1,)
         # scheduler.step(loss_callback[-1])
-        val_loss, val_f1 = torch_validation(ds_val, criterion)
+        val_loss, val_f1 = torch_validation(
+            ds_val, criterion=criterion, objective=objective)
         val_loss_callback += val_loss
         val_f1_callback += val_f1
 
@@ -98,7 +101,7 @@ def torch_training(
             val_max_f1 = val_f1_callback[-1]
 
         model.train()
-        ds_train.shuffle()
+        ds_train._shuffle()
 
     torch.cuda.empty_cache()
     return model
@@ -107,6 +110,7 @@ def torch_training(
 def torch_testing(
     ds_test: Streamer,
     model: nn.Module,
+    objective: Callable = nn.Softmax(),
 ) -> None:
 
     model.eval()
@@ -116,25 +120,27 @@ def torch_testing(
             x = x.to(device)
             y = y.to(device)
             output = model(x)
-
             y_pred = output if y_pred is None else\
-                torch.hstack((y_pred, output))
+                torch.cat((y_pred, output), dim=0)
             y_true = y if y_true is None else\
-                torch.hstack((y_true, y))
+                torch.cat((y_true, y), dim=0)
 
+    # logging.info(f"{y_pred.shape}-{y_true.shape}")
     loss, f1, val_loss, val_f1 = load_metrics("metrics.pth")
     plot_callback(loss, val_loss, "loss")
     plot_callback(f1, val_f1, "f1")
 
-    y_pred, y_true = y_pred.cpu().numpy(), y_true.cpu().numpy()
-    y_bin = np.zeros((y_true.size, ds_test.chunk_size+1))
+    y_classes = torch.topk(objective(y_pred), k=1, dim=1).indices.flatten()
+    cm(y_true.detach(), y_classes.detach())
+
+    y_pred, y_true = objective(y_pred).cpu().numpy(), y_true.cpu().numpy()
+    y_bin = np.zeros((y_true.shape[0], ds_test.chunk_size+1))
     idx = np.array([[i] for i in y_true])
     np.put_along_axis(y_bin, idx, 1, axis=1)
 
     roc_auc(y_bin, y_pred,
             classes=ds_test.chunk_size)
-    pr_curve(y_bin, y_pred)
-    cm(y_bin, y_pred)
+    # pr_curve(y_bin, y_pred)
     # report = classification_report(
     #     y_true.astype(np.uint),
     #     (y_pred > best).astype(np.uint),
@@ -142,64 +148,25 @@ def torch_testing(
     # report_to_df(report)
 
 
-if __name__ == "__main__":
-    init_logger()
-
-    label_path = "data/new_label.json"
-    mapping_path = "data/mapping_aug_data.json"
-    data_dir = "data/InceptionResNetV2_emb/"
-    cache_path = ".cache/train_test"
-    model_path = "model.pth"
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    __cache__ = np.load(
-        "{}.npz".format(cache_path), allow_pickle=True)
-    embedding_list_train, embedding_list_val, embedding_list_test = tuple(
-        __cache__[lst] for lst in __cache__)
-    sm = SMOTE(random_state=42, n_jobs=-1)  # k_neighbors=1)
-    nm = NearMiss(version=3, n_jobs=-1)  # , n_neighbors=1)
-    ipca = IncrementalPCA(n_components=2) if pk.load(open("ipca.pk1","rb")) is None else  pk.load(open("ipca.pk1","rb"))
-
-    chunk_size = 5
-    batch_size = 1024
-    ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None, ipca=ipca)
-    ds_val = Streamer(embedding_list_val, label_path,
-                      mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
-    ds_test = Streamer(embedding_list_test, label_path,
-                       mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
-
-    logging.info("Preprocessing start...")
-    ev = ds_train.fit_ipca()
-    logging.info("Explained variance: {}".format(ev))
-
-    model = LSTM(input_dim=24576, output_dim=chunk_size+1, hidden_dim=256,
-                 layer_dim=1, bidirectional=False)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    logging.info("{}".format(model.train()))
-
-    model = torch.nn.DataParallel(model, device_ids=[0, 1])
-    model.to(device)
-    criterion = nn.CrossEntropyLoss()
-    # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-    #     optimizer, patience=5, verbose=True)
-    # lower gpu float precision for larger batch size
-    logging.info("Preprocessing Done.")
-
+def main(*args):
+    ds_train, ds_val, ds_test, model, optimizer, criterion = args
     parser = ArgumentParser()
     parser.add_argument(
+        "-preprocess", "--preprocess", action="store_true",
+        default=False, help="Whether to perform IPCA")
+    parser.add_argument(
         "-train", "--train", action="store_true",
-        default=False,
-        help="Whether to do training"
-    )
+        default=False, help="Whether to do training")
     parser.add_argument(
         "-test", "--test", action="store_true",
-        default=False,
-        help="Whether to do testing"
-    )
+        default=False, help="Whether to do testing")
     args = parser.parse_args()
 
-    torch_seeding()
+    if args.preprocess:
+        logging.info("Preprocessing start...")
+        ev = ds_train._fit_ipca()
+        logging.info("Explained variance: {}".format(ev))
+        logging.info("Preprocessing Done.")
 
     if args.train:
         # model.load_state_dict(torch.load(model_path)['model_state_dict'])
@@ -213,3 +180,47 @@ if __name__ == "__main__":
         logging.info("Starting Evaluation")
         torch_testing(ds_test, model)
         logging.info("Done Evaluation")
+
+
+if __name__ == "__main__":
+    init_logger()
+
+    label_path = "data/new_label.json"
+    mapping_path = "data/mapping_aug_data.json"
+    data_dir = "data/vgg16_emb/"
+    cache_path = ".cache/train_test"
+    model_path = "model.pth"
+
+    __cache__ = np.load(
+        "{}.npz".format(cache_path), allow_pickle=True)
+    embedding_list_train, embedding_list_val, embedding_list_test = tuple(
+        __cache__[lst] for lst in __cache__)
+
+    chunk_size = 5
+    batch_size = 1024
+
+    ipca = pk.load(open("ipca.pk1", "rb")) if os.path.exists(
+        "ipca.pk1") else IncrementalPCA(n_components=2)
+
+    sm = SMOTE(random_state=42, n_jobs=-1)  # k_neighbors=1)
+    nm = NearMiss(version=3, n_jobs=-1)  # , n_neighbors=1)
+    ds_train = Streamer(embedding_list_train, label_path,
+                        mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None, ipca=ipca, ipca_fitted=True)
+    ds_val = Streamer(embedding_list_val, label_path,
+                      mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
+    ds_test = Streamer(embedding_list_test, label_path,
+                       mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
+
+    model = LSTM(input_dim=18432, output_dim=chunk_size+1, hidden_dim=256,
+                 layer_dim=1, bidirectional=False)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
+    model = torch.nn.DataParallel(model, device_ids=[0, 1])
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    criterion = nn.CrossEntropyLoss()
+    # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    #     optimizer, patience=5, verbose=True)
+    # lower gpu float precision for larger batch size
+    torch_seeding()
+    logging.info("{}".format(model.train()))
+    main(ds_train, ds_val, ds_test, model, optimizer, criterion)

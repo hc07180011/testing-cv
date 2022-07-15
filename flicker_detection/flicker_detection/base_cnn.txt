@@ -1,0 +1,236 @@
+Model: "model_92"
+_________________________________________________________________
+ Layer (type)                Output Shape              Param #   
+=================================================================
+ input_1 (InputLayer)        [(None, 200, 200, 3)]     0         
+                                                                 
+ conv1 (Conv2D)              (None, 100, 100, 32)      864       
+                                                                 
+ conv1_bn (BatchNormalizatio  (None, 100, 100, 32)     128       
+ n)                                                              
+                                                                 
+ conv1_relu (ReLU)           (None, 100, 100, 32)      0         
+                                                                 
+ conv_dw_1 (DepthwiseConv2D)  (None, 100, 100, 32)     288       
+                                                                 
+ conv_dw_1_bn (BatchNormaliz  (None, 100, 100, 32)     128       
+ ation)                                                          
+                                                                 
+ conv_dw_1_relu (ReLU)       (None, 100, 100, 32)      0         
+                                                                 
+ conv_pw_1 (Conv2D)          (None, 100, 100, 64)      2048      
+                                                                 
+ conv_pw_1_bn (BatchNormaliz  (None, 100, 100, 64)     256       
+ ation)                                                          
+                                                                 
+ conv_pw_1_relu (ReLU)       (None, 100, 100, 64)      0         
+                                                                 
+ conv_pad_2 (ZeroPadding2D)  (None, 101, 101, 64)      0         
+                                                                 
+ adaptive_max_pooling3d (Ada  (None, 101, 101, 64)     0         
+ ptiveMaxPooling3D)                                              
+                                                                 
+ conv_dw_2 (DepthwiseConv2D)  (None, 50, 50, 64)       576       
+                                                                 
+ conv_dw_2_bn (BatchNormaliz  (None, 50, 50, 64)       256       
+ ation)                                                          
+                                                                 
+ conv_dw_2_relu (ReLU)       (None, 50, 50, 64)        0         
+                                                                 
+ conv_pw_2 (Conv2D)          (None, 50, 50, 128)       8192      
+                                                                 
+ conv_pw_2_bn (BatchNormaliz  (None, 50, 50, 128)      512       
+ ation)                                                          
+                                                                 
+ conv_pw_2_relu (ReLU)       (None, 50, 50, 128)       0         
+                                                                 
+ conv_dw_3 (DepthwiseConv2D)  (None, 50, 50, 128)      1152      
+                                                                 
+ conv_dw_3_bn (BatchNormaliz  (None, 50, 50, 128)      512       
+ ation)                                                          
+                                                                 
+ conv_dw_3_relu (ReLU)       (None, 50, 50, 128)       0         
+                                                                 
+ conv_pw_3 (Conv2D)          (None, 50, 50, 128)       16384     
+                                                                 
+ adaptive_max_pooling3d_1 (A  (None, 50, 50, 128)      0         
+ daptiveMaxPooling3D)                                            
+                                                                 
+ conv_pw_3_bn (BatchNormaliz  (None, 50, 50, 128)      512       
+ ation)                                                          
+                                                                 
+ conv_pw_3_relu (ReLU)       (None, 50, 50, 128)       0         
+                                                                 
+ conv_pad_4 (ZeroPadding2D)  (None, 51, 51, 128)       0         
+                                                                 
+ conv_dw_4 (DepthwiseConv2D)  (None, 25, 25, 128)      1152      
+                                                                 
+ conv_dw_4_bn (BatchNormaliz  (None, 25, 25, 128)      512       
+ ation)                                                          
+                                                                 
+ conv_dw_4_relu (ReLU)       (None, 25, 25, 128)       0         
+                                                                 
+ conv_pw_4 (Conv2D)          (None, 25, 25, 256)       32768     
+                                                                 
+ conv_pw_4_bn (BatchNormaliz  (None, 25, 25, 256)      1024      
+ ation)                                                          
+                                                                 
+ conv_pw_4_relu (ReLU)       (None, 25, 25, 256)       0         
+                                                                 
+ conv_dw_5 (DepthwiseConv2D)  (None, 25, 25, 256)      2304      
+                                                                 
+ adaptive_max_pooling3d_2 (A  (None, 25, 25, 256)      0         
+ daptiveMaxPooling3D)                                            
+                                                                 
+ conv_dw_5_bn (BatchNormaliz  (None, 25, 25, 256)      1024      
+ ation)                                                          
+                                                                 
+ conv_dw_5_relu (ReLU)       (None, 25, 25, 256)       0         
+                                                                 
+ conv_pw_5 (Conv2D)          (None, 25, 25, 256)       65536     
+                                                                 
+ conv_pw_5_bn (BatchNormaliz  (None, 25, 25, 256)      1024      
+ ation)                                                          
+                                                                 
+ conv_pw_5_relu (ReLU)       (None, 25, 25, 256)       0         
+                                                                 
+ conv_pad_6 (ZeroPadding2D)  (None, 26, 26, 256)       0         
+                                                                 
+ conv_dw_6 (DepthwiseConv2D)  (None, 12, 12, 256)      2304      
+                                                                 
+ conv_dw_6_bn (BatchNormaliz  (None, 12, 12, 256)      1024      
+ ation)                                                          
+                                                                 
+ conv_dw_6_relu (ReLU)       (None, 12, 12, 256)       0         
+                                                                 
+ conv_pw_6 (Conv2D)          (None, 12, 12, 512)       131072    
+                                                                 
+ adaptive_max_pooling3d_3 (A  (None, 12, 12, 512)      0         
+ daptiveMaxPooling3D)                                            
+                                                                 
+ conv_pw_6_bn (BatchNormaliz  (None, 12, 12, 512)      2048      
+ ation)                                                          
+                                                                 
+ conv_pw_6_relu (ReLU)       (None, 12, 12, 512)       0         
+                                                                 
+ conv_dw_7 (DepthwiseConv2D)  (None, 12, 12, 512)      4608      
+                                                                 
+ conv_dw_7_bn (BatchNormaliz  (None, 12, 12, 512)      2048      
+ ation)                                                          
+                                                                 
+ conv_dw_7_relu (ReLU)       (None, 12, 12, 512)       0         
+                                                                 
+ conv_pw_7 (Conv2D)          (None, 12, 12, 512)       262144    
+                                                                 
+ conv_pw_7_bn (BatchNormaliz  (None, 12, 12, 512)      2048      
+ ation)                                                          
+                                                                 
+ conv_pw_7_relu (ReLU)       (None, 12, 12, 512)       0         
+                                                                 
+ conv_dw_8 (DepthwiseConv2D)  (None, 12, 12, 512)      4608      
+                                                                 
+ conv_dw_8_bn (BatchNormaliz  (None, 12, 12, 512)      2048      
+ ation)                                                          
+                                                                 
+ adaptive_max_pooling3d_4 (A  (None, 12, 12, 512)      0         
+ daptiveMaxPooling3D)                                            
+                                                                 
+ conv_dw_8_relu (ReLU)       (None, 12, 12, 512)       0         
+                                                                 
+ conv_pw_8 (Conv2D)          (None, 12, 12, 512)       262144    
+                                                                 
+ conv_pw_8_bn (BatchNormaliz  (None, 12, 12, 512)      2048      
+ ation)                                                          
+                                                                 
+ conv_pw_8_relu (ReLU)       (None, 12, 12, 512)       0         
+                                                                 
+ conv_dw_9 (DepthwiseConv2D)  (None, 12, 12, 512)      4608      
+                                                                 
+ conv_dw_9_bn (BatchNormaliz  (None, 12, 12, 512)      2048      
+ ation)                                                          
+                                                                 
+ conv_dw_9_relu (ReLU)       (None, 12, 12, 512)       0         
+                                                                 
+ conv_pw_9 (Conv2D)          (None, 12, 12, 512)       262144    
+                                                                 
+ conv_pw_9_bn (BatchNormaliz  (None, 12, 12, 512)      2048      
+ ation)                                                          
+                                                                 
+ conv_pw_9_relu (ReLU)       (None, 12, 12, 512)       0         
+                                                                 
+ adaptive_max_pooling3d_5 (A  (None, 12, 12, 512)      0         
+ daptiveMaxPooling3D)                                            
+                                                                 
+ conv_dw_10 (DepthwiseConv2D  (None, 12, 12, 512)      4608      
+ )                                                               
+                                                                 
+ conv_dw_10_bn (BatchNormali  (None, 12, 12, 512)      2048      
+ zation)                                                         
+                                                                 
+ conv_dw_10_relu (ReLU)      (None, 12, 12, 512)       0         
+                                                                 
+ conv_pw_10 (Conv2D)         (None, 12, 12, 512)       262144    
+                                                                 
+ conv_pw_10_bn (BatchNormali  (None, 12, 12, 512)      2048      
+ zation)                                                         
+                                                                 
+ conv_pw_10_relu (ReLU)      (None, 12, 12, 512)       0         
+                                                                 
+ conv_dw_11 (DepthwiseConv2D  (None, 12, 12, 512)      4608      
+ )                                                               
+                                                                 
+ conv_dw_11_bn (BatchNormali  (None, 12, 12, 512)      2048      
+ zation)                                                         
+                                                                 
+ conv_dw_11_relu (ReLU)      (None, 12, 12, 512)       0         
+                                                                 
+ conv_pw_11 (Conv2D)         (None, 12, 12, 512)       262144    
+                                                                 
+ adaptive_max_pooling3d_6 (A  (None, 12, 12, 512)      0         
+ daptiveMaxPooling3D)                                            
+                                                                 
+ conv_pw_11_bn (BatchNormali  (None, 12, 12, 512)      2048      
+ zation)                                                         
+                                                                 
+ conv_pw_11_relu (ReLU)      (None, 12, 12, 512)       0         
+                                                                 
+ conv_pad_12 (ZeroPadding2D)  (None, 13, 13, 512)      0         
+                                                                 
+ conv_dw_12 (DepthwiseConv2D  (None, 6, 6, 512)        4608      
+ )                                                               
+                                                                 
+ conv_dw_12_bn (BatchNormali  (None, 6, 6, 512)        2048      
+ zation)                                                         
+                                                                 
+ conv_dw_12_relu (ReLU)      (None, 6, 6, 512)         0         
+                                                                 
+ conv_pw_12 (Conv2D)         (None, 6, 6, 1024)        524288    
+                                                                 
+ conv_pw_12_bn (BatchNormali  (None, 6, 6, 1024)       4096      
+ zation)                                                         
+                                                                 
+ conv_pw_12_relu (ReLU)      (None, 6, 6, 1024)        0         
+                                                                 
+ conv_dw_13 (DepthwiseConv2D  (None, 6, 6, 1024)       9216      
+ )                                                               
+                                                                 
+ adaptive_max_pooling3d_7 (A  (None, 6, 6, 1024)       0         
+ daptiveMaxPooling3D)                                            
+                                                                 
+ conv_dw_13_bn (BatchNormali  (None, 6, 6, 1024)       4096      
+ zation)                                                         
+                                                                 
+ conv_dw_13_relu (ReLU)      (None, 6, 6, 1024)        0         
+                                                                 
+ conv_pw_13 (Conv2D)         (None, 6, 6, 1024)        1048576   
+                                                                 
+ conv_pw_13_bn (BatchNormali  (None, 6, 6, 1024)       4096      
+ zation)                                                         
+                                                                 
+ conv_pw_13_relu (ReLU)      (None, 6, 6, 1024)        0         
+                                                                 
+=================================================================
+Total params: 3,228,864
+Trainable params: 0
+Non-trainable params: 3,228,864
+_________________________________________________________________

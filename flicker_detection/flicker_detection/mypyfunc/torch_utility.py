@@ -106,7 +106,7 @@ def roc_auc(
     plot ROC Curve
     """
     roc_auc, fpr, tpr = {}, {}, {}
-    for i in range(y_pred.shape[1]):
+    for i in range(classes+1):
         fpr[i], tpr[i], _ = roc_curve(y_true[:, i], y_pred[:, i])
         roc_auc[i] = auc(fpr[i], tpr[i])
     # Plot of a ROC curve for a specific class
@@ -122,7 +122,7 @@ def roc_auc(
         ])
         plt.xlabel("False Positive Rate")
         plt.ylabel("True Positive Rate")
-        plt.title("ROC Curve")
+        plt.title(f"Class-{i} ROC Curve")
         plt.savefig(os.path.join(plots_folder, f"roc_curve_{i}.png"))
     plt.close()
 
@@ -151,29 +151,27 @@ def pr_curve(
 
 
 def cm(
-    y_true: np.ndarray,
-    y_pred: np.ndarray,
+    y_true: torch.tensor,
+    y_pred: torch.tensor,
     f1_metric: F1Score = F1Score(),
     plots_folder="plots/"
 ) -> None:
-    pred_classes = torch.topk(y_pred, k=1, dim=1).indices.flatten()
-    f1_score = f1_metric(pred_classes, y_true)
-
+    f1_score = f1_metric(y_pred, y_true)
     logging.info("f1: {:.4f}".format(f1_score))
 
     # plot Confusion Matrix
     # https://towardsdatascience.com/understanding-the-confusion-matrix-from-scikit-learn-c51d88929c79
     cm = confusion_matrix(
-        y_true,
-        pred_classes,
-        labels=[1, 0]
+        y_true.cpu().numpy(),
+        y_pred.cpu().numpy(),
+        # labels=[1, 0]
     )
     fig = plt.figure(num=-1)
     ax = fig.add_subplot()
     sns.heatmap(cm, annot=True, fmt='g', ax=ax)
     ax.set_xlabel('Predicted')
     ax.set_ylabel('Actual')
-    ax.set_title("f1: {:.4f}".format(f1_score))
+    ax.set_title("Multiclass F1 Harmonization: {:.4f}".format(f1_score))
     fig.savefig(os.path.join(plots_folder, "confusion_matrix.png"))
 
 

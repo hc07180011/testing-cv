@@ -102,8 +102,10 @@ class Streamer(object):
                  batch_size: int = 32,
                  sampler: Callable = None,
                  ipca: Callable = None,
+                 ipca_fitted: bool = False,
                  keras: bool = False,
                  ) -> None:
+
         self.keras = keras
         self.embedding_list_train = embedding_list_train
         self.chunk_embedding_list = np.array_split(
@@ -118,7 +120,7 @@ class Streamer(object):
         self.batch_size = batch_size
         self.sampler = sampler
         self.ipca = ipca
-        self.ipca_fitted = False
+        self.ipca_fitted = ipca_fitted
 
         self.cur_chunk = 0
         self.X_buffer, self.y_buffer = (), ()
@@ -136,11 +138,11 @@ class Streamer(object):
             raise StopIteration
 
         if (not self.X_buffer or not self.y_buffer):
-            self.load_embeddings(
+            self._load_embeddings(
                 self.chunk_embedding_list[self.cur_chunk])
             self.cur_chunk += 1
-            X, y = self.re_sample()
-            self.X_buffer, self.y_buffer = self.batch_sample(X, y)
+            X, y = self._re_sample()
+            self.X_buffer, self.y_buffer = self._batch_sample(X, y)
             gc.collect()
 
         X, y = self.X_buffer.pop(), self.y_buffer.pop()
@@ -151,21 +153,23 @@ class Streamer(object):
         # cross entropy uses long
         return torch.from_numpy(X[idx]).float(), torch.from_numpy(y[idx]).long()
 
-    def re_sample(self,) -> None:
+    def _re_sample(self,) -> None:
+        if self.sampler is None and self.ipca is None:
+            return np.array(self.X_buffer), np.array(self.y_buffer)
+
         if self.sampler is not None:
             X, y = self._sampling(np.array(self.X_buffer),
                                   np.array(self.y_buffer),
                                   self.sampler)
-        elif self.ipca is not None and self.ipca_fitted:
-            # TO DO bugged
-            X, y = self.ipca.transform(
-                np.array(self.X_buffer)), np.array(self.y_buffer)
-            X = self.ipca.inverse_transform(X)
-        else:
+        if self.ipca is not None and self.ipca_fitted:
             X, y = np.array(self.X_buffer), np.array(self.y_buffer)
+            x_origin = X.shape
+            X = self.ipca.transform(np.reshape(X, (-1, np.prod(x_origin[1:]))))
+            X = self.ipca.inverse_transform(X)
+            X = np.reshape(X, (-1,) + x_origin[1:])
         return X, y
 
-    def batch_sample(
+    def _batch_sample(
         self,
         X: np.ndarray,
         y: np.ndarray
@@ -180,7 +184,7 @@ class Streamer(object):
         ]
         return X, y
 
-    def shuffle(self) -> None:
+    def _shuffle(self) -> None:
         random.shuffle(self.embedding_list_train)
         self.chunk_embedding_list = np.array_split(
             self.embedding_list_train, self.mem_split)
@@ -221,7 +225,7 @@ class Streamer(object):
         X_train = np.reshape(X_train, (-1,) + original_X_shape[1:])
         return (X_train, y_train)
 
-    def fit_ipca(self) -> None:
+    def _fit_ipca(self) -> None:
         if self.ipca is None:
             raise NotImplementedError
         for x, _ in self:
@@ -229,9 +233,9 @@ class Streamer(object):
             self.ipca.partial_fit(np.reshape(x, (-1, np.prod(x_origin[1:]))))
         self.ipca_fitted = True
         pk.dump(self.ipca, open("ipca.pk1", "wb"))
-        return "Explained variance: {}".format(ds_train.ipca.explained_variance_)
+        return "Explained variance: {}".format(self.ipca.explained_variance_)
 
-    def load_embeddings(
+    def _load_embeddings(
         self,
         embedding_list_train: list,
     ) -> None:
@@ -360,28 +364,42 @@ class MultiProcessedLoader(Streamer):
         gc.collect()
 
 
+def test_MYDS(
+    embedding_list_train: list,
+    embedding_list_val: list,
+    embedding_list_test: list,
+    label_path: str,
+    mapping_path: str,
+    data_dir: str,
+) -> None:
+    d_train = MYDS(embedding_list_train, label_path, mapping_path, data_dir)
+    ds = MYDS(embedding_list_val, label_path, mapping_path, data_dir)
+    ds = MYDS(embedding_list_test, label_path, mapping_path, data_dir)
+    dl = DataLoader(ds, batch_size=256, shuffle=True, num_workers=16)
+
+    t_sample = 0
+    for batch_idx, (x, y) in enumerate(d_train):
+        print(batch_idx, x.shape, y.shape)
+        t_sample += y.shape[0]
+    print(t_sample)
+
+
 if __name__ == '__main__':
     label_path = "../data/new_label.json"
     mapping_path = "../data/mapping_aug_data.json"
-    data_dir = "../data/InceptionResNetV2_emb/"
+    data_dir = "../data/vgg16_emb/"
     __cache__ = np.load("{}.npz".format(
         "../.cache/train_test"), allow_pickle=True)
     embedding_list_train, embedding_list_val, embedding_list_test = tuple(
         __cache__[lst] for lst in __cache__)
 
-    # d_train = MYDS(embedding_list_train, label_path, mapping_path, data_dir)
-    # ds = MYDS(embedding_list_val, label_path, mapping_path, data_dir)
-    # ds = MYDS(embedding_list_test, label_path, mapping_path, data_dir)
-    # dl = DataLoader(ds, batch_size=256, shuffle=True, num_workers=16)
-
-    # t_sample = 0
-    # for batch_idx, (x, y) in enumerate(d_train):
-    #     print(batch_idx, x.shape, y.shape)
-    #     t_sample += y.shape[0]
-    # print(t_sample)
+    chunk_size = 5
+    batch_size = 1024
+    ipca = pk.load(open("../ipca.pk1", "rb"))\
+        if os.path.exists("../ipca.pk1") else IncrementalPCA(n_components=2)
     sm = SMOTE(random_state=42, n_jobs=-1)  # , k_neighbors=3)
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, batch_size=256, sampler=None)
+                        mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None, ipca=ipca, ipca_fitted=True)
     ds_val = Streamer(embedding_list_val, label_path,
                       mapping_path, data_dir, batch_size=256)
     ds_test = Streamer(embedding_list_test, label_path,
@@ -390,6 +408,5 @@ if __name__ == '__main__':
     sample = 0
     for idx, (x, y) in enumerate(ds_train):
         print(idx, x.shape, y.shape)
-        print(y)
         sample += y.shape[0]
     print(sample)

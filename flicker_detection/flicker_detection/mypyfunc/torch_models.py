@@ -31,7 +31,7 @@ class LSTM(nn.Module):
         # Linear Dense
         self.fc3 = nn.Linear(64, output_dim)
         # softmax layer
-        self.softmax = nn.Softmax()
+        # self.softmax = nn.Softmax()
 
         self.initialization()
 
@@ -54,7 +54,7 @@ class LSTM(nn.Module):
         # Dense for sigmoid
         out = self.fc3(out)
         # # Apply softmax
-        out = self.softmax(out)
+        # out = self.softmax(out)
         return out[:, -1]
 
     def initialization(self) -> None:

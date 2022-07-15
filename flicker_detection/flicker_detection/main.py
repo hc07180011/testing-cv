@@ -9,7 +9,7 @@ import numpy as np
 
 from mypyfunc.logger import init_logger
 from preprocessing.embedding.facenet import Facenet
-from mypyfunc.keras import InferenceModel
+from mypyfunc.keras_models import InferenceModel
 
 
 def _main() -> None:
