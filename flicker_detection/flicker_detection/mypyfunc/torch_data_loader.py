@@ -254,7 +254,7 @@ class Streamer(object):
             buf_label[flicker_idxs] = 1
             # consider using tf reduce sum for multiclass
             self.y_buffer += tuple(
-                sum(x) for x in self._get_chunk_array(buf_label, self.chunk_size)
+                1 if sum(x) else 0 for x in self._get_chunk_array(buf_label, self.chunk_size)
             )
 
 

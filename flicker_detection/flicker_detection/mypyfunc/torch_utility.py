@@ -130,24 +130,30 @@ def roc_auc(
 def pr_curve(
     y_true: np.ndarray,
     y_pred: np.ndarray,
+    classes: int = 32,
     plots_folder="plots/"
 ) -> None:
     """
     plot PR Curve
     """
-    precision, recall, thresholds = precision_recall_curve(y_true, y_pred)
-    plt.plot([0, 1], [0, 0], linestyle="dashed")
-    plt.plot(recall, precision, marker="o")
-    plt.legend([
-        "No Skill",
-        "Model"
-    ])
-    plt.xlabel("Recall")
-    plt.ylabel("Precision")
-    plt.title("Precision-recall Curve")
-    plt.savefig(os.path.join(plots_folder, "pc_curve.png"))
+    precision, recall = {}, {}
+    for i in range(classes+1):
+        precision[i], recall[i], _ = precision_recall_curve(
+            y_true[:, i], y_pred[:, i])
+    # Plot of a ROC curve for a specific class
+    for i in range(classes+1):
+        plt.figure()
+        plt.plot([0, 1], [0, 0], linestyle="dashed")
+        plt.plot(recall[i], precision[i], marker="o")
+        plt.legend([
+            "No Skill",
+            "Model"
+        ])
+        plt.xlabel("Recall")
+        plt.ylabel("Precision")
+        plt.title(f"Class-{i} Precision-recall Curve")
+        plt.savefig(os.path.join(plots_folder, f"pc_curve_{i}.png"))
     plt.close()
-    return thresholds
 
 
 def cm(
@@ -164,7 +170,6 @@ def cm(
     cm = confusion_matrix(
         y_true.cpu().numpy(),
         y_pred.cpu().numpy(),
-        # labels=[1, 0]
     )
     fig = plt.figure(num=-1)
     ax = fig.add_subplot()

@@ -125,11 +125,6 @@ def torch_testing(
             y_true = y if y_true is None else\
                 torch.cat((y_true, y), dim=0)
 
-    # logging.info(f"{y_pred.shape}-{y_true.shape}")
-    loss, f1, val_loss, val_f1 = load_metrics("metrics.pth")
-    plot_callback(loss, val_loss, "loss")
-    plot_callback(f1, val_f1, "f1")
-
     y_classes = torch.topk(objective(y_pred), k=1, dim=1).indices.flatten()
     cm(y_true.detach(), y_classes.detach())
 
@@ -140,12 +135,17 @@ def torch_testing(
 
     roc_auc(y_bin, y_pred,
             classes=ds_test.chunk_size)
-    # pr_curve(y_bin, y_pred)
-    # report = classification_report(
-    #     y_true.astype(np.uint),
-    #     (y_pred > best).astype(np.uint),
-    #     labels=[1, 0], digits=4)
-    # report_to_df(report)
+    pr_curve(y_bin, y_pred, classes=ds_test.chunk_size)
+
+    loss, f1, val_loss, val_f1 = load_metrics("metrics.pth")
+    plot_callback(loss, val_loss, "loss")
+    plot_callback(f1, val_f1, "f1")
+
+    report = classification_report(
+        y_true,
+        y_classes.cpu().numpy(),
+        digits=4)
+    report_to_df(report)
 
 
 def main(*args):
@@ -196,22 +196,22 @@ if __name__ == "__main__":
     embedding_list_train, embedding_list_val, embedding_list_test = tuple(
         __cache__[lst] for lst in __cache__)
 
-    chunk_size = 5
+    chunk_size = 30
     batch_size = 1024
 
     ipca = pk.load(open("ipca.pk1", "rb")) if os.path.exists(
         "ipca.pk1") else IncrementalPCA(n_components=2)
 
-    sm = SMOTE(random_state=42, n_jobs=-1)  # k_neighbors=1)
+    sm = SMOTE(random_state=42, n_jobs=-1)  # , k_neighbors=2)
     nm = NearMiss(version=3, n_jobs=-1)  # , n_neighbors=1)
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None, ipca=ipca, ipca_fitted=True)
+                        mapping_path, data_dir, mem_split=3, chunk_size=chunk_size, batch_size=batch_size, sampler=sm)  # , ipca=ipca, ipca_fitted=True)
     ds_val = Streamer(embedding_list_val, label_path,
                       mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
     ds_test = Streamer(embedding_list_test, label_path,
                        mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
 
-    model = LSTM(input_dim=18432, output_dim=chunk_size+1, hidden_dim=256,
+    model = LSTM(input_dim=18432, output_dim=2, hidden_dim=256,
                  layer_dim=1, bidirectional=False)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
     model = torch.nn.DataParallel(model, device_ids=[0, 1])
