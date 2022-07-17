@@ -10,9 +10,7 @@ import tensorflow as tf
 import multiprocessing as mp
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import NearMiss
-from sklearn.manifold import smacof
 from sklearn.decomposition import IncrementalPCA
-from scipy import sparse
 from torch.utils.data import Dataset, DataLoader
 from typing import Callable, Tuple
 
@@ -104,8 +102,9 @@ class Streamer(object):
                  ipca: Callable = None,
                  ipca_fitted: bool = False,
                  keras: bool = False,
+                 binary: bool = False,
                  ) -> None:
-
+        self.binary = binary
         self.keras = keras
         self.embedding_list_train = embedding_list_train
         self.chunk_embedding_list = np.array_split(
@@ -150,7 +149,6 @@ class Streamer(object):
         random.shuffle(idx)
         if self.keras:
             return tf.convert_to_tensor(X[idx], dtype=tf.float32), tf.convert_to_tensor(y[idx], dtype=tf.float32)
-        # cross entropy uses long
         return torch.from_numpy(X[idx]).float(), torch.from_numpy(y[idx]).long()
 
     def _re_sample(self,) -> None:
@@ -243,8 +241,10 @@ class Streamer(object):
         for key in embedding_list_train:
             real_filename = self.encoding_filename_mapping[key.replace(
                 ".npy", "")]
-            loaded = np.load("{}.npy".format(os.path.join(self.data_dir, key.replace(
-                ".npy", ""))))
+            loaded = np.load(
+                "{}.npy".format(os.path.join(
+                    self.data_dir, key.replace(".npy", "")))
+            )
             self.X_buffer += (*self._get_chunk_array(loaded, self.chunk_size),)
             # get flicker frame indexes
             flicker_idxs = np.array(self.raw_labels[real_filename]) - 1
@@ -253,10 +253,10 @@ class Streamer(object):
             # set indexes in zeros array based on flicker frame indexes
             buf_label[flicker_idxs] = 1
             # consider using tf reduce sum for multiclass
-            self.y_buffer += tuple(
-                # FIX ME
-                1 if sum(x) else 0 for x in self._get_chunk_array(buf_label, self.chunk_size)
-            )
+            self.y_buffer += tuple(map(sum, self._get_chunk_array(buf_label, self.chunk_size)))\
+                if self.binary else\
+                tuple(1 if sum(x) else 0
+                      for x in self._get_chunk_array(buf_label, self.chunk_size))
 
 
 class MultiProcessedLoader(Streamer):

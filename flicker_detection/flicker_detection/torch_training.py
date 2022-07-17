@@ -27,8 +27,7 @@ def torch_validation(
     with torch.no_grad():
         minibatch_loss_val, minibatch_f1_val = 0, 0
         for n_val, (x, y) in enumerate(ds_val):
-            x = x.to(device)
-            y = y.to(device)
+            x, y = x.to(device), y.to(device)
             y_pred = model(x)
             loss = criterion(y_pred, y)
             val_f1 = f1_metric(
@@ -46,9 +45,9 @@ def torch_training(
     model: nn.Module,
     optimizer: torch.optim.Optimizer,
     f1_metric: Callable = F1Score(),
-    epochs: int = 1000,
     criterion: Callable = nn.BCELoss(),
-    objective: Callable = nn.Softmax()
+    objective: Callable = nn.Softmax(),
+    epochs: int = 1000,
 ) -> nn.Module:
 
     val_max_f1 = 0
@@ -138,9 +137,9 @@ def torch_testing(
     metrics.roc_auc(y_bin, y_pred)
     metrics.pr_curve(y_bin, y_pred)
 
-    # loss, f1, val_loss, val_f1 = load_metrics("metrics.pth")
-    # metrics.plot_callback(loss, val_loss, "loss")
-    # metrics.plot_callback(f1, val_f1, "f1")
+    loss, f1, val_loss, val_f1 = load_metrics("metrics.pth")
+    metrics.plot_callback(loss, val_loss, "loss", num=43)
+    metrics.plot_callback(f1, val_f1, "f1", num=42)
 
     report = classification_report(
         y_true,
@@ -197,7 +196,7 @@ if __name__ == "__main__":
     embedding_list_train, embedding_list_val, embedding_list_test = tuple(
         __cache__[lst] for lst in __cache__)
 
-    chunk_size = 30
+    chunk_size = 5
     batch_size = 1024
 
     ipca = pk.load(open("ipca.pk1", "rb")) if os.path.exists(
@@ -206,13 +205,13 @@ if __name__ == "__main__":
     sm = SMOTE(random_state=42, n_jobs=-1)  # , k_neighbors=2)
     nm = NearMiss(version=3, n_jobs=-1)  # , n_neighbors=1)
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, mem_split=3, chunk_size=chunk_size, batch_size=batch_size, sampler=sm)  # , ipca=ipca, ipca_fitted=True)
+                        mapping_path, data_dir, mem_split=3, chunk_size=chunk_size, batch_size=batch_size, sampler=None, ipca=ipca, ipca_fitted=True)
     ds_val = Streamer(embedding_list_val, label_path,
                       mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
     ds_test = Streamer(embedding_list_test, label_path,
                        mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
 
-    model = LSTM(input_dim=18432, output_dim=2, hidden_dim=256,
+    model = LSTM(input_dim=18432, output_dim=5, hidden_dim=256,
                  layer_dim=1, bidirectional=False)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
     model = torch.nn.DataParallel(model, device_ids=[0, 1])

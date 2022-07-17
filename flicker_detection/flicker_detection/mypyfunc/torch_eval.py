@@ -156,6 +156,11 @@ class F1_Loss(nn.Module):
 
 
 class Evaluation(object):
+    """
+    https://onlineconfusionmatrix.com/
+    https://discuss.pytorch.org/t/bce-loss-vs-cross-entropy/97437/3
+    """
+
     def __init__(self,
                  plots_folder: str = "plots/",
                  classes: int = 2,
@@ -243,6 +248,7 @@ class Evaluation(object):
         ax.set_title("Multiclass F1 Harmonization: {:.4f}".format(f1_score))
         fig.savefig(os.path.join(self.plots_folder, "confusion_matrix.png"))
 
+    @staticmethod
     def plot_callback(
         train_metric: np.ndarray,
         val_metric: np.ndarray,
