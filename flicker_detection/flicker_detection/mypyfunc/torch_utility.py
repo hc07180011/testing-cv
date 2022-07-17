@@ -1,21 +1,13 @@
 import logging
 import re
-import os
 import random
 from tkinter import Y
 import torch
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-
 from io import StringIO
-from sklearn.metrics import confusion_matrix, precision_recall_curve, roc_curve, auc, roc_auc_score
-from sklearn.preprocessing import label_binarize
-from mypyfunc.torch_eval import F1Score
 
 # Save and Load Functions
-
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -36,7 +28,6 @@ def save_checkpoint(save_path, model, optimizer, loss, f1, val_f1, val_loss):
 
 
 def load_checkpoint(load_path, model, optimizer):
-
     if load_path == None:
         return
 
@@ -64,7 +55,6 @@ def save_metrics(save_path, loss_callback, f1_callback, val_loss_callback, val_f
 
 
 def load_metrics(load_path):
-
     if load_path == None:
         return
 
@@ -94,103 +84,6 @@ def report_to_df(report):  # FIX ME
                             sep=' ', index_col=0, on_bad_lines='skip')
     report_df.to_csv("report.csv")
     return report_df
-
-
-def roc_auc(
-    y_true: np.ndarray,
-    y_pred: np.ndarray,
-    classes: int = 32,
-    plots_folder="plots/"
-):
-    """
-    plot ROC Curve
-    """
-    roc_auc, fpr, tpr = {}, {}, {}
-    for i in range(classes+1):
-        fpr[i], tpr[i], _ = roc_curve(y_true[:, i], y_pred[:, i])
-        roc_auc[i] = auc(fpr[i], tpr[i])
-    # Plot of a ROC curve for a specific class
-    for i in range(classes+1):
-        plt.figure()
-        plt.plot([0, 1], [0, 1], linestyle="dashed")
-        plt.plot(fpr[i], tpr[i], marker="o")
-        plt.plot([0, 0, 1], [0, 1, 1], linestyle="dashed", c="red")
-        plt.legend([
-            "No Skill",
-            "ROC curve (area = {:.2f})".format(roc_auc[i]),
-            "Perfect"
-        ])
-        plt.xlabel("False Positive Rate")
-        plt.ylabel("True Positive Rate")
-        plt.title(f"Class-{i} ROC Curve")
-        plt.savefig(os.path.join(plots_folder, f"roc_curve_{i}.png"))
-    plt.close()
-
-
-def pr_curve(
-    y_true: np.ndarray,
-    y_pred: np.ndarray,
-    classes: int = 32,
-    plots_folder="plots/"
-) -> None:
-    """
-    plot PR Curve
-    """
-    precision, recall = {}, {}
-    for i in range(classes+1):
-        precision[i], recall[i], _ = precision_recall_curve(
-            y_true[:, i], y_pred[:, i])
-    # Plot of a ROC curve for a specific class
-    for i in range(classes+1):
-        plt.figure()
-        plt.plot([0, 1], [0, 0], linestyle="dashed")
-        plt.plot(recall[i], precision[i], marker="o")
-        plt.legend([
-            "No Skill",
-            "Model"
-        ])
-        plt.xlabel("Recall")
-        plt.ylabel("Precision")
-        plt.title(f"Class-{i} Precision-recall Curve")
-        plt.savefig(os.path.join(plots_folder, f"pc_curve_{i}.png"))
-    plt.close()
-
-
-def cm(
-    y_true: torch.tensor,
-    y_pred: torch.tensor,
-    f1_metric: F1Score = F1Score(),
-    plots_folder="plots/"
-) -> None:
-    f1_score = f1_metric(y_pred, y_true)
-    logging.info("f1: {:.4f}".format(f1_score))
-
-    # plot Confusion Matrix
-    # https://towardsdatascience.com/understanding-the-confusion-matrix-from-scikit-learn-c51d88929c79
-    cm = confusion_matrix(
-        y_true.cpu().numpy(),
-        y_pred.cpu().numpy(),
-    )
-    fig = plt.figure(num=-1)
-    ax = fig.add_subplot()
-    sns.heatmap(cm, annot=True, fmt='g', ax=ax)
-    ax.set_xlabel('Predicted')
-    ax.set_ylabel('Actual')
-    ax.set_title("Multiclass F1 Harmonization: {:.4f}".format(f1_score))
-    fig.savefig(os.path.join(plots_folder, "confusion_matrix.png"))
-
-
-def plot_callback(train_metric: np.ndarray, val_metric: np.ndarray, name: str, num=0):
-    plt.figure(num=num, figsize=(16, 4), dpi=200)
-    plt.plot(val_metric)
-    plt.plot(train_metric)
-    plt.legend(["val_{}".format(name), "{}".format(name), ])
-    plt.xlabel("# Epochs")
-    plt.ylabel("{}".format(name))
-    plt.title("{} LSTM, Chunked, Oversampling".format(name))
-    plt.savefig("{}.png".format(
-        os.path.join("plots/", name)))
-    plt.close()
 
 
 def multi_acc(y_pred, y_test):

@@ -1,7 +1,11 @@
+import os
+import logging
 import torch
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 from typing import Tuple
-from sklearn.metrics import f1_score
+from sklearn.metrics import confusion_matrix, precision_recall_curve, roc_curve, auc, roc_auc_score, f1_score
 from torch.nn import functional as F
 from torch import nn
 
@@ -93,8 +97,7 @@ class F1Score:
             return self.calc_f1_micro(predictions, labels)
 
         f1_score = 0
-        # print(labels)
-        for label_id in range(1, len(labels.unique())+1):
+        for label_id in range(len(labels.unique())):
             f1, true_count = self.calc_f1_count_for_label(
                 predictions, labels, label_id)
 
@@ -150,6 +153,111 @@ class F1_Loss(nn.Module):
         f1 = 2 * (precision*recall) / (precision + recall + self.epsilon)
         f1 = f1.clamp(min=self.epsilon, max=1-self.epsilon)
         return 1 - f1.mean()
+
+
+class Evaluation(object):
+    def __init__(self,
+                 plots_folder: str = "plots/",
+                 classes: int = 2,
+                 f1_metric: F1Score = F1Score(),
+                 ) -> None:
+        self.plots_folder = plots_folder
+        self.classes = classes
+        self.f1_metric = f1_metric
+
+    def roc_auc(
+        self,
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+    ):
+        """
+        plot ROC Curve
+        """
+        roc_auc, fpr, tpr = {}, {}, {}
+        for i in range(self.classes):
+            fpr[i], tpr[i], _ = roc_curve(y_true[:, i], y_pred[:, i])
+            roc_auc[i] = auc(fpr[i], tpr[i])
+        # Plot of a ROC curve for a specific class
+        for i in range(self.classes):
+            plt.figure()
+            plt.plot([0, 1], [0, 1], linestyle="dashed")
+            plt.plot(fpr[i], tpr[i], marker="o")
+            plt.plot([0, 0, 1], [0, 1, 1], linestyle="dashed", c="red")
+            plt.legend([
+                "No Skill",
+                "ROC curve (area = {:.2f})".format(roc_auc[i]),
+                "Perfect"
+            ])
+            plt.xlabel("False Positive Rate")
+            plt.ylabel("True Positive Rate")
+            plt.title(f"Class-{i} ROC Curve")
+            plt.savefig(os.path.join(self.plots_folder, f"roc_curve_{i}.png"))
+        plt.close()
+
+    def pr_curve(
+        self,
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+    ) -> None:
+        """
+        plot PR Curve
+        """
+        precision, recall = {}, {}
+        for i in range(self.classes):
+            precision[i], recall[i], _ = precision_recall_curve(
+                y_true[:, i], y_pred[:, i])
+        # Plot of a ROC curve for a specific class
+        for i in range(self.classes):
+            plt.figure()
+            plt.plot([0, 1], [0, 0], linestyle="dashed")
+            plt.plot(recall[i], precision[i], marker="o")
+            plt.legend([
+                "No Skill",
+                "Model"
+            ])
+            plt.xlabel("Recall")
+            plt.ylabel("Precision")
+            plt.title(f"Class-{i} Precision-recall Curve")
+            plt.savefig(os.path.join(self.plots_folder, f"pc_curve_{i}.png"))
+        plt.close()
+
+    def cm(
+        self,
+        y_true: torch.tensor,
+        y_pred: torch.tensor,
+    ) -> None:
+        f1_score = self.f1_metric(y_pred, y_true)
+        logging.info("f1: {:.4f}".format(f1_score))
+
+        # plot Confusion Matrix
+        # https://towardsdatascience.com/understanding-the-confusion-matrix-from-scikit-learn-c51d88929c79
+        cm = confusion_matrix(
+            y_true.cpu().numpy(),
+            y_pred.cpu().numpy(),
+        )
+        fig = plt.figure(num=-1)
+        ax = fig.add_subplot()
+        sns.heatmap(cm, annot=True, fmt='g', ax=ax)
+        ax.set_xlabel('Predicted')
+        ax.set_ylabel('Actual')
+        ax.set_title("Multiclass F1 Harmonization: {:.4f}".format(f1_score))
+        fig.savefig(os.path.join(self.plots_folder, "confusion_matrix.png"))
+
+    def plot_callback(
+        train_metric: np.ndarray,
+        val_metric: np.ndarray,
+        name: str, num=0
+    ) -> None:
+        plt.figure(num=num, figsize=(16, 4), dpi=200)
+        plt.plot(val_metric)
+        plt.plot(train_metric)
+        plt.legend(["val_{}".format(name), "{}".format(name), ])
+        plt.xlabel("# Epochs")
+        plt.ylabel("{}".format(name))
+        plt.title("{} LSTM, Chunked, Oversampling".format(name))
+        plt.savefig("{}.png".format(
+            os.path.join("plots/", name)))
+        plt.close()
 
 
 def test_sk() -> None:

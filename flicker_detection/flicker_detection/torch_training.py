@@ -11,11 +11,11 @@ from typing import Callable
 
 from argparse import ArgumentParser
 from mypyfunc.logger import init_logger
-from mypyfunc.torch_eval import F1Score, F1_Loss
+from mypyfunc.torch_eval import F1Score, F1_Loss, Evaluation
 from mypyfunc.torch_models import LSTM
 from mypyfunc.torch_data_loader import Streamer
-from mypyfunc.torch_utility import save_checkpoint, save_metrics, load_checkpoint, load_metrics, torch_seeding, plot_callback, report_to_df, roc_auc, pr_curve, cm
-from sklearn.metrics import classification_report, f1_score
+from mypyfunc.torch_utility import save_checkpoint, save_metrics, load_checkpoint, load_metrics, torch_seeding, report_to_df
+from sklearn.metrics import classification_report
 
 
 def torch_validation(
@@ -111,7 +111,9 @@ def torch_testing(
     ds_test: Streamer,
     model: nn.Module,
     objective: Callable = nn.Softmax(),
+    classes: int = 2
 ) -> None:
+    metrics = Evaluation(plots_folder="plots/", classes=classes)
 
     model.eval()
     y_pred, y_true = None, None
@@ -126,20 +128,19 @@ def torch_testing(
                 torch.cat((y_true, y), dim=0)
 
     y_classes = torch.topk(objective(y_pred), k=1, dim=1).indices.flatten()
-    cm(y_true.detach(), y_classes.detach())
+    metrics.cm(y_true.detach(), y_classes.detach())
 
     y_pred, y_true = objective(y_pred).cpu().numpy(), y_true.cpu().numpy()
-    y_bin = np.zeros((y_true.shape[0], ds_test.chunk_size+1))
+    y_bin = np.zeros((y_true.shape[0], classes))
     idx = np.array([[i] for i in y_true])
     np.put_along_axis(y_bin, idx, 1, axis=1)
 
-    roc_auc(y_bin, y_pred,
-            classes=ds_test.chunk_size)
-    pr_curve(y_bin, y_pred, classes=ds_test.chunk_size)
+    metrics.roc_auc(y_bin, y_pred)
+    metrics.pr_curve(y_bin, y_pred)
 
-    loss, f1, val_loss, val_f1 = load_metrics("metrics.pth")
-    plot_callback(loss, val_loss, "loss")
-    plot_callback(f1, val_f1, "f1")
+    # loss, f1, val_loss, val_f1 = load_metrics("metrics.pth")
+    # metrics.plot_callback(loss, val_loss, "loss")
+    # metrics.plot_callback(f1, val_f1, "f1")
 
     report = classification_report(
         y_true,
