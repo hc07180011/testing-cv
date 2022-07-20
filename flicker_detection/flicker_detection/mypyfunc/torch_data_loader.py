@@ -253,10 +253,10 @@ class Streamer(object):
             # set indexes in zeros array based on flicker frame indexes
             buf_label[flicker_idxs] = 1
             # consider using tf reduce sum for multiclass
-            self.y_buffer += tuple(map(sum, self._get_chunk_array(buf_label, self.chunk_size)))\
-                if self.binary else\
-                tuple(1 if sum(x) else 0
-                      for x in self._get_chunk_array(buf_label, self.chunk_size))
+            self.y_buffer += tuple(
+                sum(x)  # FIX ME
+                for x in self._get_chunk_array(buf_label, self.chunk_size)
+            )
 
 
 class MultiProcessedLoader(Streamer):

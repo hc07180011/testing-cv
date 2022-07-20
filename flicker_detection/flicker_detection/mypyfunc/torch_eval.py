@@ -1,11 +1,14 @@
+import re
 import os
 import logging
 import torch
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from io import StringIO
 from typing import Tuple
-from sklearn.metrics import confusion_matrix, precision_recall_curve, roc_curve, auc, roc_auc_score, f1_score
+from sklearn.metrics import confusion_matrix, precision_recall_curve, roc_curve, auc, roc_auc_score, f1_score, classification_report
 from torch.nn import functional as F
 from torch import nn
 
@@ -127,7 +130,8 @@ class F1_Loss(nn.Module):
     Reference
     ---------
     - https://www.kaggle.com/rejpalcz/best-loss-function-for-f1-score-metric
-    - https://scikit-learn.org/stable/modules/generated/sklearn.metrics.f1_score.html#sklearn.metrics.f1_score
+    #sklearn.metrics.f1_score
+    - https://scikit-learn.org/stable/modules/generated/sklearn.metrics.f1_score.html
     - https://discuss.pytorch.org/t/calculating-precision-recall-and-f1-score-in-case-of-multi-label-classification/28265/6
     - http://www.ryanzhang.info/python/writing-your-own-loss-function-module-for-pytorch/
     '''
@@ -164,7 +168,7 @@ class Evaluation(object):
     def __init__(self,
                  plots_folder: str = "plots/",
                  classes: int = 2,
-                 f1_metric: F1Score = F1Score(),
+                 f1_metric: F1Score = F1Score(average='macro'),
                  ) -> None:
         self.plots_folder = plots_folder
         self.classes = classes
@@ -177,6 +181,7 @@ class Evaluation(object):
     ):
         """
         plot ROC Curve
+        https://stackoverflow.com/questions/45332410/roc-for-multiclass-classification
         """
         roc_auc, fpr, tpr = {}, {}, {}
         for i in range(self.classes):
@@ -248,7 +253,7 @@ class Evaluation(object):
         ax.set_title("Multiclass F1 Harmonization: {:.4f}".format(f1_score))
         fig.savefig(os.path.join(self.plots_folder, "confusion_matrix.png"))
 
-    @staticmethod
+    @ staticmethod
     def plot_callback(
         train_metric: np.ndarray,
         val_metric: np.ndarray,
@@ -264,6 +269,24 @@ class Evaluation(object):
         plt.savefig("{}.png".format(
             os.path.join("plots/", name)))
         plt.close()
+
+    @ staticmethod
+    def report_to_df(report) -> pd.DataFrame:  # FIX ME
+        report = re.sub(r" +", " ", report).replace("avg / total",
+                                                    "avg/total").replace("\n ", "\n")
+        report_df = pd.read_csv(StringIO("Classes" + report),
+                                sep=' ', index_col=0, on_bad_lines='skip')
+        report_df.to_csv("report.csv")
+        return report_df
+
+    def report(
+        self,
+        y_true: np.ndarray,
+        y_classes: np.ndarray,
+    ) -> pd.DataFrame:
+        return self.report_to_df(
+            classification_report(y_true, y_classes, digits=4)
+        )
 
 
 def test_sk() -> None:

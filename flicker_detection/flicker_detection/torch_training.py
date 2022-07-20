@@ -22,7 +22,7 @@ def torch_validation(
     ds_val: Streamer,
     criterion: Callable,
     objective: Callable = nn.Softmax(),
-    f1_metric: Callable = F1Score(),
+    f1_metric: Callable = F1Score(average='macro'),
 ):
     with torch.no_grad():
         minibatch_loss_val, minibatch_f1_val = 0, 0
@@ -44,7 +44,7 @@ def torch_training(
     ds_val: Streamer,
     model: nn.Module,
     optimizer: torch.optim.Optimizer,
-    f1_metric: Callable = F1Score(),
+    f1_metric: Callable = F1Score(average='macro'),
     criterion: Callable = nn.BCELoss(),
     objective: Callable = nn.Softmax(),
     epochs: int = 1000,
@@ -110,8 +110,9 @@ def torch_testing(
     ds_test: Streamer,
     model: nn.Module,
     objective: Callable = nn.Softmax(),
-    classes: int = 2
+    classes: int = 6
 ) -> None:
+    logging.getLogger('matplotlib').setLevel(logging.WARNING)
     metrics = Evaluation(plots_folder="plots/", classes=classes)
 
     model.eval()
@@ -125,7 +126,6 @@ def torch_testing(
                 torch.cat((y_pred, output), dim=0)
             y_true = y if y_true is None else\
                 torch.cat((y_true, y), dim=0)
-
     y_classes = torch.topk(objective(y_pred), k=1, dim=1).indices.flatten()
     metrics.cm(y_true.detach(), y_classes.detach())
 
@@ -140,12 +140,7 @@ def torch_testing(
     loss, f1, val_loss, val_f1 = load_metrics("metrics.pth")
     metrics.plot_callback(loss, val_loss, "loss", num=43)
     metrics.plot_callback(f1, val_f1, "f1", num=42)
-
-    report = classification_report(
-        y_true,
-        y_classes.cpu().numpy(),
-        digits=4)
-    report_to_df(report)
+    metrics.report(y_true, y_classes.cpu().numpy())
 
 
 def main(*args):
@@ -211,8 +206,8 @@ if __name__ == "__main__":
     ds_test = Streamer(embedding_list_test, label_path,
                        mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
 
-    model = LSTM(input_dim=18432, output_dim=5, hidden_dim=256,
-                 layer_dim=1, bidirectional=False)
+    model = LSTM(input_dim=18432, output_dim=6, hidden_dim=256,
+                 layer_dim=1, bidirectional=True)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
     model = torch.nn.DataParallel(model, device_ids=[0, 1])
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
