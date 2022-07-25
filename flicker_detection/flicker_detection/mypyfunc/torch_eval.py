@@ -164,6 +164,7 @@ class Evaluation(object):
     https://onlineconfusionmatrix.com/
     https://discuss.pytorch.org/t/bce-loss-vs-cross-entropy/97437/3
     """
+    logging.getLogger('PIL.PngImagePlugin').setLevel(logging.WARNING)
 
     def __init__(self,
                  plots_folder: str = "plots/",
@@ -276,7 +277,7 @@ class Evaluation(object):
                                                     "avg/total").replace("\n ", "\n")
         report_df = pd.read_csv(StringIO("Classes" + report),
                                 sep=' ', index_col=0, on_bad_lines='skip')
-        report_df.to_csv("report.csv")
+        report_df.to_csv("plots/report.csv")
         return report_df
 
     def report(

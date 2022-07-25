@@ -1,11 +1,7 @@
 import logging
-import re
 import random
-from tkinter import Y
 import torch
 import numpy as np
-import pandas as pd
-from io import StringIO
 
 # Save and Load Functions
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -75,24 +71,3 @@ def torch_seeding():
         torch.cuda.manual_seed_all(42)
     # torch.backends.cudnn.deterministic = True
     # torch.backends.cudnn.benchmark = False
-
-
-def report_to_df(report):  # FIX ME
-    report = re.sub(r" +", " ", report).replace("avg / total",
-                                                "avg/total").replace("\n ", "\n")
-    report_df = pd.read_csv(StringIO("Classes" + report),
-                            sep=' ', index_col=0, on_bad_lines='skip')
-    report_df.to_csv("report.csv")
-    return report_df
-
-
-def multi_acc(y_pred, y_test):
-    y_pred_softmax = torch.log_softmax(y_pred, dim=1)
-    _, y_pred_tags = torch.max(y_pred_softmax, dim=1)
-
-    correct_pred = (y_pred_tags == y_test).float()
-    acc = correct_pred.sum() / len(correct_pred)
-
-    acc = torch.round(acc * 100)
-
-    return acc

@@ -9,6 +9,7 @@
 *.tfrecords
 *.pth
 *.jpg
+*.h264
 model.pth
 metrics.pth
 data/embedding/

@@ -11,11 +11,10 @@ from typing import Callable
 
 from argparse import ArgumentParser
 from mypyfunc.logger import init_logger
-from mypyfunc.torch_eval import F1Score, F1_Loss, Evaluation
+from mypyfunc.torch_eval import F1Score, Evaluation
 from mypyfunc.torch_models import LSTM
 from mypyfunc.torch_data_loader import Streamer
-from mypyfunc.torch_utility import save_checkpoint, save_metrics, load_checkpoint, load_metrics, torch_seeding, report_to_df
-from sklearn.metrics import classification_report
+from mypyfunc.torch_utility import save_checkpoint, save_metrics, load_checkpoint, load_metrics, torch_seeding
 
 
 def torch_validation(
@@ -23,6 +22,7 @@ def torch_validation(
     criterion: Callable,
     objective: Callable = nn.Softmax(),
     f1_metric: Callable = F1Score(average='macro'),
+    device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ):
     with torch.no_grad():
         minibatch_loss_val, minibatch_f1_val = 0, 0
@@ -48,12 +48,14 @@ def torch_training(
     criterion: Callable = nn.BCELoss(),
     objective: Callable = nn.Softmax(),
     epochs: int = 1000,
+    device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+    save_path: str = 'h5_models/',
 ) -> nn.Module:
 
     val_max_f1 = 0
     f1_callback, loss_callback, val_f1_callback, val_loss_callback = (), (), (), ()
     for epoch in range(epochs):
-        if loss_callback and epoch > 10 and loss_callback[-1] < 0.01:
+        if loss_callback and epoch > 10 and loss_callback[-1] < 0.005:
             break
 
         minibatch_loss_train, minibatch_f1 = 0, 0
@@ -93,9 +95,9 @@ def torch_training(
             ))
 
         if epoch > 10 and val_f1_callback[-1] > val_max_f1:
-            save_checkpoint('model.pth', model,
+            save_checkpoint(f'{save_path}model.pth', model,
                             optimizer, loss_callback[-1], f1_callback[-1], val_loss_callback[-1], val_f1_callback[-1])
-            save_metrics('metrics.pth', loss_callback, f1_callback,
+            save_metrics(f'{save_path}metrics.pth', loss_callback, f1_callback,
                          val_loss_callback, val_f1_callback)
             val_max_f1 = val_f1_callback[-1]
 
@@ -110,7 +112,8 @@ def torch_testing(
     ds_test: Streamer,
     model: nn.Module,
     objective: Callable = nn.Softmax(),
-    classes: int = 6
+    classes: int = 6,
+    device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ) -> None:
     logging.getLogger('matplotlib').setLevel(logging.WARNING)
     metrics = Evaluation(plots_folder="plots/", classes=classes)
@@ -119,8 +122,7 @@ def torch_testing(
     y_pred, y_true = None, None
     with torch.no_grad():
         for x, y in ds_test:
-            x = x.to(device)
-            y = y.to(device)
+            x, y = x.to(device), y.to(device)
             output = model(x)
             y_pred = output if y_pred is None else\
                 torch.cat((y_pred, output), dim=0)
@@ -159,8 +161,8 @@ def main(*args):
 
     if args.preprocess:
         logging.info("Preprocessing start...")
-        ev = ds_train._fit_ipca()
-        logging.info("Explained variance: {}".format(ev))
+        ev = ds_train._fit_ipca(dest="samplers/ipca.pk1")
+        logging.info("PCA Explained variance: {}".format(ev))
         logging.info("Preprocessing Done.")
 
     if args.train:
@@ -171,6 +173,7 @@ def main(*args):
         logging.info("Done Training")
 
     if args.test:
+        logging.debug(f"Loading from... -> {model_path}")
         model.load_state_dict(torch.load(model_path)['model_state_dict'])
         logging.info("Starting Evaluation")
         torch_testing(ds_test, model)
@@ -179,12 +182,12 @@ def main(*args):
 
 if __name__ == "__main__":
     init_logger()
-
+    torch_seeding()
     label_path = "data/new_label.json"
-    mapping_path = "data/mapping_aug_data.json"
+    mapping_path = "data/mapping_aug_data.json"  # mapping_aug_data.json
     data_dir = "data/vgg16_emb/"
     cache_path = ".cache/train_test"
-    model_path = "model.pth"
+    model_path = "h5_models/model.pth"
 
     __cache__ = np.load(
         "{}.npz".format(cache_path), allow_pickle=True)
@@ -196,11 +199,13 @@ if __name__ == "__main__":
 
     ipca = pk.load(open("ipca.pk1", "rb")) if os.path.exists(
         "ipca.pk1") else IncrementalPCA(n_components=2)
+    # ,n_neighbors=1)
+    nm = NearMiss(version=3, n_jobs=-1, sampling_strategy='majority')
 
-    sm = SMOTE(random_state=42, n_jobs=-1)  # , k_neighbors=2)
-    nm = NearMiss(version=3, n_jobs=-1)  # , n_neighbors=1)
+    sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=1)
+
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, mem_split=3, chunk_size=chunk_size, batch_size=batch_size, sampler=None, ipca=ipca, ipca_fitted=True)
+                        mapping_path, data_dir, mem_split=3, chunk_size=chunk_size, batch_size=batch_size, sampler=sm)  # [('near_miss', nm), ('smote', sm)])
     ds_val = Streamer(embedding_list_val, label_path,
                       mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
     ds_test = Streamer(embedding_list_test, label_path,
@@ -210,12 +215,11 @@ if __name__ == "__main__":
                  layer_dim=1, bidirectional=True)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
     model = torch.nn.DataParallel(model, device_ids=[0, 1])
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
+    model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
     criterion = nn.CrossEntropyLoss()
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     #     optimizer, patience=5, verbose=True)
     # lower gpu float precision for larger batch size
-    torch_seeding()
+
     logging.info("{}".format(model.train()))
     main(ds_train, ds_val, ds_test, model, optimizer, criterion)

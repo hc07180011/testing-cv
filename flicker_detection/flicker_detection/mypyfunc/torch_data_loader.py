@@ -2,14 +2,15 @@ import os
 import json
 import gc
 import random
-import psutil
 import numpy as np
 import pickle as pk
 import torch
 import tensorflow as tf
 import multiprocessing as mp
+import seaborn as sns
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import NearMiss
+from imblearn.pipeline import Pipeline
 from sklearn.decomposition import IncrementalPCA
 from torch.utils.data import Dataset, DataLoader
 from typing import Callable, Tuple
@@ -102,9 +103,7 @@ class Streamer(object):
                  ipca: Callable = None,
                  ipca_fitted: bool = False,
                  keras: bool = False,
-                 binary: bool = False,
                  ) -> None:
-        self.binary = binary
         self.keras = keras
         self.embedding_list_train = embedding_list_train
         self.chunk_embedding_list = np.array_split(
@@ -141,7 +140,8 @@ class Streamer(object):
                 self.chunk_embedding_list[self.cur_chunk])
             self.cur_chunk += 1
             X, y = self._re_sample()
-            self.X_buffer, self.y_buffer = self._batch_sample(X, y)
+            self.X_buffer, self.y_buffer = self._batch_sample(
+                X, y, self.batch_size)
             gc.collect()
 
         X, y = self.X_buffer.pop(), self.y_buffer.pop()
@@ -167,70 +167,14 @@ class Streamer(object):
             X = np.reshape(X, (-1,) + x_origin[1:])
         return X, y
 
-    def _batch_sample(
-        self,
-        X: np.ndarray,
-        y: np.ndarray
-    ) -> Tuple[list, list]:
-        X = [
-            X[i:i+self.batch_size]
-            for i in range(0, len(X), self.batch_size)
-        ]
-        y = [
-            y[i:i+self.batch_size]
-            for i in range(0, len(y), self.batch_size)
-        ]
-        return X, y
-
-    def _shuffle(self) -> None:
-        random.shuffle(self.embedding_list_train)
-        self.chunk_embedding_list = np.array_split(
-            self.embedding_list_train, self.mem_split)
-        self.cur_chunk = 0
-        self.X_buffer, self.y_buffer = (), ()
-        gc.collect()
-
-    @staticmethod
-    def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
-        chunks = np.array_split(
-            input_arr,
-            list(range(
-                chunk_size,
-                input_arr.shape[0] + 1,
-                chunk_size
-            ))
-        )
-        i_pad = np.zeros(chunks[0].shape)
-        i_pad[:len(chunks[-1])] = chunks[-1]
-        chunks[-1] = i_pad
-        return tuple(map(tuple, chunks))
-
-    @staticmethod
-    def _sampling(
-        X_train: np.array,
-        y_train: np.array,
-        sampler: Callable,
-    ) -> Tuple[np.array, np.array]:
-        """
-        batched alternative:
-        https://imbalanced-learn.org/stable/references/generated/imblearn.keras.BalancedBatchGenerator.html
-        """
-        original_X_shape = X_train.shape
-        X_train, y_train = sampler.fit_resample(
-            np.reshape(X_train, (-1, np.prod(original_X_shape[1:]))),
-            y_train
-        )
-        X_train = np.reshape(X_train, (-1,) + original_X_shape[1:])
-        return (X_train, y_train)
-
-    def _fit_ipca(self) -> None:
+    def _fit_ipca(self, dest: str) -> None:
         if self.ipca is None:
             raise NotImplementedError
         for x, _ in self:
             x_origin = x.shape
             self.ipca.partial_fit(np.reshape(x, (-1, np.prod(x_origin[1:]))))
         self.ipca_fitted = True
-        pk.dump(self.ipca, open("ipca.pk1", "wb"))
+        pk.dump(self.ipca, open(f"{dest}", "wb"))
         return "Explained variance: {}".format(self.ipca.explained_variance_)
 
     def _load_embeddings(
@@ -258,111 +202,73 @@ class Streamer(object):
                 for x in self._get_chunk_array(buf_label, self.chunk_size)
             )
 
-
-class MultiProcessedLoader(Streamer):
-    # NEEDS ALOT OF WORK
-    def __init__(self,
-                 embedding_list_train: list,
-                 label_path: str,
-                 mapping_path: str,
-                 data_dir: str,
-                 mem_split: int = 8,
-                 chunk_size: int = 30,
-                 batch_size: int = 32,
-                 oversample: bool = False,
-                 ) -> None:
-        super.__init__(
-            embedding_list_train,
-            label_path,
-            mapping_path,
-            data_dir,
-            mem_split,
-            chunk_size,
-            batch_size,
-            oversample,
-        )
-        self.cpu = os.cpu_count()
-        self.X_buffer = mp.Queue()
-        self.y_buffer = mp.Queue()
-
-    def producers(self) -> None:
-        chunks = [self.embedding_list_train[i:i+self.cpu//2]
-                  for i in range(0, self.embedding_list_train, self.cpu//2)]
-        return tuple(
-            mp.Process(target=self.load_embeddings,
-                       args=(chunks[core]))
-            for core in range(self.cpu//2))
-
-    def start(self) -> None:
-        producers = self.producers()
-        for p in producers:
-            p.start()
-        for p in producers:
-            p.join()
-
-    def shuffle(self) -> None:
+    def _shuffle(self) -> None:
         random.shuffle(self.embedding_list_train)
-        self.X_buffer, self.y_buffer = mp.Queue(), mp.Queue()
+        self.chunk_embedding_list = np.array_split(
+            self.embedding_list_train, self.mem_split)
+        self.cur_chunk = 0
+        self.X_buffer, self.y_buffer = (), ()
         gc.collect()
 
-    def __iter__(self):
-        return self
+    def plot_dist(self, dest: str) -> None:
+        import matplotlib.pyplot as plt
+        self._load_embeddings(
+            self.chunk_embedding_list[self.cur_chunk])
+        self.cur_chunk += 1
+        X, y = self._re_sample()
+        sns.barplot(x=y, y=X.shape[0])
+        plt.savefig(f'{dest}')
 
-    def __next__(self) -> Tuple[torch.Tensor, torch.Tensor]:
-        if (not self.X_buffer or not self.y_buffer) and self.cur_chunk == len(self.chunk_embedding_list):
-            gc.collect()
-            raise StopIteration
+    @staticmethod
+    def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
+        chunks = np.array_split(
+            input_arr,
+            list(range(
+                chunk_size,
+                input_arr.shape[0] + 1,
+                chunk_size
+            ))
+        )
+        i_pad = np.zeros(chunks[0].shape)
+        i_pad[:len(chunks[-1])] = chunks[-1]
+        chunks[-1] = i_pad
+        return tuple(map(tuple, chunks))
 
-        X, y = self._oversampling(
-            np.array(self.X_buffer.get()), np.array(self.y_buffer.get())
-        ) if self.oversample else (np.array(self.X_buffer), np.array(self.y_buffer))
+    @staticmethod
+    def _sampling(
+        X_train: np.array,
+        y_train: np.array,
+        sampler: Callable,
+    ) -> Tuple[np.array, np.array]:
+        """
+        batched alternative:
+        https://imbalanced-learn.org/stable/references/generated/imblearn.keras.BalancedBatchGenerator.html
+        """
+        if isinstance(sampler, list):
+            sampler = Pipeline(sampler)
+        original_X_shape = X_train.shape
+        X_train, y_train = sampler.fit_resample(
+            np.reshape(X_train, (-1, np.prod(original_X_shape[1:]))),
+            y_train
+        )
+        X_train = np.reshape(X_train, (-1,) + original_X_shape[1:])
+        return (X_train, y_train)
+
+    @staticmethod
+    def _batch_sample(
+        X: np.ndarray,
+        y: np.ndarray,
+        batch_size: int,
+    ) -> Tuple[list, list]:
         X = [
-            X[i:i+self.batch_size]
-            for i in range(0, len(X), self.batch_size)
+            X[i:i+batch_size]
+            for i in range(0, len(X), batch_size)
         ]
         y = [
-            y[i:i+self.batch_size]
-            for i in range(0, len(y), self.batch_size)
+            y[i:i+batch_size]
+            for i in range(0, len(y), batch_size)
         ]
-        idx = np.arange(X.shape[0]) - 1
-        random.shuffle(idx)
-        if self.keras:
-            return tf.convert_to_tensor(X[idx], dtype=tf.float32), tf.convert_to_tensor(y[idx], dtype=tf.float32)
-        return torch.from_numpy(X[idx]).float(), torch.from_numpy(y[idx]).float()
-
-    def load_embeddings(
-        self,
-        embedding_list_train: list,
-    ) -> None:
-        """
-        This loop is what needs multiprocessing
-        """
-        idx = 0
-        while True:
-            if idx >= len(embedding_list_train):
-                break
-            if psutil.virtual_memory().percent > 80:
-                continue
-            real_filename = self.encoding_filename_mapping[embedding_list_train[idx].replace(
-                ".npy", "")]
-            loaded = np.load("{}.npy".format(os.path.join(self.data_dir, embedding_list_train[idx].replace(
-                ".npy", ""))))
-            self.X_buffer.put(
-                (*self._get_chunk_array(loaded, self.chunk_size),))
-            # get flicker frame indexes
-            flicker_idxs = np.array(self.raw_labels[real_filename]) - 1
-            # buffer zeros array frame video embedding
-            buf_label = np.zeros(loaded.shape[0], dtype=np.uint8)
-            # set indexes in zeros array based on flicker frame indexes
-            buf_label[flicker_idxs] = 1
-            # consider using tf reduce sum for multiclass
-            self.y_buffer.put(tuple(
-                1 if sum(x) else 0
-                for x in self._get_chunk_array(buf_label, self.chunk_size)
-            ))
-            idx += 1
-
-        gc.collect()
+        return X, y
 
 
 def test_MYDS(
@@ -379,7 +285,7 @@ def test_MYDS(
     dl = DataLoader(ds, batch_size=256, shuffle=True, num_workers=16)
 
     t_sample = 0
-    for batch_idx, (x, y) in enumerate(d_train):
+    for batch_idx, (x, y) in enumerate(dl):
         print(batch_idx, x.shape, y.shape)
         t_sample += y.shape[0]
     print(t_sample)
@@ -399,15 +305,18 @@ if __name__ == '__main__':
     ipca = pk.load(open("../ipca.pk1", "rb"))\
         if os.path.exists("../ipca.pk1") else IncrementalPCA(n_components=2)
     sm = SMOTE(random_state=42, n_jobs=-1)  # , k_neighbors=3)
+    nm = NearMiss(version=3, n_jobs=-1)  # , n_neighbors=1)
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None, ipca=ipca, ipca_fitted=True)
+                        mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=[('near_miss', nm), ('smote', sm)])  # ipca=ipca, ipca_fitted=True)
     ds_val = Streamer(embedding_list_val, label_path,
                       mapping_path, data_dir, batch_size=256)
     ds_test = Streamer(embedding_list_test, label_path,
                        mapping_path, data_dir, mem_split=1, batch_size=256, sampler=None)
 
-    sample = 0
-    for idx, (x, y) in enumerate(ds_train):
-        print(idx, x.shape, y.shape)
-        sample += y.shape[0]
-    print(sample)
+    ds_train.plot_dist(dest='../plots/X_train_dist.png')
+    # sample = 0
+    # for idx, (x, y) in enumerate(ds_train):
+    #     print(idx, x.shape, y.shape)
+    #     print(y)
+    #     sample += y.shape[0]
+    # print(sample)

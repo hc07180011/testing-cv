@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def save_flicker_img(vid_path: str, init_sec, flicker_frames: list = None, raw_name=None):
+def save_flicker_img(vid_path: str, init_sec, flicker_frames: list = None, raw_name=None)->None:
     cap = cv2.VideoCapture(vid_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
     window = [0]*3
@@ -134,6 +134,29 @@ def manual_label(vid_path: str,):
     return h, w, total
 
 
+def check_fps(vid_path: str)->bool:
+    """
+    problem only from opencv 3 ?
+    """
+    cap = cv2.VideoCapture(vid_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    print(cap.set(cv2.CAP_PROP_POS_AVI_RATIO, 1))
+    print(cap.get(cv2.CAP_PROP_POS_MSEC))
+    print(cap.get(cv2.CAP_PROP_POS_FRAMES))
+    print(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    print(cap.set(cv2.CAP_PROP_POS_AVI_RATIO, 0))
+    print(cap.get(cv2.CAP_PROP_POS_FRAMES))
+    num_frames,ret = 0, True
+    while ret:
+        ret, frame = cap.read()
+        if ret:
+            num_frames += 1
+    duration = float(num_frames) / float(fps) # in seconds
+    print(f"FPS - {fps}\nSeconds - {duration}\nNum_frames - {num_frames}\n\n")
+    cap.release()
+    return True
+
+
 if __name__ == "__main__":
     """
     sudomen
@@ -147,8 +170,20 @@ if __name__ == "__main__":
     fyi the command to get the frame pts
     ffprobe -i test_01.mp4 -show_frames | grep pkt_pts_time
 
+    Convert variable frame rate to standard fps
+    for file in flicker-detection/*; do ffmpeg -y -i $file -c copy -f h264 "h264_vids/${file:18:4}.h264"; done
+    for file in h264_vids/*; do ffmpeg -y -r 30 -i $file -c copy "standard_fps_vid/${file:10:4}.mp4"; done
+    
+    Check frame count ffmpeg
+    ffmpeg -i "path to file" -f null /dev/null
+
+    ?????? opencv problem?
+    https://github.com/opencv/opencv/issues/17257
     """
-    save_flicker_img("flicker-detection/0145.mp4", 13)
+    # save_flicker_img("flicker-detection/0145.mp4", 13)
     # read_proto_string()
     # writeimg_new_labels()
     # manual_label('flicker-detection/0136.mp4')
+    # for vid in os.listdir('standard_fps_vid/'):
+    #     check_fps(os.path.join('standard_fps_vid/',vid))
+    check_fps('0180.mp4')
