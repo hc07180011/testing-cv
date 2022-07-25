@@ -54,7 +54,7 @@ def mnist_data():
     # remove the initial data from the training dataset
     X_pool = np.delete(X_train, initial_idx, axis=0)[:5000]
     y_pool = np.delete(y_train, initial_idx, axis=0)[:5000]
-    return X_pool,y_pool,X_initial,y_initial,X_test,y_test
+    return X_pool,y_pool,X_initial,y_initial
 
 
 if __name__ == "__main__":
@@ -67,7 +67,12 @@ if __name__ == "__main__":
                                     verbose=1,
                                     device=device)
 
-    X_pool,y_pool,X_initial,y_initial,X_test,y_test = mnist_data()
+    X_pool,y_pool,X_initial,y_initial = mnist_data()
+
+    X_pool,y_pool = X_pool.detach().cpu().numpy(),y_pool.detach().cpu().numpy()
+    X_initial,y_initial = X_initial.detach().cpu().numpy(),y_initial.detach().cpu().numpy()
+
+    y_pool = np.zeros(y_pool.shape)
     # initialize ActiveLearner
     learner = ActiveLearner(
         estimator=classifier,
@@ -75,7 +80,7 @@ if __name__ == "__main__":
     )
 
     # the active learning loop
-    n_queries = 10
+    n_queries = 50
     for idx in range(n_queries):
         print('Query no. %d' % (idx + 1))
         query_idx, query_instance = learner.query(X_pool, n_instances=100)
@@ -85,3 +90,6 @@ if __name__ == "__main__":
         # remove queried instance from pool
         X_pool = np.delete(X_pool, query_idx, axis=0)
         y_pool = np.delete(y_pool, query_idx, axis=0)
+
+
+    print(dir(learner))
