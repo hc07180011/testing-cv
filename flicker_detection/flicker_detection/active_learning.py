@@ -72,7 +72,7 @@ if __name__ == "__main__":
     X_pool,y_pool = X_pool.detach().cpu().numpy(),y_pool.detach().cpu().numpy()
     X_initial,y_initial = X_initial.detach().cpu().numpy(),y_initial.detach().cpu().numpy()
 
-    y_pool = np.zeros(y_pool.shape)
+    response = np.zeros(X_pool.shape)
     # initialize ActiveLearner
     learner = ActiveLearner(
         estimator=classifier,
@@ -91,5 +91,5 @@ if __name__ == "__main__":
         X_pool = np.delete(X_pool, query_idx, axis=0)
         y_pool = np.delete(y_pool, query_idx, axis=0)
 
-
-    print(dir(learner))
+    print(learner.predict(response))
+    # print(dir(learner))

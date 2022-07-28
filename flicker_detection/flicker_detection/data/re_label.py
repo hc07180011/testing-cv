@@ -190,6 +190,9 @@ if __name__ == "__main__":
 
     ?????? opencv problem?
     https://github.com/opencv/opencv/issues/17257
+
+    # ffprobe -i test_01.mp4 -show_frames -select_streams v:0 -print_format flat | grep pkt_pts_time=
+    ffmpeg
     """
     # save_flicker_img("flicker-detection/0145.mp4", 13)
     # read_proto_string()

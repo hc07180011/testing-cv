@@ -113,7 +113,8 @@ def torch_testing(
     model: nn.Module,
     objective: Callable = nn.Softmax(),
     classes: int = 6,
-    device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+    save_path: str = 'h5_models/',
 ) -> None:
     logging.getLogger('matplotlib').setLevel(logging.WARNING)
     metrics = Evaluation(plots_folder="plots/", classes=classes)
@@ -139,7 +140,7 @@ def torch_testing(
     metrics.roc_auc(y_bin, y_pred)
     metrics.pr_curve(y_bin, y_pred)
 
-    loss, f1, val_loss, val_f1 = load_metrics("metrics.pth")
+    loss, f1, val_loss, val_f1 = load_metrics(f"{save_path}metrics.pth")
     metrics.plot_callback(loss, val_loss, "loss", num=43)
     metrics.plot_callback(f1, val_f1, "f1", num=42)
     metrics.report(y_true, y_classes.cpu().numpy())
@@ -209,7 +210,7 @@ if __name__ == "__main__":
     ds_val = Streamer(embedding_list_val, label_path,
                       mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
     ds_test = Streamer(embedding_list_test, label_path,
-                       mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
+                       mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=sm)
 
     model = LSTM(input_dim=18432, output_dim=6, hidden_dim=256,
                  layer_dim=1, bidirectional=True)

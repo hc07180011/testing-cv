@@ -44,7 +44,7 @@ class LSTM(nn.Module):
 
     def forward(self, x) -> torch.Tensor:
         # One time step
-        out, (hn, cn) = self.lstm(x, self.init_hidden(x))  # .detach()
+        out, (hn, cn) = self.lstm(x, self.init_hidden(x)) 
         # Dense lstm
         out = self.fc1(out)
         # Dense Relu
