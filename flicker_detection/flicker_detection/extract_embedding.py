@@ -1,9 +1,6 @@
-from cProfile import label
 import os
 import json
 import cv2
-from cv2 import threshold
-from sklearn.metrics import f1_score
 import tqdm
 import logging
 import numpy as np
@@ -12,12 +9,11 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import seaborn as sns
 
-from imblearn.over_sampling import SMOTE
 from argparse import ArgumentParser
-from sklearn.model_selection import train_test_split
+#from sklearn.model_selection import train_test_split
 from tensorflow.keras.applications import DenseNet121, mobilenet, vgg16, InceptionResNetV2, InceptionV3
 from tensorflow.keras import Model
-from tensorflow_addons.metrics import F1Score
+#from tensorflow_addons.metrics import F1Score
 from mypyfunc.logger import init_logger
 from typing import Tuple
 from preprocessing.embedding.backbone import BaseCNN, Serializer
@@ -213,7 +209,7 @@ def main():
     l_distribute.auto_shard_policy = AutoShardPolicy.DATA` before applying the options object to the dataset via `dataset.with_options(options)`.
     """
 
-    videos_path = "data/augmented"
+    videos_path = "data/flicker-detection"
     label_path = "data/new_label.json"
     mapping_path = "data/mapping_aug_data.json"
     data_path = "data/vgg16_emb"
