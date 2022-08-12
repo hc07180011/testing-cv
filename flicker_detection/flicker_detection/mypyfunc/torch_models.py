@@ -2,7 +2,7 @@ import torch.nn as nn
 import torch
 from torch import nn
 from torch.autograd import Variable
-from torchsummary import summary as summary
+# from torchsummary import summary as summary
 import pkbar
 
 import warnings
@@ -245,9 +245,9 @@ class Model():
         self.opt = optimizer
         self.criterion = loss
 
-    def summary(self):
-        summary(self.model, self.input_size, device=self.device)
-        print("Device Type:", self.device)
+    # def summary(self):
+    #     summary(self.model, self.input_size, device=self.device)
+    #     print("Device Type:", self.device)
 
     def fit(self, data_x, data_y, epochs):
         self.model.train()

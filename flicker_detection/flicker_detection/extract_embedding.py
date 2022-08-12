@@ -211,7 +211,7 @@ def main():
 
     videos_path = "data/flicker-detection"
     label_path = "data/new_label.json"
-    mapping_path = "data/mapping_aug_data.json"
+    mapping_path = "data/mapping_test.json"
     data_path = "data/vgg16_emb"
     cache_path = ".cache/train_test"
 
@@ -238,12 +238,12 @@ def main():
     )
     args = parser.parse_args()
 
-    logging.info("[Embedding] Start ...")
-    np_embed(
-        videos_path,
-        data_path
-    )
-    logging.info("[Embedding] done.")
+    # logging.info("[Embedding] Start ...")
+    # np_embed(
+    #     videos_path,
+    #     data_path
+    # )
+    # logging.info("[Embedding] done.")
 
     logging.info("[Preprocessing] Start ...")
     preprocessing(

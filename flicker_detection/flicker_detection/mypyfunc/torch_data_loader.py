@@ -293,7 +293,7 @@ def test_MYDS(
 
 if __name__ == '__main__':
     label_path = "../data/new_label.json"
-    mapping_path = "../data/mapping_aug_data.json"
+    mapping_path = "../data/mapping_test.json"
     data_dir = "../data/vgg16_emb/"
     __cache__ = np.load("{}.npz".format(
         "../.cache/train_test"), allow_pickle=True)
@@ -304,19 +304,19 @@ if __name__ == '__main__':
     batch_size = 1024
     ipca = pk.load(open("../ipca.pk1", "rb"))\
         if os.path.exists("../ipca.pk1") else IncrementalPCA(n_components=2)
-    sm = SMOTE(random_state=42, n_jobs=-1)  # , k_neighbors=3)
+    sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=3)
     nm = NearMiss(version=3, n_jobs=-1)  # , n_neighbors=1)
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=[('near_miss', nm), ('smote', sm)])  # ipca=ipca, ipca_fitted=True)
+                        mapping_path, data_dir, mem_split=20, chunk_size=chunk_size, batch_size=batch_size, sampler=sm)  # [('near_miss', nm), ('smote', sm)])  # ipca=ipca, ipca_fitted=True)
     ds_val = Streamer(embedding_list_val, label_path,
                       mapping_path, data_dir, batch_size=256)
     ds_test = Streamer(embedding_list_test, label_path,
                        mapping_path, data_dir, mem_split=1, batch_size=256, sampler=None)
 
-    ds_train.plot_dist(dest='../plots/X_train_dist.png')
-    # sample = 0
-    # for idx, (x, y) in enumerate(ds_train):
-    #     print(idx, x.shape, y.shape)
-    #     print(y)
-    #     sample += y.shape[0]
-    # print(sample)
+    # ds_train.plot_dist(dest='../plots/X_train_dist.png')
+    sample = 0
+    for idx, (x, y) in enumerate(ds_train):
+        print(idx, x.shape, y.shape)
+        # print(y)
+        sample += y.shape[0]
+    print(sample)

@@ -185,7 +185,7 @@ if __name__ == "__main__":
     init_logger()
     torch_seeding()
     label_path = "data/new_label.json"
-    mapping_path = "data/mapping_aug_data.json"  # mapping_aug_data.json
+    mapping_path = "data/mapping_test.json"  # mapping_aug_data.json
     data_dir = "data/vgg16_emb/"
     cache_path = ".cache/train_test"
     model_path = "h5_models/model.pth"
@@ -206,16 +206,16 @@ if __name__ == "__main__":
     sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=1)
 
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, mem_split=3, chunk_size=chunk_size, batch_size=batch_size, sampler=sm)  # [('near_miss', nm), ('smote', sm)])
+                        mapping_path, data_dir, mem_split=20, chunk_size=chunk_size, batch_size=batch_size, sampler=None)  # [('near_miss', nm), ('smote', sm)])
     ds_val = Streamer(embedding_list_val, label_path,
                       mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
     ds_test = Streamer(embedding_list_test, label_path,
-                       mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=sm)
+                       mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
 
     model = LSTM(input_dim=18432, output_dim=6, hidden_dim=256,
                  layer_dim=1, bidirectional=True)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
-    model = torch.nn.DataParallel(model, device_ids=[0, 1])
+    # model = torch.nn.DataParallel(model, device_ids=[0, 1])
     model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
     criterion = nn.CrossEntropyLoss()
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
