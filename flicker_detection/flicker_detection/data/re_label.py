@@ -28,11 +28,10 @@ def save_flicker_img(vid_path: str, init_sec, flicker_frames: list = None, raw_n
 
 
 def label_aug():
-    label = json.load(open("label.json", "r"))
+    # label = json.load(open("label.json", "r"))
     mapping = json.load(open("mapping.json", "r"))
-    # print(mapping.keys())
     vids = dict(map(lambda s: (s[:4], s), mapping.keys()))
-    for aug_vid in os.listdir("data/augmented/"):
+    for aug_vid in os.listdir("augmented/"):
         if aug_vid[:4] in vids:
             mapping[aug_vid] = mapping[vids[aug_vid[:4]]]
     json.dump(mapping, open("mapping_test.json", "w"))
@@ -200,4 +199,5 @@ if __name__ == "__main__":
     # manual_label('flicker-detection/0136.mp4')
     # for vid in os.listdir('standard_fps_vid/'):
     #     check_fps(os.path.join('standard_fps_vid/',vid))
-    check_fps('flicker-detection/0001.mp4')
+    # check_fps('flicker-detection/0001.mp4')
+    label_aug()
