@@ -39,7 +39,7 @@
 2. [Google Cloud Platform - Ubuntu 16.04, 18.04, 20.04](https://cloud.google.com/)
 
 #### Pip3
-```bash=
+```bash
 # Update and install packages
 sudo apt update
 sudo apt install -y make build-essential libssl-dev zlib1g-dev libbz2-dev \
@@ -73,7 +73,7 @@ time python3 main.py -d data/test_data.mp4
 
 #### Anaconda
 [conda on Linux](https://docs.anaconda.com/anaconda/install/linux/)
-```bash=
+```bash
 # create env from yml file
 conda env create -f environment.yml
 # activate env
@@ -86,7 +86,7 @@ conda activate "enviorment name here"
 
 * Prerequisite: [Docker](https://www.docker.com/)
 
-```bash=
+```bash
 # Clone this repo
 git clone https://github.com/hc07180011/testing-cv.git
 cd testing-cv/flicker_detection/flicker_detection
@@ -99,7 +99,7 @@ docker run --rm -e data=data/test_data.mp4 -v $PWD/data:/app/data -it flicker_de
 ```
 
 ## Testing Scripts Usage
-```bash=
+```bash
 cd test-cv/flicker-detection/flicker-detection/data
 mkdir augmented
 
@@ -127,8 +127,7 @@ python3 extract_embeddings.py
 python3 torch_training.py --train --test
 ```
 #### Caveats
-```python=
-
+```python
 # Note you may have to configure the src and dst file paths
 label_path = "data/new_label.json"
 mapping_path = "data/mapping_test.json"  
