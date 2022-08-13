@@ -146,9 +146,18 @@ def torch_testing(
     metrics.report(y_true, y_classes.cpu().numpy())
 
 
-def main(*args):
-    ds_train, ds_val, ds_test, model, optimizer, criterion = args
+def command_arg()->ArgumentParser:
     parser = ArgumentParser()
+    parser.add_argument('--label_path', type=str,default="data/new_label.json",
+        help='path of json that store the labeled frames')
+    parser.add_argument('--mapping_path', type=str,default="data/mapping_test.json",
+        help='path of json that maps encrpypted video file name to simple naming')
+    parser.add_argument('--data_dir', type=str,default="data/vgg16_emb/",
+        help='directory of extracted feature embeddings')
+    parser.add_argument('--cache_path', type=str,default=".cache/train_test",
+        help='directory of miscenllaneous information')
+    parser.add_argument('--model_path', type=str,default="h5_models/model.pth",
+        help='directory to store model weights and bias')
     parser.add_argument(
         "-preprocess", "--preprocess", action="store_true",
         default=False, help="Whether to perform IPCA")
@@ -158,38 +167,14 @@ def main(*args):
     parser.add_argument(
         "-test", "--test", action="store_true",
         default=False, help="Whether to do testing")
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    if args.preprocess:
-        logging.info("Preprocessing start...")
-        ev = ds_train._fit_ipca(dest="samplers/ipca.pk1")
-        logging.info("PCA Explained variance: {}".format(ev))
-        logging.info("Preprocessing Done.")
+def main()->None:
+    args = command_arg()
+    label_path,mapping_path,data_dir,cache_path,model_path = args.label_path,args.mapping_path,args.data_dir,args.cache_path,args.model_path
 
-    if args.train:
-        # model.load_state_dict(torch.load(model_path)['model_state_dict'])
-        logging.info("Starting Training")
-        model = torch_training(ds_train, ds_val, model,
-                               optimizer, criterion=criterion)
-        logging.info("Done Training")
-
-    if args.test:
-        logging.debug(f"Loading from... -> {model_path}")
-        model.load_state_dict(torch.load(model_path)['model_state_dict'])
-        logging.info("Starting Evaluation")
-        torch_testing(ds_test, model)
-        logging.info("Done Evaluation")
-
-
-if __name__ == "__main__":
     init_logger()
     torch_seeding()
-    label_path = "data/new_label.json"
-    mapping_path = "data/mapping_test.json"  # mapping_aug_data.json
-    data_dir = "data/vgg16_emb/"
-    cache_path = ".cache/train_test"
-    model_path = "h5_models/model.pth"
-
     __cache__ = np.load(
         "{}.npz".format(cache_path), allow_pickle=True)
     embedding_list_train, embedding_list_val, embedding_list_test = tuple(
@@ -223,4 +208,26 @@ if __name__ == "__main__":
     # lower gpu float precision for larger batch size
 
     logging.info("{}".format(model.train()))
-    main(ds_train, ds_val, ds_test, model, optimizer, criterion)
+    if args.preprocess:
+        logging.info("Preprocessing start...")
+        ev = ds_train._fit_ipca(dest="samplers/ipca.pk1")
+        logging.info("PCA Explained variance: {}".format(ev))
+        logging.info("Preprocessing Done.")
+
+    if args.train:
+        # model.load_state_dict(torch.load(model_path)['model_state_dict'])
+        logging.info("Starting Training")
+        model = torch_training(ds_train, ds_val, model,
+                               optimizer, criterion=criterion)
+        logging.info("Done Training")
+
+    if args.test:
+        logging.debug(f"Loading from... -> {model_path}")
+        model.load_state_dict(torch.load(model_path)['model_state_dict'])
+        logging.info("Starting Evaluation")
+        torch_testing(ds_test, model)
+        logging.info("Done Evaluation")
+   
+
+if __name__ == "__main__":
+    main()

@@ -1,13 +1,12 @@
 import cv2
 import os
-import imgaug as ia
-import imageio
+import json
 from imgaug import augmenters as iaa
 import shutil
 import argparse
 import random
 import time
-#from vidaug import augmentors as va
+import numpy as np
 from multiprocessing import Pool
 import concurrent.futures
 
@@ -114,9 +113,15 @@ if __name__ == '__main__':
         shutil.rmtree(output_folder_path)
     os.makedirs(output_folder_path, exist_ok=True)
 
-    video_clip_names = os.listdir(main_folder_path)
-    print(f"Videos found are {video_clip_names}")
-    no_of_clips_available = len(video_clip_names)
+    video_clip_names, mapping = os.listdir(
+        main_folder_path), json.load(open('mapping_test.json', 'r'))
+    labeled = tuple(json.load(open('new_label.json', 'r')))
+    video_clip_names = np.array(
+        [l for l in video_clip_names if mapping[l] in labeled])
+
+    no_of_clips_available = len(tuple(video_clip_names))
+    print(
+        f"# Clips: {no_of_clips_available}\nVideos found are {tuple(video_clip_names)}")
 
     # Run for each clip that needs to be augmented
     for clip_no in range(no_of_clips_available):

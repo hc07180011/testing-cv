@@ -28,7 +28,6 @@ def save_flicker_img(vid_path: str, init_sec, flicker_frames: list = None, raw_n
 
 
 def label_aug():
-    # label = json.load(open("label.json", "r"))
     mapping = json.load(open("mapping.json", "r"))
     vids = dict(map(lambda s: (s[:4], s), mapping.keys()))
     for aug_vid in os.listdir("augmented/"):

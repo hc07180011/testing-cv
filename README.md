@@ -108,9 +108,9 @@ make sure you have a folder in data/ called flicker-detection
 and source videos are stored there
 augmented is the output augmented video destination
 """
-python3 data_augment/multiprocess_augmentor.py\
---main-folder-path flicker-detection\
---output-folder-path augmented/\
+python3 data_augment/multiprocess_augmentor.py \
+--main-folder-path flicker-detection \
+--output-folder-path augmented/ \
 --max-clips 12
 
 # label augmented videos with the same labels as its video of origin
