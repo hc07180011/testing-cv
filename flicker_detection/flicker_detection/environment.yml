@@ -18,14 +18,18 @@ dependencies:
   - attr=2.5.1=h166bdaf_1
   - attrs=22.1.0=pyh71513ae_1
   - autopep8=1.6.0=pyhd3eb1b0_1
+  - av=9.2.0=py39hbd8a108_2
   - blas=1.0=openblas
   - blinker=1.4=py_1
+  - blosc=1.21.1=h83bc5f7_3
   - bottleneck=1.3.4=py39hce1f21e_0
   - brotli=1.0.9=h166bdaf_7
   - brotli-bin=1.0.9=h166bdaf_7
   - brotlipy=0.7.0=py39hb9d737c_1004
+  - brunsli=0.1=h9c3ff4c_0
   - bzip2=1.0.8=h7f98852_4
   - c-ares=1.18.1=h7f98852_0
+  - c-blosc2=2.2.0=h7a311fb_0
   - ca-certificates=2022.6.15=ha878542_0
   - cached-property=1.5.2=hd8ed1ab_1
   - cached_property=1.5.2=pyha770c72_1
@@ -33,14 +37,19 @@ dependencies:
   - cairo=1.16.0=ha61ee94_1011
   - certifi=2022.6.15=py39hf3d152e_0
   - cffi=1.15.1=py39he91dace_0
+  - cfitsio=4.1.0=hd9d235c_0
+  - charls=2.3.4=h9c3ff4c_0
   - charset-normalizer=2.1.0=pyhd8ed1ab_0
   - click=8.1.3=py39hf3d152e_0
+  - cloudpickle=2.1.0=pyhd8ed1ab_0
   - colorama=0.4.5=pyhd8ed1ab_0
   - commonmark=0.9.1=py_0
   - cryptography=37.0.4=py39hd97740a_0
   - cudatoolkit=11.6.0=hecad31d_10
   - cudnn=8.4.1.50=hed8a83a_0
   - cycler=0.11.0=pyhd8ed1ab_0
+  - cytoolz=0.12.0=py39hb9d737c_0
+  - dask-core=2022.8.0=pyhd8ed1ab_0
   - dataclasses=0.8=pyhc8e2a94_3
   - dbus=1.13.6=h5008d03_3
   - expat=2.4.8=h27087fc_0
@@ -57,8 +66,10 @@ dependencies:
   - freeglut=3.2.2=h9c3ff4c_1
   - freetype=2.10.4=hca18f0e_2
   - frozenlist=1.3.1=py39hb9d737c_0
+  - fsspec=2022.7.1=pyhd8ed1ab_0
   - future=0.18.2=py39hf3d152e_5
   - gast=0.4.0=pyh9f0ad1d_0
+  - geos=3.11.0=h27087fc_0
   - gettext=0.19.8.1=h73d1719_1008
   - giflib=5.2.1=h36c2ea0_2
   - glib=2.72.1=h6239696_0
@@ -78,12 +89,16 @@ dependencies:
   - hdf5=1.12.1=nompi_h2386368_104
   - icu=70.1=h27087fc_0
   - idna=3.3=pyhd8ed1ab_0
+  - imagecodecs=2022.8.8=py39h607b46b_3
+  - imageio=2.21.1=pyhfa7a67d_0
   - imbalanced-learn=0.9.1=pyhd8ed1ab_1
+  - imgaug=0.4.0=pyhd8ed1ab_1
   - importlib-metadata=4.11.4=py39hf3d152e_0
   - jack=1.9.18=h8c3723f_1002
   - jasper=2.0.33=ha77e612_0
   - joblib=1.1.0=pyhd3eb1b0_0
   - jpeg=9e=h166bdaf_2
+  - jxrlib=1.1=h7f98852_2
   - keras=2.9.0=pyhd8ed1ab_0
   - keras-preprocessing=1.1.2=pyhd8ed1ab_0
   - keyutils=1.6.1=h166bdaf_0
@@ -93,6 +108,8 @@ dependencies:
   - lcms2=2.12=hddcbb42_0
   - ld_impl_linux-64=2.38=h1181459_1
   - lerc=4.0.0=h27087fc_0
+  - libaec=1.0.6=h9c3ff4c_0
+  - libavif=0.10.1=h166bdaf_0
   - libblas=3.9.0=16_linux64_openblas
   - libbrotlicommon=1.0.9=h166bdaf_7
   - libbrotlidec=1.0.9=h166bdaf_7
@@ -149,7 +166,9 @@ dependencies:
   - libxkbcommon=1.0.3=he3ba5ed_0
   - libxml2=2.9.14=h22db469_3
   - libzlib=1.2.12=h166bdaf_2
+  - libzopfli=1.0.3=h9c3ff4c_0
   - llvm-openmp=14.0.4=he0ac6c6_0
+  - locket=1.0.0=pyhd8ed1ab_0
   - lz4-c=1.9.3=h9c3ff4c_1
   - magma=2.5.4=h6103c52_2
   - markdown=3.4.1=pyhd8ed1ab_0
@@ -164,6 +183,7 @@ dependencies:
   - nccl=2.13.4.1=h0800d71_0
   - ncurses=6.3=h5eee18b_3
   - nettle=3.8.1=hc379101_1
+  - networkx=2.8.5=pyhd8ed1ab_0
   - ninja=1.11.0=h924138e_0
   - nspr=4.32=h9c3ff4c_1
   - nss=3.78=h2350873_0
@@ -178,6 +198,7 @@ dependencies:
   - p11-kit=0.24.1=hc5aa10d_0
   - packaging=21.3=pyhd8ed1ab_0
   - pandas=1.4.2=py39h295c915_0
+  - partd=1.3.0=pyhd8ed1ab_0
   - pcre=8.45=h9c3ff4c_0
   - pillow=9.2.0=py39hae2aec6_0
   - pip=22.1.2=py39h06a4308_0
@@ -209,6 +230,8 @@ dependencies:
   - pytorch-mutex=1.0=cuda
   - pytz=2022.1=py39h06a4308_0
   - pyu2f=0.1.5=pyhd8ed1ab_0
+  - pywavelets=1.3.0=py39hd257fcd_1
+  - pyyaml=6.0=py39hb9d737c_4
   - qt-main=5.15.4=ha5833f6_2
   - re2=2022.06.01=h27087fc_0
   - readline=8.1.2=h7f8727e_1
@@ -216,10 +239,12 @@ dependencies:
   - requests-oauthlib=1.3.1=pyhd8ed1ab_0
   - rich=12.5.1=pyhd8ed1ab_0
   - rsa=4.9=pyhd8ed1ab_0
+  - scikit-image=0.19.3=py39h1832856_1
   - scikit-learn=1.1.1=py39h6a678d5_0
   - scipy=1.9.0=py39h8ba3f38_0
   - seaborn=0.11.2=pyhd3eb1b0_0
   - setuptools=61.2.0=py39h06a4308_0
+  - shapely=1.8.2=py39h68ae834_3
   - sip=6.6.2=py39h5a03fae_0
   - six=1.16.0=pyh6c4a22f_0
   - sleef=3.5.1=h9b69904_2
@@ -235,8 +260,10 @@ dependencies:
   - tensorflow-estimator=2.9.1=cuda112py39hd320b7a_0
   - termcolor=1.1.0=pyhd8ed1ab_3
   - threadpoolctl=2.2.0=pyh0d69192_0
+  - tifffile=2022.8.8=pyhd8ed1ab_0
   - tk=8.6.12=h1ccaba5_0
   - toml=0.10.2=pyhd8ed1ab_0
+  - toolz=0.12.0=pyhd8ed1ab_0
   - torchaudio=0.12.1=py39_cu116
   - torchvision=0.13.1=py39_cu116
   - tornado=6.2=py39hb9d737c_0
@@ -272,8 +299,11 @@ dependencies:
   - xorg-xextproto=7.3.0=h7f98852_1002
   - xorg-xproto=7.0.31=h7f98852_1007
   - xz=5.2.5=h7f8727e_1
+  - yaml=0.2.5=h7f98852_2
   - yarl=1.7.2=py39hb9d737c_2
+  - zfp=1.0.0=h27087fc_1
   - zipp=3.8.1=pyhd8ed1ab_0
   - zlib=1.2.12=h7f8727e_2
+  - zlib-ng=2.0.6=h166bdaf_0
   - zstd=1.5.2=h8a70e8d_3
 prefix: /home/ntu-cv/anaconda3/envs/cv2
