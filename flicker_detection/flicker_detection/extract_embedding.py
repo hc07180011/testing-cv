@@ -199,6 +199,31 @@ def testing(
     model.plot_callback()
 
 
+def command_arg() -> ArgumentParser:
+    parser = ArgumentParser()
+    parser.add_argument('--label_path', type=str, default="data/new_label.json",
+                        help='path of json that store the labeled frames')
+    parser.add_argument('--mapping_path', type=str, default="data/mapping_test.json",
+                        help='path of json that maps encrpypted video file name to simple naming')
+    parser.add_argument('--data_dir', type=str, default="data/vgg16_emb/",
+                        help='directory of extracted feature embeddings')
+    parser.add_argument('--cache_path', type=str, default=".cache/train_test",
+                        help='directory of miscenllaneous information')
+    parser.add_argument('--videos_path', type=str, default="data/flicker-detection",
+                        help='src directory to extract embeddings from')
+    parser.add_argument(
+        "-train", "--train", action="store_true",
+        default=False,
+        help="Whether to do training"
+    )
+    parser.add_argument(
+        "-test", "--test", action="store_true",
+        default=False,
+        help="Whether to do testing"
+    )
+    return parser.parse_args()
+
+
 def main():
     """
     can give minor classes higher weight
@@ -208,12 +233,8 @@ def main():
      You can do this by creating a new `tf.data.Options()` object then setting `options.experimenta
     l_distribute.auto_shard_policy = AutoShardPolicy.DATA` before applying the options object to the dataset via `dataset.with_options(options)`.
     """
-
-    videos_path = "data/flicker-detection"
-    label_path = "data/new_label.json"
-    mapping_path = "data/mapping_test.json"
-    data_path = "data/vgg16_emb"
-    cache_path = ".cache/train_test"
+    args = command_arg()
+    videos_path, label_path, mapping_path, data_path, cache_path = args.videos_path, args.label_path, args.mapping_path, args.data_dir, args.cache_path
 
     # tf.keras.utils.set_random_seed(12345)
     # tf.config.experimental.enable_op_determinism()
@@ -225,25 +246,12 @@ def main():
 
     init_logger()
 
-    parser = ArgumentParser()
-    parser.add_argument(
-        "-train", "--train", action="store_true",
-        default=False,
-        help="Whether to do training"
+    logging.info("[Embedding] Start ...")
+    np_embed(
+        videos_path,
+        data_path
     )
-    parser.add_argument(
-        "-test", "--test", action="store_true",
-        default=False,
-        help="Whether to do testing"
-    )
-    args = parser.parse_args()
-
-    # logging.info("[Embedding] Start ...")
-    # np_embed(
-    #     videos_path,
-    #     data_path
-    # )
-    # logging.info("[Embedding] done.")
+    logging.info("[Embedding] done.")
 
     logging.info("[Preprocessing] Start ...")
     preprocessing(

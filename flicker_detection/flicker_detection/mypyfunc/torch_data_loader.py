@@ -96,6 +96,7 @@ class Streamer(object):
                  label_path: str,
                  mapping_path: str,
                  data_dir: str,
+                 pts_path: str = "data/pts.json",
                  mem_split: int = 8,
                  chunk_size: int = 30,
                  batch_size: int = 32,
@@ -181,7 +182,6 @@ class Streamer(object):
         self,
         embedding_list_train: list,
     ) -> None:
-
         for key in embedding_list_train:
             real_filename = self.encoding_filename_mapping[key.replace(
                 ".npy", "")]
@@ -190,13 +190,9 @@ class Streamer(object):
                     self.data_dir, key.replace(".npy", "")))
             )
             self.X_buffer += (*self._get_chunk_array(loaded, self.chunk_size),)
-            # get flicker frame indexes
             flicker_idxs = np.array(self.raw_labels[real_filename]) - 1
-            # buffer zeros array frame video embedding
             buf_label = np.zeros(loaded.shape[0], dtype=np.uint8)
-            # set indexes in zeros array based on flicker frame indexes
             buf_label[flicker_idxs] = 1
-            # consider using tf reduce sum for multiclass
             self.y_buffer += tuple(
                 sum(x)  # FIX ME
                 for x in self._get_chunk_array(buf_label, self.chunk_size)
@@ -211,6 +207,9 @@ class Streamer(object):
         gc.collect()
 
     def plot_dist(self, dest: str) -> None:
+        """
+        FIX ME bugged
+        """
         import matplotlib.pyplot as plt
         self._load_embeddings(
             self.chunk_embedding_list[self.cur_chunk])
