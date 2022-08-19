@@ -7,12 +7,13 @@ import numpy as np
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def save_checkpoint(save_path, model, optimizer, loss, f1, val_f1, val_loss):
+def save_checkpoint(save_path, model0, model1, optimizer, loss, f1, val_f1, val_loss):
 
     if save_path == None:
         return
 
-    state_dict = {'model_state_dict': model.state_dict(),
+    state_dict = {'model0_state_dict': model0.state_dict(),
+                  'model1_state_dict': model1.state_dict(),
                   'optimizer_state_dict': optimizer.state_dict(),
                   'loss': loss,
                   'f1': f1,
@@ -63,11 +64,11 @@ def load_metrics(load_path):
         torch.Tensor(state_dict['val_f1_callback']).numpy()
 
 
-def torch_seeding():
-    np.random.seed(42)
-    random.seed(42)
-    torch.manual_seed(42)
+def torch_seeding(seed=12345):
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.manual_seed(seed)
     if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(42)
+        torch.cuda.manual_seed_all(seed)
     # torch.backends.cudnn.deterministic = True
     # torch.backends.cudnn.benchmark = False

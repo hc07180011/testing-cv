@@ -8,6 +8,7 @@ import torch
 import tensorflow as tf
 import multiprocessing as mp
 import seaborn as sns
+import logging
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import NearMiss
 from imblearn.pipeline import Pipeline
@@ -96,7 +97,6 @@ class Streamer(object):
                  label_path: str,
                  mapping_path: str,
                  data_dir: str,
-                 pts_path: str = "data/pts.json",
                  mem_split: int = 8,
                  chunk_size: int = 30,
                  batch_size: int = 32,
@@ -104,8 +104,10 @@ class Streamer(object):
                  ipca: Callable = None,
                  ipca_fitted: bool = False,
                  keras: bool = False,
+                 multiclass: bool = False,
                  ) -> None:
         self.keras = keras
+        self.multiclass = multiclass
         self.embedding_list_train = embedding_list_train
         self.chunk_embedding_list = np.array_split(
             embedding_list_train, mem_split)
@@ -118,6 +120,7 @@ class Streamer(object):
         self.chunk_size = chunk_size
         self.batch_size = batch_size
         self.sampler = sampler
+        self.sampling_params = None
         self.ipca = ipca
         self.ipca_fitted = ipca_fitted
 
@@ -148,9 +151,12 @@ class Streamer(object):
         X, y = self.X_buffer.pop(), self.y_buffer.pop()
         idx = np.arange(X.shape[0]) - 1
         random.shuffle(idx)
+        input = torch.from_numpy(X[idx]).float()\
+            if len(torch.from_numpy(X[idx]).float().shape) >= 3 else\
+            torch.unsqueeze(torch.from_numpy(X[idx]).float(), -1)
         if self.keras:
             return tf.convert_to_tensor(X[idx], dtype=tf.float32), tf.convert_to_tensor(y[idx], dtype=tf.float32)
-        return torch.from_numpy(X[idx]).float(), torch.from_numpy(y[idx]).long()
+        return input, torch.from_numpy(y[idx]).long()
 
     def _re_sample(self,) -> None:
         if self.sampler is None and self.ipca is None:
@@ -158,8 +164,9 @@ class Streamer(object):
 
         if self.sampler is not None:
             X, y = self._sampling(np.array(self.X_buffer),
-                                  np.array(self.y_buffer),
-                                  self.sampler)
+                                  np.array(
+                self.y_buffer),
+                self.sampler)
         if self.ipca is not None and self.ipca_fitted:
             X, y = np.array(self.X_buffer), np.array(self.y_buffer)
             x_origin = X.shape
@@ -194,8 +201,9 @@ class Streamer(object):
             buf_label = np.zeros(loaded.shape[0], dtype=np.uint8)
             buf_label[flicker_idxs] = 1
             self.y_buffer += tuple(
-                sum(x)  # FIX ME
-                for x in self._get_chunk_array(buf_label, self.chunk_size)
+                # sum(x)  # FIX ME
+                # for x in self._get_chunk_array(buf_label, self.chunk_size)
+                sum(x) if self.multiclass else 1 if sum(x) else 0 for x in self._get_chunk_array(buf_label, self.chunk_size)
             )
 
     def _shuffle(self) -> None:
@@ -215,7 +223,8 @@ class Streamer(object):
             self.chunk_embedding_list[self.cur_chunk])
         self.cur_chunk += 1
         X, y = self._re_sample()
-        sns.barplot(x=y, y=X.shape[0])
+        original_X_shape = X.shape
+        sns.displot(np.reshape(X, (-1, np.prod(original_X_shape[1:]))))
         plt.savefig(f'{dest}')
 
     @staticmethod
@@ -251,7 +260,7 @@ class Streamer(object):
             y_train
         )
         X_train = np.reshape(X_train, (-1,) + original_X_shape[1:])
-        return (X_train, y_train)
+        return X_train, y_train
 
     @staticmethod
     def _batch_sample(
@@ -303,19 +312,22 @@ if __name__ == '__main__':
     batch_size = 1024
     ipca = pk.load(open("../ipca.pk1", "rb"))\
         if os.path.exists("../ipca.pk1") else IncrementalPCA(n_components=2)
-    sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=3)
+    sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=1)
     nm = NearMiss(version=3, n_jobs=-1)  # , n_neighbors=1)
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, mem_split=20, chunk_size=chunk_size, batch_size=batch_size, sampler=sm)  # [('near_miss', nm), ('smote', sm)])  # ipca=ipca, ipca_fitted=True)
+                        mapping_path, data_dir, mem_split=10, chunk_size=chunk_size, batch_size=batch_size, sampler=None)  # [('near_miss', nm), ('smote', sm)])  # ipca=ipca, ipca_fitted=True)
     ds_val = Streamer(embedding_list_val, label_path,
                       mapping_path, data_dir, batch_size=256)
     ds_test = Streamer(embedding_list_test, label_path,
                        mapping_path, data_dir, mem_split=1, batch_size=256, sampler=None)
 
+    train_encodings = Streamer(embedding_list_train, label_path,
+                               mapping_path, '../data/pts_encodings', mem_split=10, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
     # ds_train.plot_dist(dest='../plots/X_train_dist.png')
-    sample = 0
-    for idx, (x, y) in enumerate(ds_train):
-        print(idx, x.shape, y.shape)
-        # print(y)
-        sample += y.shape[0]
-    print(sample)
+    image, pts = 0, 0
+    for (x, y), (x0, y0) in zip(ds_train, train_encodings):
+        # print(x.shape, y.shape)
+        print(y.shape, y0.shape)
+        image += y.shape[0]
+        pts += y0.shape[0]
+    print(image, pts)

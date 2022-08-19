@@ -209,7 +209,7 @@ def command_arg() -> ArgumentParser:
                         help='directory of extracted feature embeddings')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
-    parser.add_argument('--videos_path', type=str, default="data/flicker-detection",
+    parser.add_argument('--videos_path', type=str, default="data/augmented",
                         help='src directory to extract embeddings from')
     parser.add_argument(
         "-train", "--train", action="store_true",
