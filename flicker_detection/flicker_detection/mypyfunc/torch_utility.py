@@ -7,13 +7,12 @@ import numpy as np
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def save_checkpoint(save_path, model0, model1, optimizer, loss, f1, val_f1, val_loss):
+def save_checkpoint(save_path, model0, optimizer, loss, f1, val_f1, val_loss):
 
     if save_path == None:
         return
 
-    state_dict = {'model0_state_dict': model0.state_dict(),
-                  'model1_state_dict': model1.state_dict(),
+    state_dict = {'model_state_dict': model0.state_dict(),
                   'optimizer_state_dict': optimizer.state_dict(),
                   'loss': loss,
                   'f1': f1,

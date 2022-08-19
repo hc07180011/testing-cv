@@ -20,21 +20,25 @@ from mypyfunc.torch_utility import save_checkpoint, save_metrics, load_checkpoin
 def torch_validation(
     model: torch.nn.Module,
     ds_val: Streamer,
+    val_encodings: Streamer,
     criterion: Callable,
     objective: Callable = nn.Softmax(),
     f1_metric: Callable = F1Score(average='macro'),
     device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ):
+    n_val = None
     with torch.no_grad():
         minibatch_loss_val, minibatch_f1_val = 0, 0
-        for n_val, (x, y) in enumerate(ds_val):
-            x, y = x.to(device), y.to(device)
-            y_pred = model(x)
-            loss = criterion(y_pred, y)
+        for idx, ((x0, y0), (x1, _)) in enumerate(zip(ds_val, val_encodings)):
+            x0, x1, y0 = x0.to(device), x1.to(device), y0.to(device)
+            # x0 = torch.concat((x0, x1), -1)
+            y_pred = model(x0)
+            loss = criterion(y_pred, y0)
             val_f1 = f1_metric(
-                torch.topk(objective(y_pred), k=1, dim=1).indices.flatten(), y)
+                torch.topk(objective(y_pred), k=1, dim=1).indices.flatten(), y0)
             minibatch_loss_val += loss.item()
             minibatch_f1_val += val_f1.item()
+            n_val = idx
     ds_val._shuffle()
     return ((minibatch_loss_val/(n_val + 1)) if n_val else minibatch_loss_val,),\
         ((minibatch_f1_val/(n_val + 1)) if n_val else minibatch_f1_val,)
@@ -44,8 +48,8 @@ def torch_training(
     ds_train: Streamer,
     ds_val: Streamer,
     train_encodings: Streamer,
+    val_encodings: Streamer,
     model0: nn.Module,
-    model1: nn.Module,
     optimizer: torch.optim.Optimizer,
     f1_metric: Callable = F1Score(average='macro'),
     criterion: Callable = nn.BCELoss(),
@@ -62,33 +66,30 @@ def torch_training(
             break
 
         minibatch_loss_train, minibatch_f1 = 0, 0
-        for n_train, ((x0, y0), (x1, y1)) in enumerate(zip(ds_train, train_encodings)):
-            x0, x1, y0, y1 = x0.to(device), x1.to(
-                device), y0.to(device), y1.to(device)
-            y_pred0, y_pred1 = model0(x0), model1(x1)
-            loss0, loss1 = criterion(y_pred0, y0), criterion(y_pred1, y1)
+        for n_train, ((x0, y0), (x1, _)) in enumerate(zip(ds_train, train_encodings)):
+            x0, x1, y0 = x0.to(device), x1.to(device), y0.to(device)
+            # x0 = torch.concat((x0, x1), -1)
+            y_pred0 = model0(x0)
+            loss0 = criterion(y_pred0, y0)
 
-            loss_final = loss0 + loss1
             optimizer.zero_grad()
-            loss_final.backward()
-            torch.nn.utils.clip_grad_norm(
-                tuple(model0.parameters())+tuple(model1.parameters()), 1.0)
+            loss0.backward()
+            torch.nn.utils.clip_grad_norm(model0.parameters(), 1.0)
             optimizer.step()
-            f1 = f1_metric(torch.topk(objective(y_pred0)+objective(y_pred1),
+            f1 = f1_metric(torch.topk(objective(y_pred0),
                            k=1, dim=1).indices.flatten(), y0)
 
-            minibatch_loss_train += loss_final.item()
+            minibatch_loss_train += loss0.item()
             minibatch_f1 += f1.item()
 
         model0.eval()
-        model1.eval()
         loss_callback += ((minibatch_loss_train / (n_train + 1))
                           if n_train else minibatch_loss_train,)
         f1_callback += ((minibatch_f1/(n_train + 1))
                         if n_train else minibatch_f1,)
         # scheduler.step(loss_callback[-1])
         val_loss, val_f1 = torch_validation(
-            model0, ds_val, criterion=criterion, objective=objective, device=device)
+            model0, ds_val, val_encodings, criterion=criterion, objective=objective, device=device)
         val_loss_callback += val_loss
         val_f1_callback += val_f1
 
@@ -102,25 +103,23 @@ def torch_training(
             ))
 
         if epoch > 10 and val_f1_callback[-1] > val_max_f1:
-            save_checkpoint(f'{save_path}model.pth', model0, model1,
+            save_checkpoint(f'{save_path}model.pth', model0,
                             optimizer, loss_callback[-1], f1_callback[-1], val_loss_callback[-1], val_f1_callback[-1])
             save_metrics(f'{save_path}metrics.pth', loss_callback, f1_callback,
                          val_loss_callback, val_f1_callback)
             val_max_f1 = val_f1_callback[-1]
 
         model0.train()
-        model1.train()
         ds_train._shuffle()
 
     torch.cuda.empty_cache()
-    return model0, model1
+    return model0
 
 
 def torch_testing(
     ds_test: Streamer,
     test_encodings: Streamer,
     model0: nn.Module,
-    model1: nn.Module,
     objective: Callable = nn.Softmax(),
     classes: int = 6,
     device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
@@ -130,24 +129,21 @@ def torch_testing(
     metrics = Evaluation(plots_folder="plots/", classes=classes)
 
     model0.eval()
-    model1.eval()
     y_pred0, y_true0, y_pred1 = None, None, None
     with torch.no_grad():
         for (x0, y0), (x1, _) in zip(ds_test, test_encodings):
             x0, x1, y0 = x0.to(device), x1.to(device), y0.to(device)
-            output0, output1 = model0(x0), model1(x1)
+            # x0 = torch.concat((x0, x1), -1)
+            output0 = model0(x0)
             y_pred0 = output0 if y_pred0 is None else\
                 torch.cat((y_pred0, output0), dim=0)
-            y_pred1 = output1 if y_pred1 is None else\
-                torch.cat((y_pred1, output1), dim=0)
             y_true = y0 if y_true0 is None else\
                 torch.cat((y_true0, y0), dim=0)
     y_classes = torch.topk(
-        objective(y_pred0)+objective(y_pred1), k=1, dim=1).indices.flatten()
+        objective(y_pred0), k=1, dim=1).indices.flatten()
     metrics.cm(y_true.detach(), y_classes.detach())
 
-    y_pred, y_true = (objective(y_pred0)+objective(y_pred1)
-                      ).cpu().numpy(), y_true.cpu().numpy()
+    y_pred, y_true = (objective(y_pred0)).cpu().numpy(), y_true.cpu().numpy()
     y_bin = np.zeros((y_true.shape[0], classes))
     idx = np.array([[i] for i in y_true])
     np.put_along_axis(y_bin, idx, 1, axis=1)
@@ -198,7 +194,7 @@ def main() -> None:
     embedding_list_train, embedding_list_val, embedding_list_test = tuple(
         __cache__[lst] for lst in __cache__)
 
-    chunk_size = 5
+    chunk_size = 30
     batch_size = 512
 
     ipca = pk.load(open("ipca.pk1", "rb")) if os.path.exists(
@@ -206,38 +202,34 @@ def main() -> None:
     # ,n_neighbors=1)
     nm = NearMiss(version=3, n_jobs=-1, sampling_strategy='majority')
 
-    sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=3)
+    sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=1)
 
     # memsplit number affects y batches
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, mem_split=5, chunk_size=chunk_size, batch_size=batch_size, sampler=sm, multiclass=True)  # [('near_miss', nm), ('smote', sm)])
+                        mapping_path, data_dir, mem_split=5, chunk_size=chunk_size, batch_size=batch_size, sampler=sm, multiclass=False)  # [('near_miss', nm), ('smote', sm)])
     ds_val = Streamer(embedding_list_val, label_path,
                       mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
     ds_test = Streamer(embedding_list_test, label_path,
                        mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
     train_encodings = Streamer(embedding_list_train, label_path,
-                               mapping_path, 'data/pts_encodings', mem_split=5, chunk_size=chunk_size, batch_size=batch_size, sampler=sm, multiclass=True)
+                               mapping_path, 'data/pts_encodings', mem_split=5, chunk_size=chunk_size, batch_size=batch_size, sampler=sm, multiclass=False)
     val_encodings = Streamer(embedding_list_val, label_path,
                              mapping_path, 'data/pts_encodings', mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
     test_encodings = Streamer(embedding_list_test, label_path,
                               mapping_path, 'data/pts_encodings', mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
 
-    model0 = LSTM(input_dim=18432, output_dim=6, hidden_dim=256,
+    model0 = LSTM(input_dim=18432, output_dim=2, hidden_dim=256,
                   layer_dim=1, bidirectional=True)
-    model1 = LSTM(input_dim=1, output_dim=6, hidden_dim=256,
-                  layer_dim=1, bidirectional=False)
 
-    optimizer = torch.optim.Adam(
-        tuple(model0.parameters())+tuple(model1.parameters()), lr=0.00001)
+    optimizer = torch.optim.Adam(model0.parameters(), lr=0.00001)
     # model = torch.nn.DataParallel(model, device_ids=[0, 1])
     model0.to(device)
-    model1.to(device)
 
     criterion = nn.CrossEntropyLoss()
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     #     optimizer, patience=5, verbose=True)
     # lower gpu float precision for larger batch size
-    logging.info("\n{}\n{}".format(model0.train(), model1.train()))
+    logging.info("\n{}".format(model0.train()))
     if args.preprocess:
         logging.info("Preprocessing start...")
         ev = ds_train._fit_ipca(dest="samplers/ipca.pk1")
@@ -247,16 +239,15 @@ def main() -> None:
     if args.train:
         # model.load_state_dict(torch.load(model_path)['model_state_dict'])
         logging.info("Starting Training")
-        models = torch_training(ds_train, ds_val, train_encodings, model0, model1,
-                                optimizer, criterion=criterion, device=device)
+        model = torch_training(ds_train, ds_val, train_encodings, val_encodings, model0,
+                               optimizer, criterion=criterion, device=device)
         logging.info("Done Training")
 
     if args.test:
         logging.debug(f"Loading from... -> {model_path}")
         model0.load_state_dict(torch.load(model_path)['model0_state_dict'])
-        model1.load_state_dict(torch.load(model_path)['model1_state_dict'])
         logging.info("Starting Evaluation")
-        torch_testing(ds_test, test_encodings, model0, model1, device=device)
+        torch_testing(ds_test, test_encodings, model0, device=device)
         logging.info("Done Evaluation")
 
 

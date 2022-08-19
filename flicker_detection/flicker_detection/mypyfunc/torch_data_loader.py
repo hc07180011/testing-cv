@@ -201,8 +201,6 @@ class Streamer(object):
             buf_label = np.zeros(loaded.shape[0], dtype=np.uint8)
             buf_label[flicker_idxs] = 1
             self.y_buffer += tuple(
-                # sum(x)  # FIX ME
-                # for x in self._get_chunk_array(buf_label, self.chunk_size)
                 sum(x) if self.multiclass else 1 if sum(x) else 0 for x in self._get_chunk_array(buf_label, self.chunk_size)
             )
 
@@ -327,7 +325,10 @@ if __name__ == '__main__':
     image, pts = 0, 0
     for (x, y), (x0, y0) in zip(ds_train, train_encodings):
         # print(x.shape, y.shape)
-        print(y.shape, y0.shape)
+        print(x.shape, x0.shape)
+        x_concat = torch.cat((x, x0), -1)
+        print(x_concat.shape)
+        # print(y.shape, y0.shape)
         image += y.shape[0]
         pts += y0.shape[0]
     print(image, pts)

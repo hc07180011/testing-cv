@@ -27,9 +27,7 @@ class LSTM(nn.Module):
         # Linear Dense
         self.fc1 = nn.Linear(hidden_dim*self.n_directions, 128)
         # Linear Dense
-        self.fc2 = nn.Linear(128, 64)
-        # Linear Dense
-        self.fc3 = nn.Linear(64, output_dim)
+        self.fc2 = nn.Linear(128, output_dim)
 
         self.initialization()
 
@@ -44,13 +42,11 @@ class LSTM(nn.Module):
 
     def forward(self, x) -> torch.Tensor:
         # One time step
-        out, (hn, cn) = self.lstm(x, self.init_hidden(x)) 
+        out, (hn, cn) = self.lstm(x, self.init_hidden(x))
         # Dense lstm
         out = self.fc1(out)
-        # Dense Relu
+        # Dense for softmax
         out = self.fc2(out)
-        # Dense for sigmoid
-        out = self.fc3(out)
         return out[:, -1]
 
     def initialization(self) -> None:
