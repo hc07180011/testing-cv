@@ -313,22 +313,20 @@ if __name__ == '__main__':
     sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=1)
     nm = NearMiss(version=3, n_jobs=-1)  # , n_neighbors=1)
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, mem_split=10, chunk_size=chunk_size, batch_size=batch_size, sampler=None)  # [('near_miss', nm), ('smote', sm)])  # ipca=ipca, ipca_fitted=True)
+                        mapping_path, data_dir, mem_split=5, chunk_size=chunk_size, batch_size=batch_size, sampler=sm, multiclass=True)  # [('near_miss', nm), ('smote', sm)])  # ipca=ipca, ipca_fitted=True)
     ds_val = Streamer(embedding_list_val, label_path,
                       mapping_path, data_dir, batch_size=256)
     ds_test = Streamer(embedding_list_test, label_path,
                        mapping_path, data_dir, mem_split=1, batch_size=256, sampler=None)
 
     train_encodings = Streamer(embedding_list_train, label_path,
-                               mapping_path, '../data/pts_encodings', mem_split=10, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
+                               mapping_path, '../data/pts_encodings', mem_split=5, chunk_size=chunk_size, batch_size=batch_size, sampler=sm, multiclass=True)
     # ds_train.plot_dist(dest='../plots/X_train_dist.png')
     image, pts = 0, 0
     for (x, y), (x0, y0) in zip(ds_train, train_encodings):
-        # print(x.shape, y.shape)
         print(x.shape, x0.shape)
         x_concat = torch.cat((x, x0), -1)
         print(x_concat.shape)
-        # print(y.shape, y0.shape)
         image += y.shape[0]
         pts += y0.shape[0]
     print(image, pts)

@@ -31,7 +31,7 @@ def torch_validation(
         minibatch_loss_val, minibatch_f1_val = 0, 0
         for idx, ((x0, y0), (x1, _)) in enumerate(zip(ds_val, val_encodings)):
             x0, x1, y0 = x0.to(device), x1.to(device), y0.to(device)
-            # x0 = torch.concat((x0, x1), -1)
+            x0 = torch.concat((x0, x1), -1)
             y_pred = model(x0)
             loss = criterion(y_pred, y0)
             val_f1 = f1_metric(
@@ -40,6 +40,7 @@ def torch_validation(
             minibatch_f1_val += val_f1.item()
             n_val = idx
     ds_val._shuffle()
+    val_encodings._shuffle()
     return ((minibatch_loss_val/(n_val + 1)) if n_val else minibatch_loss_val,),\
         ((minibatch_f1_val/(n_val + 1)) if n_val else minibatch_f1_val,)
 
@@ -68,7 +69,7 @@ def torch_training(
         minibatch_loss_train, minibatch_f1 = 0, 0
         for n_train, ((x0, y0), (x1, _)) in enumerate(zip(ds_train, train_encodings)):
             x0, x1, y0 = x0.to(device), x1.to(device), y0.to(device)
-            # x0 = torch.concat((x0, x1), -1)
+            x0 = torch.concat((x0, x1), -1)
             y_pred0 = model0(x0)
             loss0 = criterion(y_pred0, y0)
 
@@ -111,7 +112,7 @@ def torch_training(
 
         model0.train()
         ds_train._shuffle()
-
+        train_encodings._shuffle()
     torch.cuda.empty_cache()
     return model0
 
@@ -133,7 +134,7 @@ def torch_testing(
     with torch.no_grad():
         for (x0, y0), (x1, _) in zip(ds_test, test_encodings):
             x0, x1, y0 = x0.to(device), x1.to(device), y0.to(device)
-            # x0 = torch.concat((x0, x1), -1)
+            x0 = torch.concat((x0, x1), -1)
             output0 = model0(x0)
             y_pred0 = output0 if y_pred0 is None else\
                 torch.cat((y_pred0, output0), dim=0)
@@ -218,7 +219,7 @@ def main() -> None:
     test_encodings = Streamer(embedding_list_test, label_path,
                               mapping_path, 'data/pts_encodings', mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
 
-    model0 = LSTM(input_dim=18432, output_dim=2, hidden_dim=256,
+    model0 = LSTM(input_dim=18433, output_dim=2, hidden_dim=256,
                   layer_dim=1, bidirectional=True)
 
     optimizer = torch.optim.Adam(model0.parameters(), lr=0.00001)
