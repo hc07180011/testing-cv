@@ -147,6 +147,8 @@ def torch_testing(
     y_pred, y_true = (objective(y_pred0)).cpu().numpy(), y_true.cpu().numpy()
     y_bin = np.zeros((y_true.shape[0], classes))
     idx = np.array([[i] for i in y_true])
+    logging.debug(f"{idx}")
+    logging.debug(f"{y_pred}")
     np.put_along_axis(y_bin, idx, 1, axis=1)
 
     metrics.roc_auc(y_bin, y_pred)
@@ -188,38 +190,38 @@ def main() -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     init_logger()
-    torch_seeding()
+    torch_seeding(54321)
 
     __cache__ = np.load(
         "{}.npz".format(cache_path), allow_pickle=True)
     embedding_list_train, embedding_list_val, embedding_list_test = tuple(
         __cache__[lst] for lst in __cache__)
 
-    chunk_size = 30
-    batch_size = 512
+    chunk_size = 3
+    batch_size = 2048
 
     ipca = pk.load(open("ipca.pk1", "rb")) if os.path.exists(
         "ipca.pk1") else IncrementalPCA(n_components=2)
-    # ,n_neighbors=1)
-    nm = NearMiss(version=3, n_jobs=-1, sampling_strategy='majority')
 
-    sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=1)
+    nm = NearMiss(version=1, n_jobs=-1,
+                  sampling_strategy='majority', n_neighbors=1)
+    sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=2)
 
     # memsplit number affects y batches
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, mem_split=5, chunk_size=chunk_size, batch_size=batch_size, sampler=sm, multiclass=False)  # [('near_miss', nm), ('smote', sm)])
+                        mapping_path, data_dir, mem_split=5, chunk_size=chunk_size, batch_size=batch_size, multiclass=True, sampler=sm)  # [('near_miss', nm), ('smote', sm)])
     ds_val = Streamer(embedding_list_val, label_path,
                       mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
     ds_test = Streamer(embedding_list_test, label_path,
                        mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
     train_encodings = Streamer(embedding_list_train, label_path,
-                               mapping_path, 'data/pts_encodings', mem_split=5, chunk_size=chunk_size, batch_size=batch_size, sampler=sm, multiclass=False)
+                               mapping_path, 'data/pts_encodings', mem_split=5, chunk_size=chunk_size, batch_size=batch_size, multiclass=True, sampler=sm)  # [('near_miss', nm), ('smote', sm)])
     val_encodings = Streamer(embedding_list_val, label_path,
                              mapping_path, 'data/pts_encodings', mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
     test_encodings = Streamer(embedding_list_test, label_path,
                               mapping_path, 'data/pts_encodings', mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
 
-    model0 = LSTM(input_dim=18433, output_dim=2, hidden_dim=256,
+    model0 = LSTM(input_dim=18433, output_dim=4, hidden_dim=256,
                   layer_dim=1, bidirectional=True)
 
     optimizer = torch.optim.Adam(model0.parameters(), lr=0.00001)
@@ -246,9 +248,10 @@ def main() -> None:
 
     if args.test:
         logging.debug(f"Loading from... -> {model_path}")
-        model0.load_state_dict(torch.load(model_path)['model0_state_dict'])
+        model0.load_state_dict(torch.load(model_path)['model_state_dict'])
         logging.info("Starting Evaluation")
-        torch_testing(ds_test, test_encodings, model0, device=device)
+        torch_testing(ds_test, test_encodings, model0,
+                      device=device, classes=6)
         logging.info("Done Evaluation")
 
 
