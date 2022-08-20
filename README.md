@@ -17,14 +17,17 @@
 [![Build Status](https://app.travis-ci.com/hc07180011/testing-cv.svg?branch=main)](https://app.travis-ci.com/hc07180011/testing-cv)
 
 * Embedding
-  * [Siamese Network](https://keras.io/examples/vision/siamese_network/)
-  * [Facenet](https://www.cv-foundation.org/openaccess/content_cvpr_2015/app/1A_089.pdf)
+  * [vgg16 feature extractor](https://pytorch.org/vision/main/models/generated/torchvision.models.vgg16.html)
 * Movement
   * [BRISK](http://margaritachli.com/papers/ICCV2011paper.pdf)
 * Transformation
   * [Affine Transformation](https://en.wikipedia.org/wiki/Affine_transformation)
+  * [Photogenic Data Augmentation](https://journalofbigdata.springeropen.com/articles/10.1186/s40537-019-0197-0)
+* Imbalance Dataset sampling
+    * [Synthetic Minority Oversampling Technique](https://imbalanced-learn.org/stable/references/generated/imblearn.over_sampling.SMOTE.html)
+    * [NearMiss Undersamling](https://imbalanced-learn.org/dev/references/generated/imblearn.under_sampling.NearMiss.html)
 * Detection
-  * [LSTM](https://www.tensorflow.org/api_docs/python/tf/keras/layers/LSTM)
+  * [Bidirectional LSTM](https://pytorch.org/docs/stable/generated/torch.nn.LSTM.html)
 
 ## Install
 
@@ -35,6 +38,7 @@
 1. [Docker Ubuntu Official Image 18.04](https://hub.docker.com/_/ubuntu/)
 2. [Google Cloud Platform - Ubuntu 16.04, 18.04, 20.04](https://cloud.google.com/)
 
+#### Pip3
 ```bash
 # Update and install packages
 sudo apt update
@@ -67,6 +71,17 @@ python3 -m pip install -r requirements.txt
 time python3 main.py -d data/test_data.mp4 
 ```
 
+#### Anaconda
+[conda on Linux](https://docs.anaconda.com/anaconda/install/linux/)
+```bash
+# create env from yml file
+conda env create -f environment.yml
+# activate env
+conda activate "enviorment name here"
+```
+
+
+
 ### Docker
 
 * Prerequisite: [Docker](https://www.docker.com/)
@@ -83,31 +98,68 @@ docker build -t flicker_detection_runner .
 docker run --rm -e data=data/test_data.mp4 -v $PWD/data:/app/data -it flicker_detection_runner
 ```
 
-## Slides
+## Testing Scripts Usage
+```bash
+cd test-cv/flicker-detection/flicker-detection/data
+mkdir augmented
 
-* [5/4](https://drive.google.com/file/d/1um59arpNZVOS2UmyMSxypDCklbBbKlBi)
-* [5/11](https://drive.google.com/file/d/1gEhwh-pY5t-7Ix1nneKWAur47nagUbfy)
-* [5/25](https://drive.google.com/file/d/1wh3mGCUHGBR11b5FHrI4YgFZRLMF2ipw)
-* [6/1](https://drive.google.com/file/d/1IGPqMAVWqndF0k2e7aXXP-gOXZTWnGjs)
-* [6/15](https://drive.google.com/file/d/1y7P_qGNkOVq9wSbiZdiTu8i5b3kdqOog)
-* [6/30](https://drive.google.com/file/d/1oXYgYuQcl1E5JUEygJE_t0urHzT1oX55)
-* [7/14](https://drive.google.com/file/d/1B_2AIrGZRO07QqMKo3mYzosTIg-A8zgO)
-* [7/21](https://drive.google.com/file/d/1a5uiGk7ElbPZHjLxChIcnS1g-iaGe3VV)
-* [7/28](https://drive.google.com/file/d/1BXtmFVxO2bWC3oga_7Vbzf_-jwawpzY-)
-* [8/4](https://drive.google.com/file/d/14fz6tNubJawxpn6vnBE-WVBHDnlda544)
-* [8/11](https://drive.google.com/file/d/1S4hoHK0-3oV1aeijbZ2ICQPIQILVjLPV)
-* [8/18](https://drive.google.com/file/d/1vFAdzpc0CTnlqOq4ucu6RE7N_CGKMSY5)
-* [8/25](https://drive.google.com/file/d/1LUJFLgKNUu_0yiEAaOTkhpT7DQNlPIWC)
-* [9/1](https://drive.google.com/file/d/1DcU3XVbmaR31BtqAaqMTwI9pR1-u0ykm)
-* [9/29](https://drive.google.com/file/d/1BJClB6p_dfQWjI_WQFxyuL7LTKVbR8Oj)
-* [10/6](https://drive.google.com/file/d/1kma_4n1uy5_-fOrhFYBzGI5tW8A0xmkq)
-* [10/13](https://drive.google.com/file/d/1snQrZhz0LZrvv4-JnOBl5HnHNEVNXWze)
-* [10/27](https://drive.google.com/file/d/1BbC2ZIP-f33-nByzd58ykvzi4ET_KiAB)
-* [11/3](https://drive.google.com/file/d/1_1fQ88pBOlwWrYSBPC9z50hSR0OT_DfA)
-* [11/10](https://drive.google.com/file/d/1rplX4srAGs8120OoXicK2YRMwGa_dbPe)
-* [11/17](https://drive.google.com/file/d/1TnV8HJ9F0ddmORsl_K41HVM-kG9JVSUW)
-* [12/1](https://drive.google.com/file/d/1LrY4VzZrMFaHPkFCawuzE9hNwGwZioW_)
+"""
+make sure you have a folder in data/ called flicker-detection
+and source videos are stored there
+augmented is the output augmented video destination
+"""
+python3 data_augment/multiprocess_augmentor.py \
+--main-folder-path flicker-detection \
+--output-folder-path augmented/ \
+--max-clips 12
 
-## For more details
+# label augmented videos with the same labels as its video of origin
+python3 re_label.py
 
-* [Proposal](https://docs.google.com/document/d/1vhABHWuuDh31VZ_OTp5DGJH15cjqedEOAQsllqd5iGc)
+cd test-cv/flicker-detection/flicker-detection/
+mkdir .cache
+
+# extract embeddings from vgg16
+python3 extract_embeddings.py
+
+
+# train & test torch model
+python3 torch_training.py --train --test
+```
+#### Caveats
+```python
+# Note you may have to configure the src and dst file paths
+label_path = "data/new_label.json"
+mapping_path = "data/mapping_test.json"  
+data_dir = "data/vgg16_emb/"
+cache_path = ".cache/train_test"
+model_path = "h5_models/model.pth"
+
+# sampler arguments below may need changes depending on Operating Specs
+ipca = pk.load(open("ipca.pk1", "rb")) if os.path.exists(
+        "ipca.pk1") else IncrementalPCA(n_components=2)
+nm = NearMiss(version=3, n_jobs=-1, sampling_strategy='majority')
+
+sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=5)
+
+# Increase mem_split if not enough CPU RAM
+ds_train = Streamer(embedding_list_train, label_path,
+                    mapping_path, data_dir, mem_split=20, chunk_size=chunk_size, batch_size=batch_size, sampler=None)  
+
+"""
+sampler=[('near_miss', nm), ('smote', sm)])
+for doing undersampling of majority class 
+then oversampling of minority classes
+"""
+ds_val = Streamer(embedding_list_val, label_path,
+                  mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
+ds_test = Streamer(embedding_list_test, label_path,
+                   mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
+```
+
+## Latest Updates
+
+* [2022/7/20 Binary Classification Report](https://docs.google.com/presentation/d/1hXtWVv1v_1Zslkf_Qs5KBnzgBhU3J21w/edit#slide=id.g12f726d91f2_1_0)
+* [2022/7/27 Multiclass Classification Report](https://docs.google.com/presentation/d/1g7G1kGudxg15lvsAskZe_fuWtqFvfoNU/edit#slide=id.g13da42ab967_0_136)
+* [2022/8/03 Variable Frame Rate Solutions Report](https://docs.google.com/presentation/d/1cGxSHK291eURF7IVG3JD8mdHo0DxfyyN/edit#slide=id.g140496d05b2_0_41)
+* [2022-2023 Google CV Research Proposal](https://docs.google.com/document/d/1AgCTqS0zgIFc7saLjTUJ98ghYPj6o6Us-aqnJYDb0qI/edit?usp=sharing)

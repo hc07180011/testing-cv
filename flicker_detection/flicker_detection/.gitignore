@@ -9,6 +9,8 @@
 *.tfrecords
 *.pth
 *.jpg
+*.h264
+*.gz
 model.pth
 metrics.pth
 data/embedding/
@@ -16,6 +18,7 @@ data/embedding/*
 venv/*
 TFRecords/
 TFRecords/*
+MNIST/raw/*
 
 *.html
 

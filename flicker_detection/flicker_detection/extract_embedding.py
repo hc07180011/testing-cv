@@ -1,4 +1,3 @@
-from cProfile import label
 import os
 import json
 import cv2
@@ -10,11 +9,11 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import seaborn as sns
 
-from imblearn.over_sampling import SMOTE
 from argparse import ArgumentParser
-from sklearn.model_selection import train_test_split
+#from sklearn.model_selection import train_test_split
 from tensorflow.keras.applications import DenseNet121, mobilenet, vgg16, InceptionResNetV2, InceptionV3
 from tensorflow.keras import Model
+#from tensorflow_addons.metrics import F1Score
 from mypyfunc.logger import init_logger
 from typing import Tuple
 from preprocessing.embedding.backbone import BaseCNN, Serializer
@@ -96,10 +95,8 @@ def preprocessing(
         return tuple(__cache__[k] for k in __cache__)
 
     pass_videos = (
-        "0096.mp4", "0097.mp4", "0098.mp4",
-        "0125.mp4", "0126.mp4", "0127.mp4",
-        "0145.mp4", "0146.mp4", "0147.mp4",
-        "0178.mp4", "0179.mp4", "0180.mp4"
+        "0126.mp4", "0127.mp4",
+        "0178.mp4", "0180.mp4"
     )
     pass_videos += tuple(vid[:4]+f"_{i}.mp4.npy"for i in range(10)
                          for vid in pass_videos)
@@ -124,7 +121,8 @@ def preprocessing(
         "0002.mp4.npy", "0003.mp4.npy", "0006.mp4.npy",
         "0016.mp4.npy", "0044.mp4.npy", "0055.mp4.npy",
         "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
-        "0169.mp4.npy"
+        "0169.mp4.npy", "0145.mp4.npy", "0179.mp4.npy",
+        "0098.mp4.npy", "0147.mp4.npy", "0125.mp4.npy"
     )
 
     embedding_list_train = tuple(
@@ -161,9 +159,10 @@ def training(
     loss_fn = tf.keras.losses.BinaryCrossentropy(from_logits=True)
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.00001)
     metrics = Metrics()
+    # metrics = F1Score(num_classes=2,threshold=0.5)
 
     buf = Model()
-    model = buf.LSTM((18432, 32))
+    model = buf.LSTM((30, 18432))
     buf.compile(model, loss_fn, optimizer, (metrics.f1,))
 
     buf.batch_train(
@@ -200,33 +199,18 @@ def testing(
     model.plot_callback()
 
 
-def main():
-    """
-    can give minor classes higher weight
-
-    GPU tensorflow memory managment
-    https://stackoverflow.com/questions/36927607/how-can-i-solve-ran-out-of-gpu-memory-in-tensorflow
-     You can do this by creating a new `tf.data.Options()` object then setting `options.experimenta
-    l_distribute.auto_shard_policy = AutoShardPolicy.DATA` before applying the options object to the dataset via `dataset.with_options(options)`.
-    """
-
-    videos_path = "data/augmented"
-    label_path = "data/label.json"
-    mapping_path = "data/mapping_aug_data.json"
-    data_path = "data/vgg16_emb"
-    cache_path = ".cache/train_test"
-
-    # tf.keras.utils.set_random_seed(12345)
-    # tf.config.experimental.enable_op_determinism()
-    # config = ConfigProto()
-    # config.gpu_options.per_process_gpu_memory_fraction = 0.5
-    # config.gpu_options.allow_growth = True
-    # session = InteractiveSession(config=config)
-    # tf.compat.v1.keras.backend.set_session(session)
-
-    init_logger()
-
+def command_arg() -> ArgumentParser:
     parser = ArgumentParser()
+    parser.add_argument('--label_path', type=str, default="data/new_label.json",
+                        help='path of json that store the labeled frames')
+    parser.add_argument('--mapping_path', type=str, default="data/mapping_test.json",
+                        help='path of json that maps encrpypted video file name to simple naming')
+    parser.add_argument('--data_dir', type=str, default="data/vgg16_emb/",
+                        help='directory of extracted feature embeddings')
+    parser.add_argument('--cache_path', type=str, default=".cache/train_test",
+                        help='directory of miscenllaneous information')
+    parser.add_argument('--videos_path', type=str, default="data/augmented",
+                        help='src directory to extract embeddings from')
     parser.add_argument(
         "-train", "--train", action="store_true",
         default=False,
@@ -237,7 +221,30 @@ def main():
         default=False,
         help="Whether to do testing"
     )
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def main():
+    """
+    can give minor classes higher weight
+
+    GPU tensorflow memory managment
+    https://stackoverflow.com/questions/36927607/how-can-i-solve-ran-out-of-gpu-memory-in-tensorflow
+     You can do this by creating a new `tf.data.Options()` object then setting `options.experimenta
+    l_distribute.auto_shard_policy = AutoShardPolicy.DATA` before applying the options object to the dataset via `dataset.with_options(options)`.
+    """
+    args = command_arg()
+    videos_path, label_path, mapping_path, data_path, cache_path = args.videos_path, args.label_path, args.mapping_path, args.data_dir, args.cache_path
+
+    # tf.keras.utils.set_random_seed(12345)
+    # tf.config.experimental.enable_op_determinism()
+    # config = ConfigProto()
+    # config.gpu_options.per_process_gpu_memory_fraction = 0.5
+    # config.gpu_options.allow_growth = True
+    # session = InteractiveSession(config=config)
+    # tf.compat.v1.keras.backend.set_session(session)
+
+    init_logger()
 
     logging.info("[Embedding] Start ...")
     np_embed(
@@ -261,11 +268,11 @@ def main():
         __cache__[lst] for lst in __cache__)
 
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_path, mem_split=1, batch_size=256, oversample=False)
-    ds_val = Streamer(embedding_list_val, label_path,
-                      mapping_path, data_path, mem_split=1, batch_size=256, oversample=False)
+                        mapping_path, data_path, mem_split=20, batch_size=256, keras=True)
+    ds_val = Streamer(embedding_list_test, label_path,
+                      mapping_path, data_path, mem_split=1, batch_size=256, keras=True)
     ds_test = Streamer(embedding_list_test, label_path,
-                       mapping_path, data_path, mem_split=1, batch_size=256, oversample=False)
+                       mapping_path, data_path, mem_split=1, batch_size=256, keras=True)
 
     if args.train:
         logging.info("[Training] Start ...")
