@@ -10,15 +10,17 @@ warnings.filterwarnings('ignore')
 
 
 class LSTM(nn.Module):
-    def __init__(self, input_dim, output_dim, hidden_dim, layer_dim, bidirectional=False) -> None:
+    def __init__(self, input_dim, output_dim, hidden_dim, layer_dim, bidirectional=False, normalize=False) -> None:
         super(LSTM, self).__init__()
         # Hidden dimensions
         self.hidden_dim = hidden_dim
-
         # Number of hidden layers
         self.layer_dim = layer_dim
-
+        # Output dim classes
+        self.output_dim = output_dim
         self.n_directions = 2 if bidirectional else 1
+        self.normalize = normalize
+
         # Building your LSTM
         # batch_first=True causes input/output tensors to be of shape
         # (batch_dim, seq_dim, feature_dim)
@@ -27,8 +29,8 @@ class LSTM(nn.Module):
         # Linear Dense
         self.fc1 = nn.Linear(hidden_dim*self.n_directions, 128)
         # Linear Dense
-        self.fc2 = nn.Linear(128, output_dim)
-
+        self.fc2 = nn.Linear(128, self.output_dim)
+        # initialize weights & bias with stdv -> 0.05
         self.initialization()
 
     def init_hidden(self, x) -> torch.FloatTensor:
@@ -47,7 +49,7 @@ class LSTM(nn.Module):
         out = self.fc1(out)
         # Dense for softmax
         out = self.fc2(out)
-        return out[:, -1]
+        return nn.functional.normalize(out[:, -1], dim=-1) if self.normalize else out[:, -1]
 
     def initialization(self) -> None:
         for m in self.modules():
