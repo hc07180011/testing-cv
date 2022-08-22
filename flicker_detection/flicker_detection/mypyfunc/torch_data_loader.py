@@ -74,16 +74,13 @@ class MYDS(Dataset):
             loaded = np.load("{}.npy".format(os.path.join(self.data_dir, key.replace(
                 ".npy", ""))))
             X_train += (*self._get_chunk_array(loaded, self.chunk_size),)
-            # get flicker frame indexes
             flicker_idxs = np.array(raw_labels[real_filename]) - 1
-            # buffer zeros array frame video embedding
             buf_label = np.zeros(loaded.shape[0], dtype=np.uint8)
-            # set indexes in zeros array based on flicker frame indexes
             buf_label[flicker_idxs] = 1
             y_train += tuple(
                 1 if sum(x) else 0
                 for x in self._get_chunk_array(buf_label, self.chunk_size)
-            )  # consider using tf reduce sum for multiclass
+            )
         return np.array(X_train), np.asarray(y_train)
 
 
@@ -151,12 +148,10 @@ class Streamer(object):
         X, y = self.X_buffer.pop(), self.y_buffer.pop()
         idx = np.arange(X.shape[0]) - 1
         random.shuffle(idx)
-        input = torch.from_numpy(X[idx]).float()\
-            if len(torch.from_numpy(X[idx]).float().shape) >= 3 else\
-            torch.unsqueeze(torch.from_numpy(X[idx]).float(), -1)
+
         if self.keras:
             return tf.convert_to_tensor(X[idx], dtype=tf.float32), tf.convert_to_tensor(y[idx], dtype=tf.float32)
-        return input, torch.from_numpy(y[idx]).long()
+        return torch.from_numpy(X[idx]).float(), torch.from_numpy(y[idx]).long()
 
     def _re_sample(self,) -> None:
         if self.sampler is None and self.ipca is None:
@@ -170,8 +165,8 @@ class Streamer(object):
         if self.ipca is not None and self.ipca_fitted:
             X, y = np.array(self.X_buffer), np.array(self.y_buffer)
             x_origin = X.shape
-            X = self.ipca.transform(np.reshape(X, (-1, np.prod(x_origin[1:]))))
-            X = self.ipca.inverse_transform(X)
+            X = self.ipca.inverse_transform(self.ipca.transform(
+                np.reshape(X, (-1, np.prod(x_origin[1:])))))
             X = np.reshape(X, (-1,) + x_origin[1:])
         return X, y
 
