@@ -122,7 +122,10 @@ def preprocessing(
         "0016.mp4.npy", "0044.mp4.npy", "0055.mp4.npy",
         "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
         "0169.mp4.npy", "0145.mp4.npy", "0179.mp4.npy",
-        "0098.mp4.npy", "0147.mp4.npy", "0125.mp4.npy"
+        "0098.mp4.npy", "0147.mp4.npy", "0125.mp4.npy",
+        "0181.mp4.npy", "0182.mp4.npy", "0183.mp4.npy",
+        "0184.mp4.npy", "0185.mp4.npy", "0186.mp4.npy"
+        '0123.mp4.npy', '0170.mp4.npy'
     )
 
     embedding_list_train = tuple(
@@ -209,7 +212,7 @@ def command_arg() -> ArgumentParser:
                         help='directory of extracted feature embeddings')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
-    parser.add_argument('--videos_path', type=str, default="data/augmented",
+    parser.add_argument('--videos_path', type=str, default="data/flicker-detection",
                         help='src directory to extract embeddings from')
     parser.add_argument(
         "-train", "--train", action="store_true",

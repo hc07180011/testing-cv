@@ -6,6 +6,8 @@ import numpy as np
 
 def get_pts(src: str, dst: str = 'pts_encodings') -> None:
     for vid in os.listdir(src):
+        if os.path.exists(os.path.join(src, "{}".format(vid))):
+            continue
         fh = av.open(os.path.join(src, vid))
         video = fh.streams.video[0]
         decoded = tuple(fh.decode(video))
@@ -16,9 +18,9 @@ def get_pts(src: str, dst: str = 'pts_encodings') -> None:
             for i in range(0, len(decoded)-1, 1)
         ))
 
-        std_arr = ((pts_interval - pts_interval.mean(axis=0)) /
-                   pts_interval.std(axis=0))
-        np.save(os.path.join(dst, f'{vid}.npy'), std_arr)
+        # std_arr = ((pts_interval - pts_interval.mean(axis=0)) /
+        #            pts_interval.std(axis=0))
+        np.save(os.path.join(dst, f'{vid}.npy'), pts_interval)
         gc.collect()
 
 

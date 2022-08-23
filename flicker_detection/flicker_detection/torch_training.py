@@ -31,7 +31,7 @@ def torch_validation(
             minibatch_loss_val, minibatch_f1_val = 0, 0
             for n_val, ((x0, y0), (x1, _)) in enumerate(zip(*ds_val)):
                 x0, x1, y0 = x0.to(device), x1.to(device), y0.to(device)
-                x1 = torch.unsqueeze(torch.cat((model[0](x0), x1), -1), -1)
+                x1 = torch.unsqueeze(torch.cat((model[0](x0), x1), -1), 1)
                 y_pred = model[1](x1)
                 loss = criterion(y_pred, y0)
                 val_f1 = f1_metric(
@@ -41,7 +41,8 @@ def torch_validation(
         else:
             minibatch_loss_val, minibatch_f1_val = 0, 0
             for n_val, (x0, y0) in enumerate(ds_val):
-                x0, y0 = x0.to(device), y0.to(device)
+                x0, y0 = x0.to(device)if len(x0.shape) >= 3 else torch.unsqueeze(
+                    x0, -1).to(device), y0.to(device)
                 y_pred = model(x0)
                 loss = criterion(y_pred, y0)
                 val_f1 = f1_metric(
@@ -78,10 +79,12 @@ def torch_training(
 
         minibatch_loss_train, minibatch_f1 = 0, 0
         if isinstance(model, tuple) and isinstance(ds_train, tuple):
-            model[1].eval()
+            model[0].eval()
             for n_train, ((x0, y0), (x1, _)) in enumerate(zip(*ds_train)):
                 x0, x1, y0 = x0.to(device), x1.to(device), y0.to(device)
-                x1 = torch.unsqueeze(torch.cat((model[0](x0), x1), -1), -1)
+                # logging.debug(
+                #     f"{model[0](x0).shape}+{x1.shape}={torch.cat((model[0](x0), x1), -1).shape}")
+                x1 = torch.unsqueeze(torch.cat((model[0](x0), x1), -1), 1)
                 y_pred = model[1](x1).detach().clone().to(
                     device).requires_grad_(requires_grad=True)
                 loss = criterion(y_pred, y0)
@@ -97,7 +100,8 @@ def torch_training(
 
         else:
             for n_train, (x0, y0) in enumerate(ds_train):
-                x0, y0 = x0.to(device), y0.to(device)
+                x0, y0 = x0.to(device)if len(x0.shape) >= 3 else torch.unsqueeze(
+                    x0, -1).to(device), y0.to(device)
                 y_pred = model(x0)
                 loss = criterion(y_pred, y0)
                 optimizer.zero_grad()
@@ -131,7 +135,7 @@ def torch_training(
             ))
 
         if epoch > 10 and val_f1_callback[-1] > val_max_f1:
-            save_checkpoint(f'{save_path}/model.pth', model,
+            save_checkpoint(f'{save_path}/model.pth', model[1] if isinstance(model, tuple) else model,
                             optimizer, loss_callback[-1], f1_callback[-1], val_loss_callback[-1], val_f1_callback[-1])
             save_metrics(f'{save_path}/metrics.pth', loss_callback, f1_callback,
                          val_loss_callback, val_f1_callback)
@@ -159,16 +163,26 @@ def torch_testing(
     logging.getLogger('matplotlib').setLevel(logging.WARNING)
     metrics = Evaluation(plots_folder="plots/", classes=classes)
 
-    model.eval()
+    model[1].eval() if isinstance(model, tuple) else model.eval()
     y_pred, y_true = None, None
     with torch.no_grad():
-        for (x0, y0) in ds_test:
-            x0, y0 = x0.to(device), y0.to(device)
-            output = model(x0)
-            y_pred = output if y_pred is None else\
-                torch.cat((y_pred, output), dim=0)
-            y_true = y0 if y_true is None else\
-                torch.cat((y_true, y0), dim=0)
+        if isinstance(model, tuple) and isinstance(ds_test, tuple):
+            for (x0, y0), (x1, _) in zip(*ds_test):
+                x0, x1, y0 = x0.to(device), x1.to(device), y0.to(device)
+                x1 = torch.unsqueeze(torch.cat((model[0](x0), x1), -1), 1)
+                output = model[1](x1)
+                y_pred = output if y_pred is None else\
+                    torch.cat((y_pred, output), dim=0)
+                y_true = y0 if y_true is None else\
+                    torch.cat((y_true, y0), dim=0)
+        else:
+            for (x0, y0) in ds_test:
+                x0, y0 = x0.to(device), y0.to(device)
+                output = model(x0)
+                y_pred = output if y_pred is None else\
+                    torch.cat((y_pred, output), dim=0)
+                y_true = y0 if y_true is None else\
+                    torch.cat((y_true, y0), dim=0)
     y_classes = torch.topk(
         objective(y_pred), k=1, dim=1).indices.flatten()
     metrics.cm(y_true.detach(), y_classes.detach())
@@ -217,7 +231,7 @@ def main() -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     init_logger()
-    torch_seeding(54321)
+    torch_seeding(42)
 
     __cache__ = np.load(
         "{}.npz".format(cache_path), allow_pickle=True)
@@ -225,7 +239,7 @@ def main() -> None:
         __cache__[lst] for lst in __cache__)
 
     chunk_size = 30
-    batch_size = 768
+    batch_size = 1024
 
     ipca = pk.load(open("ipca.pk1", "rb")) if os.path.exists(
         "ipca.pk1") else IncrementalPCA(n_components=2)
@@ -233,36 +247,17 @@ def main() -> None:
     nm = NearMiss(version=1, n_jobs=-1,
                   sampling_strategy='majority', n_neighbors=1)
     sm = SMOTE(random_state=42, n_jobs=-1)  # k_neighbors=3)
-
-    # memsplit number affects y batches
-    ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, mem_split=5, chunk_size=chunk_size, batch_size=batch_size, multiclass=False, sampler=sm)  # [('near_miss', nm), ('smote', sm)])
-    ds_val = Streamer(embedding_list_val, label_path,
-                      mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
-    ds_test = Streamer(embedding_list_test, label_path,
-                       mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
-    train_encodings = Streamer(embedding_list_train, label_path,
-                               mapping_path, 'data/pts_encodings', mem_split=5, chunk_size=chunk_size, batch_size=batch_size, multiclass=False, sampler=sm)  # [('near_miss', nm), ('smote', sm)])
-    val_encodings = Streamer(embedding_list_val, label_path,
-                             mapping_path, 'data/pts_encodings', mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
-    test_encodings = Streamer(embedding_list_test, label_path,
-                              mapping_path, 'data/pts_encodings', mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
-
     model0 = LSTM(input_dim=18432, output_dim=2, hidden_dim=256,
                   layer_dim=1, bidirectional=True, normalize=False)
-    model1 = LSTM(input_dim=1, output_dim=2, hidden_dim=256,
+    model1 = LSTM(input_dim=32, output_dim=2, hidden_dim=256,
                   layer_dim=1, bidirectional=False, normalize=False)
-
-    optimizer0 = torch.optim.Adam(model0.parameters(), lr=0.00001)
-    optimizer1 = torch.optim.Adam(model1.parameters(), lr=0.00001)
-    # model = torch.nn.DataParallel(model, device_ids=[0, 1])
     model0.to(device)
     model1.to(device)
-    criterion = nn.CrossEntropyLoss()
+    logging.info("\n{}".format(model0.train()))
+    logging.info("\n{}".format(model1.train()))
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     #     optimizer, patience=5, verbose=True)
     # lower gpu float precision for larger batch size
-    logging.info("\n{}\n{}".format(model0.train(), model1.train()))
     if args.preprocess:
         logging.info("Preprocessing start...")
         ev = ds_train._fit_ipca(dest="samplers/ipca.pk1")
@@ -270,21 +265,42 @@ def main() -> None:
         logging.info("Preprocessing Done.")
 
     if args.train:
+        # memsplit number affects y batches
+        logging.info("Loading Data...")
+        ds_train = Streamer(embedding_list_train, label_path,
+                            mapping_path, data_dir, mem_split=3, chunk_size=chunk_size, batch_size=batch_size, multiclass=False, sampler=sm)  # [('near_miss', nm), ('smote', sm)])
+        ds_val = Streamer(embedding_list_val, label_path,
+                          mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
+        train_encodings = Streamer(embedding_list_train, label_path,
+                                   mapping_path, 'data/pts_encodings', mem_split=3, chunk_size=chunk_size, batch_size=batch_size, multiclass=False, sampler=sm)  # [('near_miss', nm), ('smote', sm)])
+        val_encodings = Streamer(embedding_list_val, label_path,
+                                 mapping_path, 'data/pts_encodings', mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
+        logging.info("Loaded Data...")
+        optimizer0 = torch.optim.Adam(model0.parameters(), lr=0.00001)
+        # model = torch.nn.DataParallel(model, device_ids=[0, 1])
+
         logging.info("Starting Training Image Model")
-        model = torch_training(ds_train, ds_val, model0,
-                               optimizer0, criterion=criterion, device=device)
-        logging.info("Done Training Image Model...\nTrain with encodings")
+        torch_training(ds_train, ds_val, model0,
+                       optimizer0, device=device, save_path='model0')
+        logging.info("Done Training Image Model...")
+        logging.info("Train with encodings...")
         model0.load_state_dict(torch.load(model_path)['model_state_dict'])
-        model = torch_training((ds_train, train_encodings), (ds_val, val_encodings), (model0, model1),
-                               optimizer1, criterion=criterion, device=device)
+        optimizer1 = torch.optim.Adam(model1.parameters(), lr=0.00001)
+        torch_training((ds_train, train_encodings), (ds_val, val_encodings), (model0, model1),
+                       optimizer1, device=device, save_path='model1')
         logging.info("Done training with encodings...")
 
     if args.test:
+        ds_test = Streamer(embedding_list_test, label_path,
+                           mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
+        test_encodings = Streamer(embedding_list_test, label_path,
+                                  mapping_path, 'data/pts_encodings', mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
+        model0.load_state_dict(torch.load(model_path)['model_state_dict'])
         model1.load_state_dict(torch.load(
             "model1/model.pth")['model_state_dict'])
         logging.info("Starting Evaluation")
-        torch_testing(ds_test, model0,
-                      device=device, classes=2)
+        torch_testing((ds_test, test_encodings), (model0, model1),
+                      device=device, classes=2, save_path='model1')
         logging.info("Done Evaluation")
 
 
