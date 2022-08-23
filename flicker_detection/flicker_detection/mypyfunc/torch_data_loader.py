@@ -191,6 +191,7 @@ class Streamer(object):
                 "{}.npy".format(os.path.join(
                     self.data_dir, key.replace(".npy", "")))
             )
+            # logging.debug(f"{loaded.shape}")
             self.X_buffer += (*self._get_chunk_array(loaded, self.chunk_size),)
             flicker_idxs = np.array(self.raw_labels[real_filename]) - 1
             buf_label = np.zeros(loaded.shape[0], dtype=np.uint8)
@@ -301,7 +302,7 @@ if __name__ == '__main__':
     embedding_list_train, embedding_list_val, embedding_list_test = tuple(
         __cache__[lst] for lst in __cache__)
 
-    chunk_size = 5
+    chunk_size = 30
     batch_size = 1024
     ipca = pk.load(open("../ipca.pk1", "rb"))\
         if os.path.exists("../ipca.pk1") else IncrementalPCA(n_components=2)
@@ -317,11 +318,9 @@ if __name__ == '__main__':
     train_encodings = Streamer(embedding_list_train, label_path,
                                mapping_path, '../data/pts_encodings', mem_split=5, chunk_size=chunk_size, batch_size=batch_size, sampler=sm, multiclass=True)
     # ds_train.plot_dist(dest='../plots/X_train_dist.png')
-    image, pts = 0, 0
-    for (x, y), (x0, y0) in zip(ds_train, train_encodings):
-        print(x.shape, x0.shape)
-        x_concat = torch.cat((x, x0), -1)
-        print(x_concat.shape)
+    image = 0
+    for (x, y) in ds_train:
+        print("WTF")
+        print(x.shape, y.shape)
         image += y.shape[0]
-        pts += y0.shape[0]
-    print(image, pts)
+    print(image)
