@@ -58,7 +58,7 @@ def read_proto_string():
             elif dic[vid_name] and line[10:-2] != '':
                 dic[vid_name].append(int(line[10:-2]))
 
-    with open('new_label.json', 'w') as out:
+    with open('test.json', 'w') as out:
         json.dump(dic, out)
     return dic
 
@@ -193,10 +193,10 @@ if __name__ == "__main__":
     ffmpeg
     """
     # save_flicker_img("flicker-detection/0145.mp4", 13)
-    # read_proto_string()
+    read_proto_string()
     # writeimg_new_labels()
     # manual_label('flicker-detection/0136.mp4')
     # for vid in os.listdir('standard_fps_vid/'):
     #     check_fps(os.path.join('standard_fps_vid/',vid))
     # check_fps('flicker-detection/0001.mp4')
-    label_aug()
+    # label_aug()

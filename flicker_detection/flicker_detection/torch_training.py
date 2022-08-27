@@ -17,47 +17,6 @@ from mypyfunc.torch_data_loader import Streamer
 from mypyfunc.torch_utility import save_checkpoint, save_metrics, load_checkpoint, load_metrics, torch_seeding
 
 
-def torch_validation(
-    model: torch.nn.Module,
-    ds_val: Streamer,
-    criterion: Callable,
-    objective: Callable = nn.Softmax(),
-    f1_metric: Callable = F1Score(average='macro'),
-    device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
-):
-    n_val = None
-    with torch.no_grad():
-        if isinstance(model, tuple) and isinstance(ds_val, tuple):
-            minibatch_loss_val, minibatch_f1_val = 0, 0
-            for n_val, ((x0, y0), (x1, _)) in enumerate(zip(*ds_val)):
-                x0, x1, y0 = x0.to(device), x1.to(device), y0.to(device)
-                x1 = torch.unsqueeze(torch.cat((model[0](x0), x1), -1), 1)
-                y_pred = model[1](x1)
-                loss = criterion(y_pred, y0)
-                val_f1 = f1_metric(
-                    torch.topk(objective(y_pred), k=1, dim=1).indices.flatten(), y0)
-                minibatch_loss_val += loss.item()
-                minibatch_f1_val += val_f1.item()
-        else:
-            minibatch_loss_val, minibatch_f1_val = 0, 0
-            for n_val, (x0, y0) in enumerate(ds_val):
-                x0, y0 = x0.to(device)if len(x0.shape) >= 3 else torch.unsqueeze(
-                    x0, -1).to(device), y0.to(device)
-                y_pred = model(x0)
-                loss = criterion(y_pred, y0)
-                val_f1 = f1_metric(
-                    torch.topk(objective(y_pred), k=1, dim=1).indices.flatten(), y0)
-                minibatch_loss_val += loss.item()
-                minibatch_f1_val += val_f1.item()
-    if isinstance(ds_val, tuple):
-        ds_val[0]._shuffle()
-        ds_val[1]._shuffle()
-    else:
-        ds_val._shuffle()
-    return ((minibatch_loss_val/(n_val + 1)) if n_val else minibatch_loss_val,),\
-        ((minibatch_f1_val/(n_val + 1)) if n_val else minibatch_f1_val,)
-
-
 def torch_training(
     ds_train: Streamer,
     ds_val: Streamer,
@@ -74,7 +33,7 @@ def torch_training(
     val_max_f1 = 0
     f1_callback, loss_callback, val_f1_callback, val_loss_callback = (), (), (), ()
     for epoch in range(epochs):
-        if loss_callback and epoch > 10 and loss_callback[-1] < 0.01:
+        if loss_callback and epoch > 10 and loss_callback[-1] < 0.005:
             break
 
         minibatch_loss_train, minibatch_f1 = 0, 0
@@ -120,8 +79,38 @@ def torch_training(
         f1_callback += ((minibatch_f1/(n_train + 1))
                         if n_train else minibatch_f1,)
         # scheduler.step(loss_callback[-1])
-        val_loss, val_f1 = torch_validation(
-            model, ds_val, criterion=criterion, objective=objective, device=device)
+        n_val = None
+        with torch.no_grad():
+            if isinstance(model, tuple) and isinstance(ds_val, tuple):
+                minibatch_loss_val, minibatch_f1_val = 0, 0
+                for n_val, ((x0, y0), (x1, _)) in enumerate(zip(*ds_val)):
+                    x0, x1, y0 = x0.to(device), x1.to(device), y0.to(device)
+                    x1 = torch.unsqueeze(torch.cat((model[0](x0), x1), -1), 1)
+                    y_pred = model[1](x1)
+                    loss = criterion(y_pred, y0)
+                    val_f1 = f1_metric(
+                        torch.topk(objective(y_pred), k=1, dim=1).indices.flatten(), y0)
+                    minibatch_loss_val += loss.item()
+                    minibatch_f1_val += val_f1.item()
+            else:
+                minibatch_loss_val, minibatch_f1_val = 0, 0
+                for n_val, (x0, y0) in enumerate(ds_val):
+                    x0, y0 = x0.to(device)if len(x0.shape) >= 3 else torch.unsqueeze(
+                        x0, -1).to(device), y0.to(device)
+                    y_pred = model(x0)
+                    loss = criterion(y_pred, y0)
+                    val_f1 = f1_metric(
+                        torch.topk(objective(y_pred), k=1, dim=1).indices.flatten(), y0)
+                    minibatch_loss_val += loss.item()
+                    minibatch_f1_val += val_f1.item()
+        if isinstance(ds_val, tuple):
+            ds_val[0]._shuffle()
+            ds_val[1]._shuffle()
+        else:
+            ds_val._shuffle()
+        val_loss, val_f1 = ((minibatch_loss_val/(n_val + 1)) if n_val else minibatch_loss_val,),\
+            ((minibatch_f1_val/(n_val + 1)) if n_val else minibatch_f1_val,)
+
         val_loss_callback += val_loss
         val_f1_callback += val_f1
 
@@ -211,7 +200,7 @@ def command_arg() -> ArgumentParser:
                         help='directory of extracted feature embeddings')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
-    parser.add_argument('--model_path', type=str, default="model0/model.pth",
+    parser.add_argument('--model_path', type=str, default="model0",
                         help='directory to store model weights and bias')
     parser.add_argument(
         "-preprocess", "--preprocess", action="store_true",
@@ -229,9 +218,7 @@ def main() -> None:
     args = command_arg()
     label_path, mapping_path, data_dir, cache_path, model_path = args.label_path, args.mapping_path, args.data_dir, args.cache_path, args.model_path
 
-    devices = tuple((f"cuda{i}" for i in range(torch.cuda.device_count())))\
-        if torch.cuda.is_available() else torch.device("cpu")
-
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     init_logger()
     torch_seeding(42)
 
@@ -241,7 +228,7 @@ def main() -> None:
         __cache__[lst] for lst in __cache__)
 
     chunk_size = 30
-    batch_size = 384
+    batch_size = 1116
 
     ipca = pk.load(open("ipca.pk1", "rb")) if os.path.exists(
         "ipca.pk1") else IncrementalPCA(n_components=2)
@@ -250,11 +237,10 @@ def main() -> None:
                   sampling_strategy='majority', n_neighbors=1)
     sm = SMOTE(random_state=42, n_jobs=-1)  # k_neighbors=3)
     model0 = LSTM(input_dim=18432, output_dim=2, hidden_dim=256,
-                  layer_dim=1, bidirectional=True, normalize=False)
-    model1 = LSTM(input_dim=32, output_dim=2, hidden_dim=256,
                   layer_dim=1, bidirectional=False, normalize=False)
+    model0 = torch.nn.DataParallel(model0)
+    model0.to(device)
     logging.info("\n{}".format(model0.train()))
-    logging.info("\n{}".format(model1.train()))
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     #     optimizer, patience=5, verbose=True)
     # lower gpu float precision for larger batch size
@@ -276,47 +262,30 @@ def main() -> None:
                             batch_size=batch_size,
                             multiclass=False,
                             sampler=sm)  # [('near_miss', nm), ('smote', sm)])
-        ds_val = Streamer(embedding_list_val, label_path,
-                          mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
-        train_encodings = Streamer(embedding_list_train,
-                                   label_path,
-                                   mapping_path,
-                                   'data/pts_encodings',
-                                   mem_split=3,
-                                   chunk_size=chunk_size,
-                                   batch_size=batch_size,
-                                   multiclass=False,
-                                   sampler=sm)  # [('near_miss', nm), ('smote', sm)])
-        val_encodings = Streamer(embedding_list_val, label_path,
-                                 mapping_path, 'data/pts_encodings', mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
+        ds_val = Streamer(embedding_list_val,
+                          label_path,
+                          mapping_path,
+                          data_dir,
+                          mem_split=1,
+                          chunk_size=chunk_size,
+                          batch_size=batch_size,
+                          sampler=None)
         logging.info("Loaded Data...")
+
         optimizer0 = torch.optim.Adam(model0.parameters(), lr=0.00001)
-        model0 = torch.nn.DataParallel(model0, device_ids=[0, 1])
-        model0.to(device)
         logging.info("Starting Training Image Model")
         torch_training(ds_train, ds_val, model0,
-                       optimizer0, device=device, save_path='model0')
+                       optimizer0, device=device, save_path=model_path)
         logging.info("Done Training Image Model...")
-        logging.info("Train with encodings...")
-        model0.load_state_dict(torch.load(model_path)['model_state_dict'])
-        model1 = torch.nn.DataParallel(model1, device_ids=[0, 1])
-        model1.to(device)
-        optimizer1 = torch.optim.Adam(model1.parameters(), lr=0.00001)
-        torch_training((ds_train, train_encodings), (ds_val, val_encodings), (model0, model1),
-                       optimizer1, device=device, save_path='model1')
-        logging.info("Done training with encodings...")
 
     if args.test:
         ds_test = Streamer(embedding_list_test, label_path,
                            mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
-        test_encodings = Streamer(embedding_list_test, label_path,
-                                  mapping_path, 'data/pts_encodings', mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
-        model0.load_state_dict(torch.load(model_path)['model_state_dict'])
-        model1.load_state_dict(torch.load(
-            "model1/model.pth")['model_state_dict'])
+        model0.load_state_dict(torch.load(os.path.join(
+            model_path, 'model.pth'))['model_state_dict'])
         logging.info("Starting Evaluation")
-        torch_testing((ds_test, test_encodings), (model0, model1),
-                      device=device, classes=2, save_path='model1')
+        torch_testing(ds_test, model0,
+                      device=device, classes=2, save_path=model_path)
         logging.info("Done Evaluation")
 
 
