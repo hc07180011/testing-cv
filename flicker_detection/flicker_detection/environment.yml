@@ -7,6 +7,7 @@ channels:
 dependencies:
   - _libgcc_mutex=0.1=conda_forge
   - _openmp_mutex=4.5=2_kmp_llvm
+  - _py-xgboost-mutex=2.0=gpu_0
   - abseil-cpp=20211102.0=h27087fc_1
   - absl-py=1.2.0=pyhd8ed1ab_0
   - aiohttp=3.8.1=py39hb9d737c_1
@@ -163,6 +164,7 @@ dependencies:
   - libwebp=1.2.3=h522a892_1
   - libwebp-base=1.2.3=h166bdaf_2
   - libxcb=1.13=h7f98852_1004
+  - libxgboost=1.6.1=cuda112h075c576_1
   - libxkbcommon=1.0.3=he3ba5ed_0
   - libxml2=2.9.14=h22db469_3
   - libzlib=1.2.12=h166bdaf_2
@@ -210,6 +212,7 @@ dependencies:
   - pthread-stubs=0.4=h36c2ea0_1001
   - pulseaudio=14.0=h7f54b18_8
   - py-opencv=4.6.0=py39hef51801_2
+  - py-xgboost=1.6.1=cuda112py39h01bd6f0_1
   - pyasn1=0.4.8=py_0
   - pyasn1-modules=0.2.7=py_0
   - pycodestyle=2.8.0=pyhd3eb1b0_0
@@ -283,6 +286,7 @@ dependencies:
   - xcb-util-keysyms=0.4.0=h166bdaf_0
   - xcb-util-renderutil=0.3.9=h166bdaf_0
   - xcb-util-wm=0.4.1=h166bdaf_0
+  - xgboost=1.6.1=cuda112py39heb5920e_1
   - xorg-fixesproto=5.0=h7f98852_1002
   - xorg-inputproto=2.3.2=h7f98852_1002
   - xorg-kbproto=1.0.7=h7f98852_1002

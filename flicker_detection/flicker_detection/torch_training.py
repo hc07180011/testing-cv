@@ -229,7 +229,9 @@ def main() -> None:
     args = command_arg()
     label_path, mapping_path, data_dir, cache_path, model_path = args.label_path, args.mapping_path, args.data_dir, args.cache_path, args.model_path
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    devices = tuple((f"cuda{i}" for i in range(torch.cuda.device_count())))\
+        if torch.cuda.is_available() else torch.device("cpu")
+
     init_logger()
     torch_seeding(42)
 
@@ -239,7 +241,7 @@ def main() -> None:
         __cache__[lst] for lst in __cache__)
 
     chunk_size = 30
-    batch_size = 1024
+    batch_size = 384
 
     ipca = pk.load(open("ipca.pk1", "rb")) if os.path.exists(
         "ipca.pk1") else IncrementalPCA(n_components=2)
@@ -251,8 +253,6 @@ def main() -> None:
                   layer_dim=1, bidirectional=True, normalize=False)
     model1 = LSTM(input_dim=32, output_dim=2, hidden_dim=256,
                   layer_dim=1, bidirectional=False, normalize=False)
-    model0.to(device)
-    model1.to(device)
     logging.info("\n{}".format(model0.train()))
     logging.info("\n{}".format(model1.train()))
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -267,24 +267,40 @@ def main() -> None:
     if args.train:
         # memsplit number affects y batches
         logging.info("Loading Data...")
-        ds_train = Streamer(embedding_list_train, label_path,
-                            mapping_path, data_dir, mem_split=3, chunk_size=chunk_size, batch_size=batch_size, multiclass=False, sampler=sm)  # [('near_miss', nm), ('smote', sm)])
+        ds_train = Streamer(embedding_list_train,
+                            label_path,
+                            mapping_path,
+                            data_dir,
+                            mem_split=3,
+                            chunk_size=chunk_size,
+                            batch_size=batch_size,
+                            multiclass=False,
+                            sampler=sm)  # [('near_miss', nm), ('smote', sm)])
         ds_val = Streamer(embedding_list_val, label_path,
                           mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
-        train_encodings = Streamer(embedding_list_train, label_path,
-                                   mapping_path, 'data/pts_encodings', mem_split=3, chunk_size=chunk_size, batch_size=batch_size, multiclass=False, sampler=sm)  # [('near_miss', nm), ('smote', sm)])
+        train_encodings = Streamer(embedding_list_train,
+                                   label_path,
+                                   mapping_path,
+                                   'data/pts_encodings',
+                                   mem_split=3,
+                                   chunk_size=chunk_size,
+                                   batch_size=batch_size,
+                                   multiclass=False,
+                                   sampler=sm)  # [('near_miss', nm), ('smote', sm)])
         val_encodings = Streamer(embedding_list_val, label_path,
                                  mapping_path, 'data/pts_encodings', mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
         logging.info("Loaded Data...")
         optimizer0 = torch.optim.Adam(model0.parameters(), lr=0.00001)
-        # model = torch.nn.DataParallel(model, device_ids=[0, 1])
-
+        model0 = torch.nn.DataParallel(model0, device_ids=[0, 1])
+        model0.to(device)
         logging.info("Starting Training Image Model")
         torch_training(ds_train, ds_val, model0,
                        optimizer0, device=device, save_path='model0')
         logging.info("Done Training Image Model...")
         logging.info("Train with encodings...")
         model0.load_state_dict(torch.load(model_path)['model_state_dict'])
+        model1 = torch.nn.DataParallel(model1, device_ids=[0, 1])
+        model1.to(device)
         optimizer1 = torch.optim.Adam(model1.parameters(), lr=0.00001)
         torch_training((ds_train, train_encodings), (ds_val, val_encodings), (model0, model1),
                        optimizer1, device=device, save_path='model1')

@@ -191,11 +191,10 @@ class Streamer(object):
                 "{}.npy".format(os.path.join(
                     self.data_dir, key.replace(".npy", "")))
             )
-            # logging.debug(f"{loaded.shape}")
             self.X_buffer += (*self._get_chunk_array(loaded, self.chunk_size),)
             flicker_idxs = np.array(self.raw_labels[real_filename]) - 1
             buf_label = np.zeros(loaded.shape[0], dtype=np.uint8)
-            buf_label[flicker_idxs] = 1
+            buf_label[flicker_idxs.tolist()] = 1
             self.y_buffer += tuple(
                 sum(x) if self.multiclass else 1 if sum(x) else 0 for x in self._get_chunk_array(buf_label, self.chunk_size)
             )
