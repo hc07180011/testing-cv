@@ -38,21 +38,19 @@ def torch_training(
 
         minibatch_loss_train, minibatch_f1 = 0, 0
         if isinstance(model, tuple) and isinstance(ds_train, tuple):
-            model[0].eval()
             for n_train, ((x0, y0), (x1, _)) in enumerate(zip(*ds_train)):
                 x0, x1, y0 = x0.to(device), x1.to(device), y0.to(device)
-                x1 = torch.unsqueeze(torch.cat((model[0](x0), x1), -1), 1)
-                y_pred = model[1](x1).detach().clone().to(
-                    device).requires_grad_(requires_grad=True)
-                loss = criterion(y_pred, y0)
+                y_pred0, y_pred1 = model[0](x0), model[1](x1)
+                loss0, loss1 = criterion(y_pred0, y0), criterion(y_pred1, y0)
+                lossf = loss0*loss1
                 optimizer.zero_grad()
-                loss.backward()
-                torch.nn.utils.clip_grad_norm(model[1].parameters(), 1.0)
+                lossf.backward()
+                torch.nn.utils.clip_grad_norm(
+                    tuple(model[0].parameters())+tuple(model[1].parameters), 1.0)
                 optimizer.step()
-                f1 = f1_metric(torch.topk(objective(y_pred),
+                f1 = f1_metric(torch.topk(objective(y_pred0)*objective(y_pred1),
                                           k=1, dim=1).indices.flatten(), y0)
-
-                minibatch_loss_train += loss.item()
+                minibatch_loss_train += lossf.item()
                 minibatch_f1 += f1.item()
 
         else:
@@ -71,7 +69,11 @@ def torch_training(
                 minibatch_loss_train += loss.item()
                 minibatch_f1 += f1.item()
 
-        model[1].eval() if isinstance(model, tuple) else model.eval()
+        if isinstance(model, tuple):
+            model[0].eval()
+            model[1].eval()
+        else:
+            model.eval()
         loss_callback += ((minibatch_loss_train / (n_train + 1))
                           if n_train else minibatch_loss_train,)
         f1_callback += ((minibatch_f1/(n_train + 1))
@@ -83,12 +85,13 @@ def torch_training(
                 minibatch_loss_val, minibatch_f1_val = 0, 0
                 for n_val, ((x0, y0), (x1, _)) in enumerate(zip(*ds_val)):
                     x0, x1, y0 = x0.to(device), x1.to(device), y0.to(device)
-                    x1 = torch.unsqueeze(torch.cat((model[0](x0), x1), -1), 1)
-                    y_pred = model[1](x1)
-                    loss = criterion(y_pred, y0)
+                    y_pred0, y_pred1 = model[0](x0), model[1](x1)
+                    loss0, loss1 = criterion(
+                        y_pred0, y0), criterion(y_pred1, y0)
+                    lossf = loss0*loss1
                     val_f1 = f1_metric(
-                        torch.topk(objective(y_pred), k=1, dim=1).indices.flatten(), y0)
-                    minibatch_loss_val += loss.item()
+                        torch.topk(objective(y_pred0)*objective(y_pred1), k=1, dim=1).indices.flatten(), y0)
+                    minibatch_loss_val += lossf.item()
                     minibatch_f1_val += val_f1.item()
             else:
                 minibatch_loss_val, minibatch_f1_val = 0, 0
@@ -106,11 +109,11 @@ def torch_training(
             ds_val[1]._shuffle()
         else:
             ds_val._shuffle()
-        val_loss, val_f1 = ((minibatch_loss_val/(n_val + 1)) if n_val else minibatch_loss_val,),\
-            ((minibatch_f1_val/(n_val + 1)) if n_val else minibatch_f1_val,)
 
-        val_loss_callback += val_loss
-        val_f1_callback += val_f1
+        val_loss_callback += ((minibatch_loss_val/(n_val + 1))
+                              if n_val else minibatch_loss_val,)
+        val_f1_callback += ((minibatch_f1_val/(n_val + 1))
+                            if n_val else minibatch_f1_val,)
 
         logging.info(
             "Epoch: {}/{} Loss - {:.3f},f1 - {:.3f} val_loss - {:.3f}, val_f1 - {:.3f}".format(
@@ -122,13 +125,14 @@ def torch_training(
             ))
 
         if epoch > 10 and val_f1_callback[-1] > val_max_f1:
-            save_checkpoint(f'{save_path}/model.pth', model[1] if isinstance(model, tuple) else model,
+            save_checkpoint(f'{save_path}/model.pth', model,
                             optimizer, loss_callback[-1], f1_callback[-1], val_loss_callback[-1], val_f1_callback[-1])
             save_metrics(f'{save_path}/metrics.pth', loss_callback, f1_callback,
                          val_loss_callback, val_f1_callback)
             val_max_f1 = val_f1_callback[-1]
 
         if isinstance(ds_val, tuple) and isinstance(model, tuple):
+            model[0].train()
             model[1].train()
             ds_train[0]._shuffle()
             ds_train[1]._shuffle()
@@ -150,16 +154,20 @@ def torch_testing(
     logging.getLogger('matplotlib').setLevel(logging.WARNING)
     metrics = Evaluation(plots_folder="plots/", classes=classes)
 
-    model[1].eval() if isinstance(model, tuple) else model.eval()
+    if isinstance(model, tuple):
+        model[0].eval()
+        model[1].eval()
+    else:
+        model.eval()
+
     X_test, y_pred, y_true = (), (), ()
     with torch.no_grad():
         if isinstance(model, tuple) and isinstance(ds_test, tuple):
             for (x0, y0), (x1, _) in zip(*ds_test):
                 x0, x1, y0 = x0.to(device), x1.to(device), y0.to(device)
-                x1 = torch.unsqueeze(torch.cat((model[0](x0), x1), -1), 1)
-                output = model[1](x1)
+                output0, output1 = model[0](x0), model[1](x1)
                 X_test += (x0.detach().cpu(),)
-                y_pred += (output,)
+                y_pred += (objective(output0)*objective(output1),)
                 y_true += (y0,)
         else:
             for (x0, y0) in ds_test:
@@ -167,17 +175,16 @@ def torch_testing(
                     torch.unsqueeze(x0, -1).to(device), y0.to(device)
                 output = model(x0)
                 X_test += (x0.detach().cpu(),)
-                y_pred += (output,)
+                y_pred += (objective(output),)
                 y_true += (y0,)
     X_test, y_pred, y_true = torch.cat(X_test, dim=0), torch.cat(
         y_pred, dim=0), torch.cat(y_true, dim=0)
-    y_classes = torch.topk(
-        objective(y_pred), k=1, dim=1).indices.flatten()
+    y_classes = torch.topk(y_pred, k=1, dim=1).indices.flatten()
     metrics.miss_classified(X_test, y_classes, y_true,
                             test_set=ds_test.embedding_list_train)
     metrics.cm(y_true.detach(), y_classes.detach())
 
-    y_pred, y_true = (objective(y_pred)).cpu().numpy(), y_true.cpu().numpy()
+    y_pred, y_true = (y_pred).cpu().numpy(), y_true.cpu().numpy()
     y_bin = np.zeros((y_true.shape[0], classes))
     idx = np.array([[i] for i in y_true])
     np.put_along_axis(y_bin, idx, 1, axis=1)
@@ -195,7 +202,7 @@ def command_arg() -> ArgumentParser:
     parser = ArgumentParser()
     parser.add_argument('--label_path', type=str, default="data/new_label.json",
                         help='path of json that store the labeled frames')
-    parser.add_argument('--mapping_path', type=str, default="data/mapping_test.json",
+    parser.add_argument('--mapping_path', type=str, default="data/mapping_aug_data.json",
                         help='path of json that maps encrpypted video file name to simple naming')
     parser.add_argument('--data_dir', type=str, default="data/vgg16_emb/",
                         help='directory of extracted feature embeddings')
@@ -229,7 +236,7 @@ def main() -> None:
         __cache__[lst] for lst in __cache__)
 
     chunk_size = 30
-    batch_size = 1116
+    batch_size = 1024
 
     ipca = pk.load(open("ipca.pk1", "rb")) if os.path.exists(
         "ipca.pk1") else IncrementalPCA(n_components=2)

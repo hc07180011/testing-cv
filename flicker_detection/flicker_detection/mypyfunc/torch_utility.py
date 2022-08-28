@@ -12,12 +12,19 @@ def save_checkpoint(save_path, model, optimizer, loss, f1, val_f1, val_loss):
     if save_path == None:
         return
 
-    state_dict = {'model_state_dict': model.state_dict(),
-                  'optimizer_state_dict': optimizer.state_dict(),
-                  'loss': loss,
-                  'f1': f1,
-                  'val_f1': val_f1,
-                  'valid_loss': val_loss}
+    state_dict = {
+        'optimizer_state_dict': optimizer.state_dict(),
+        'loss': loss,
+        'f1': f1,
+        'val_f1': val_f1,
+        'valid_loss': val_loss
+    }
+
+    if isinstance(model, tuple):
+        state_dict['model0_state_dict'] = model[0].state_dict()
+        state_dict['model1_state_dict'] = model[1].state_dict()
+    else:
+        state_dict['model_state_dict'] = model.state_dict()
 
     torch.save(state_dict, save_path)
     logging.info(f'Model saved to ==> {save_path}')

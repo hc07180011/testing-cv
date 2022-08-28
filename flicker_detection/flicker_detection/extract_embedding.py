@@ -10,7 +10,7 @@ import tensorflow as tf
 import seaborn as sns
 
 from argparse import ArgumentParser
-#from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split
 from tensorflow.keras.applications import DenseNet121, mobilenet, vgg16, InceptionResNetV2, InceptionV3
 from tensorflow.keras import Model
 #from tensorflow_addons.metrics import F1Score
@@ -109,24 +109,24 @@ def preprocessing(
         and encoding_filename_mapping[x.replace(".npy", "")] in raw_labels
     ])
 
-    # embedding_list_train, embedding_list_test, _, _ = train_test_split(
-    #     tuple(file for file in embedding_path_list if "_" not in file),
-    #     # dummy buffer just to split embedding_path_list
-    #     tuple(
-    #         range(len(tuple(file for file in embedding_path_list if "_" not in file)))),
-    #     test_size=0.1,
-    #     random_state=42
-    # )
-    embedding_list_test = (
-        "0002.mp4.npy", "0003.mp4.npy", "0006.mp4.npy",
-        "0016.mp4.npy", "0044.mp4.npy", "0055.mp4.npy",
-        "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
-        "0169.mp4.npy", "0145.mp4.npy", "0179.mp4.npy",
-        "0098.mp4.npy", "0147.mp4.npy", "0125.mp4.npy",
-        "0181.mp4.npy", "0182.mp4.npy", "0183.mp4.npy",
-        "0184.mp4.npy", "0185.mp4.npy", "0186.mp4.npy"
-        '0123.mp4.npy', '0170.mp4.npy'
+    embedding_list_train, embedding_list_test, _, _ = train_test_split(
+        tuple(file for file in embedding_path_list if "_" not in file),
+        # dummy buffer just to split embedding_path_list
+        tuple(
+            range(len(tuple(file for file in embedding_path_list if "_" not in file)))),
+        test_size=0.1,
+        random_state=42
     )
+    # embedding_list_test = (
+    #     "0002.mp4.npy", "0003.mp4.npy", "0006.mp4.npy",
+    #     "0016.mp4.npy", "0044.mp4.npy", "0055.mp4.npy",
+    #     "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
+    #     "0169.mp4.npy", "0145.mp4.npy", "0179.mp4.npy",
+    #     "0098.mp4.npy", "0147.mp4.npy", "0125.mp4.npy",
+    #     "0181.mp4.npy", "0182.mp4.npy", "0183.mp4.npy",
+    #     "0184.mp4.npy", "0185.mp4.npy", "0186.mp4.npy"
+    #     '0123.mp4.npy', '0170.mp4.npy'
+    # )
 
     embedding_list_train = tuple(
         set(embedding_path_list) - set(embedding_list_test)
@@ -206,13 +206,13 @@ def command_arg() -> ArgumentParser:
     parser = ArgumentParser()
     parser.add_argument('--label_path', type=str, default="data/new_label.json",
                         help='path of json that store the labeled frames')
-    parser.add_argument('--mapping_path', type=str, default="data/mapping_test.json",
+    parser.add_argument('--mapping_path', type=str, default="data/mapping_aug_data.json",
                         help='path of json that maps encrpypted video file name to simple naming')
     parser.add_argument('--data_dir', type=str, default="data/vgg16_emb/",
                         help='directory of extracted feature embeddings')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
-    parser.add_argument('--videos_path', type=str, default="data/flicker-detection",
+    parser.add_argument('--videos_path', type=str, default="data/augmented",
                         help='src directory to extract embeddings from')
     parser.add_argument(
         "-train", "--train", action="store_true",
