@@ -41,8 +41,6 @@ def torch_training(
             model[0].eval()
             for n_train, ((x0, y0), (x1, _)) in enumerate(zip(*ds_train)):
                 x0, x1, y0 = x0.to(device), x1.to(device), y0.to(device)
-                # logging.debug(
-                #     f"{model[0](x0).shape}+{x1.shape}={torch.cat((model[0](x0), x1), -1).shape}")
                 x1 = torch.unsqueeze(torch.cat((model[0](x0), x1), -1), 1)
                 y_pred = model[1](x1).detach().clone().to(
                     device).requires_grad_(requires_grad=True)
@@ -153,27 +151,30 @@ def torch_testing(
     metrics = Evaluation(plots_folder="plots/", classes=classes)
 
     model[1].eval() if isinstance(model, tuple) else model.eval()
-    y_pred, y_true = None, None
+    X_test, y_pred, y_true = (), (), ()
     with torch.no_grad():
         if isinstance(model, tuple) and isinstance(ds_test, tuple):
             for (x0, y0), (x1, _) in zip(*ds_test):
                 x0, x1, y0 = x0.to(device), x1.to(device), y0.to(device)
                 x1 = torch.unsqueeze(torch.cat((model[0](x0), x1), -1), 1)
                 output = model[1](x1)
-                y_pred = output if y_pred is None else\
-                    torch.cat((y_pred, output), dim=0)
-                y_true = y0 if y_true is None else\
-                    torch.cat((y_true, y0), dim=0)
+                X_test += (x0.detach().cpu(),)
+                y_pred += (output,)
+                y_true += (y0,)
         else:
             for (x0, y0) in ds_test:
-                x0, y0 = x0.to(device), y0.to(device)
+                x0, y0 = x0.to(device) if len(x0.shape) >= 3 else\
+                    torch.unsqueeze(x0, -1).to(device), y0.to(device)
                 output = model(x0)
-                y_pred = output if y_pred is None else\
-                    torch.cat((y_pred, output), dim=0)
-                y_true = y0 if y_true is None else\
-                    torch.cat((y_true, y0), dim=0)
+                X_test += (x0.detach().cpu(),)
+                y_pred += (output,)
+                y_true += (y0,)
+    X_test, y_pred, y_true = torch.cat(X_test, dim=0), torch.cat(
+        y_pred, dim=0), torch.cat(y_true, dim=0)
     y_classes = torch.topk(
         objective(y_pred), k=1, dim=1).indices.flatten()
+    metrics.miss_classified(X_test, y_classes, y_true,
+                            test_set=ds_test.embedding_list_train)
     metrics.cm(y_true.detach(), y_classes.detach())
 
     y_pred, y_true = (objective(y_pred)).cpu().numpy(), y_true.cpu().numpy()

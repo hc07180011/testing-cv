@@ -1,5 +1,6 @@
 import re
 import os
+import json
 import logging
 import torch
 import numpy as np
@@ -288,6 +289,45 @@ class Evaluation(object):
         return self.report_to_df(
             classification_report(y_true, y_classes, digits=4)
         )
+
+    @staticmethod
+    def miss_classified(
+        X_test: torch.Tensor,
+        y_classes: torch.Tensor,
+        y_true: torch.Tensor,
+        data_src: str = 'data/vgg16_emb',
+        missed_out: str = 'data/missed_labels.json',
+        test_set: str = None,
+    ) -> None:
+        midx = (y_classes != y_true).nonzero().flatten()
+        logging.debug(f"{len(midx)}")
+        X_test = X_test[midx].reshape(
+            (X_test[midx].shape[0]*X_test[midx].shape[1], X_test[midx].shape[-1]))
+
+        if len(midx) > 0 and os.path.isdir(data_src) and len(os.listdir(data_src)) != 0:
+            missed_labels = {}
+            for emb in test_set:
+                embedding = torch.from_numpy(
+                    np.load(f"{os.path.join(data_src,emb)}"))
+                if embedding.shape[0] < X_test.shape[0]:
+                    embedding = torch.cat((
+                        embedding,
+                        torch.ones((X_test.shape[0]-embedding.shape[0], X_test.shape[-1])
+                                   )), dim=0)
+                else:
+                    X_test = torch.cat((
+                        X_test,
+                        torch.ones((embedding.shape[0]-X_test.shape[0], embedding.shape[-1])
+                                   )), dim=0)
+                # idx = torch.sum(
+                #     torch.all(torch.eq(X_test, embedding), dim=1)
+                # ).item()
+                idx = torch.logical_not(
+                    torch.sum((X_test - embedding), dim=1)).sum().item()
+                logging.debug(f"{emb} - {idx} - {type(idx)}")
+                missed_labels[emb] = idx//X_test.shape[1]
+            json.dump(missed_labels, open(f"{missed_out}", "w"))
+        return X_test[midx]
 
 
 def test_sk() -> None:

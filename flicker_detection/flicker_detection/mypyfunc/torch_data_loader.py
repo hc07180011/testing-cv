@@ -308,7 +308,7 @@ if __name__ == '__main__':
     sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=1)
     nm = NearMiss(version=3, n_jobs=-1)  # , n_neighbors=1)
     ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, mem_split=5, chunk_size=chunk_size, batch_size=batch_size, sampler=sm, multiclass=True)  # [('near_miss', nm), ('smote', sm)])  # ipca=ipca, ipca_fitted=True)
+                        mapping_path, data_dir, mem_split=3, chunk_size=chunk_size, batch_size=batch_size, sampler=sm, multiclass=None)  # [('near_miss', nm), ('smote', sm)])  # ipca=ipca, ipca_fitted=True)
     ds_val = Streamer(embedding_list_val, label_path,
                       mapping_path, data_dir, batch_size=256)
     ds_test = Streamer(embedding_list_test, label_path,
@@ -319,7 +319,6 @@ if __name__ == '__main__':
     # ds_train.plot_dist(dest='../plots/X_train_dist.png')
     image = 0
     for (x, y) in ds_train:
-        print("WTF")
         print(x.shape, y.shape)
         image += y.shape[0]
     print(image)
