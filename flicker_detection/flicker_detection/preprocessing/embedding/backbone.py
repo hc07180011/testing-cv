@@ -8,7 +8,7 @@ import tensorflow as tf
 from tensorflow.keras import layers
 from tensorflow.keras import Model
 from tensorflow.keras.applications import resnet
-from tensorflow_addons.layers import AdaptiveMaxPooling3D
+# from tensorflow_addons.layers import AdaptiveMaxPooling3D
 
 
 class BaseCNN:
@@ -52,10 +52,12 @@ class BaseCNN:
             )
             return self.__embedding
 
+
+"""
     def adaptive_extractor(self, extractor: Model, frequency: int, weights: str = "imagenet", pooling: str = "Max") -> Model:
-        """
-        https://stackoverflow.com/questions/58660613/how-to-add-another-layer-on-a-pre-loaded-network
-        """
+        
+        # https://stackoverflow.com/questions/58660613/how-to-add-another-layer-on-a-pre-loaded-network
+        
         with self.strategy.scope():
             base_cnn = extractor(
                 weights=weights,
@@ -89,6 +91,8 @@ class BaseCNN:
                 self.__embedding, 'preprocessing/embedding/models/feature_extractor.png', show_shapes=True)
             self.__embedding.summary(print_fn=lambda x: fh.write(x + '\n'))
         return self.__embedding
+
+"""
 
 
 class Serializer:

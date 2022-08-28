@@ -1,14 +1,14 @@
 import cv2
 import os
-import imgaug as ia
-import imageio
+# import imgaug as ia
+# import imageio
 from imgaug import augmenters as iaa
 import shutil
 import argparse
 import random
 import time
-from vidaug import augmentors as va
-from multiprocessing import Pool
+# from vidaug import augmentors as va
+# from multiprocessing import Pool
 import concurrent.futures
 
 main_folder_path = ""
@@ -76,7 +76,7 @@ def augment_videos(i):
     try:
         video_path = f"{main_folder_path}//{video_clip_names[clip_no]}"
         video_reader = cv2.VideoCapture(video_path)
-        fps = int(video_reader.get(cv2.cv2.CAP_PROP_FPS))
+        fps = int(video_reader.get(cv2.CAP_PROP_FPS))
         w = int(video_reader.get(cv2.CAP_PROP_FRAME_WIDTH))
         h = int(video_reader.get(cv2.CAP_PROP_FRAME_HEIGHT))
         # Get fps for input video

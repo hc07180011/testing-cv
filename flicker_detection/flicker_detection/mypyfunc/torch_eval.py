@@ -159,7 +159,7 @@ class Evaluation(object):
     def __init__(self,
                  plots_folder: str = "plots/",
                  classes: int = 2,
-                 f1_metric: F1Score = F1Score(),
+                 f1_metric: F1Score = F1Score('macro'),
                  ) -> None:
         self.plots_folder = plots_folder
         self.classes = classes

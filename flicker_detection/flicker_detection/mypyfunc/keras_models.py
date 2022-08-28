@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import seaborn as sns
-import tensorflow_addons as tfa
+# import tensorflow_addons as tfa
 from typing import Tuple, Callable
 from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score, precision_recall_curve, roc_curve, auc, roc_auc_score
 from tensorflow.keras.models import Sequential
@@ -131,7 +131,7 @@ class Model:
                     model: tf.keras.models.Sequential,
                     loss_fn: tf.keras.losses,
                     optimizer: tf.keras.optimizers,
-                    metrics: tfa.metrics.F1Score,
+                    metrics: Callable,  # tfa.metrics.F1Score,
                     ) -> None:
         """
         Traceback (most recent call last):

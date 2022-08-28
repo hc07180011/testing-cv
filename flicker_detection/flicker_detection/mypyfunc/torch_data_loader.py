@@ -2,7 +2,6 @@ import os
 import json
 import gc
 import random
-import psutil
 import numpy as np
 import pickle as pk
 import torch
@@ -12,7 +11,6 @@ from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import NearMiss
 from sklearn.manifold import smacof
 from sklearn.decomposition import IncrementalPCA
-from scipy import sparse
 from torch.utils.data import Dataset, DataLoader
 from typing import Callable, Tuple
 
@@ -251,118 +249,13 @@ class Streamer(object):
             # buffer zeros array frame video embedding
             buf_label = np.zeros(loaded.shape[0], dtype=np.uint8)
             # set indexes in zeros array based on flicker frame indexes
-            buf_label[flicker_idxs] = 1
+            buf_label[flicker_idxs.tolist()] = 1
             # consider using tf reduce sum for multiclass
             self.y_buffer += tuple(
                 # FIX ME
                 1 if sum(x) else 0 for x in self._get_chunk_array(buf_label, self.chunk_size)
             )
-
-
-class MultiProcessedLoader(Streamer):
-    # NEEDS ALOT OF WORK
-    def __init__(self,
-                 embedding_list_train: list,
-                 label_path: str,
-                 mapping_path: str,
-                 data_dir: str,
-                 mem_split: int = 8,
-                 chunk_size: int = 30,
-                 batch_size: int = 32,
-                 oversample: bool = False,
-                 ) -> None:
-        super.__init__(
-            embedding_list_train,
-            label_path,
-            mapping_path,
-            data_dir,
-            mem_split,
-            chunk_size,
-            batch_size,
-            oversample,
-        )
-        self.cpu = os.cpu_count()
-        self.X_buffer = mp.Queue()
-        self.y_buffer = mp.Queue()
-
-    def producers(self) -> None:
-        chunks = [self.embedding_list_train[i:i+self.cpu//2]
-                  for i in range(0, self.embedding_list_train, self.cpu//2)]
-        return tuple(
-            mp.Process(target=self.load_embeddings,
-                       args=(chunks[core]))
-            for core in range(self.cpu//2))
-
-    def start(self) -> None:
-        producers = self.producers()
-        for p in producers:
-            p.start()
-        for p in producers:
-            p.join()
-
-    def shuffle(self) -> None:
-        random.shuffle(self.embedding_list_train)
-        self.X_buffer, self.y_buffer = mp.Queue(), mp.Queue()
-        gc.collect()
-
-    def __iter__(self):
-        return self
-
-    def __next__(self) -> Tuple[torch.Tensor, torch.Tensor]:
-        if (not self.X_buffer or not self.y_buffer) and self.cur_chunk == len(self.chunk_embedding_list):
             gc.collect()
-            raise StopIteration
-
-        X, y = self._oversampling(
-            np.array(self.X_buffer.get()), np.array(self.y_buffer.get())
-        ) if self.oversample else (np.array(self.X_buffer), np.array(self.y_buffer))
-        X = [
-            X[i:i+self.batch_size]
-            for i in range(0, len(X), self.batch_size)
-        ]
-        y = [
-            y[i:i+self.batch_size]
-            for i in range(0, len(y), self.batch_size)
-        ]
-        idx = np.arange(X.shape[0]) - 1
-        random.shuffle(idx)
-        if self.keras:
-            return tf.convert_to_tensor(X[idx], dtype=tf.float32), tf.convert_to_tensor(y[idx], dtype=tf.float32)
-        return torch.from_numpy(X[idx]).float(), torch.from_numpy(y[idx]).float()
-
-    def load_embeddings(
-        self,
-        embedding_list_train: list,
-    ) -> None:
-        """
-        This loop is what needs multiprocessing
-        """
-        idx = 0
-        while True:
-            if idx >= len(embedding_list_train):
-                break
-            if psutil.virtual_memory().percent > 80:
-                continue
-            real_filename = self.encoding_filename_mapping[embedding_list_train[idx].replace(
-                ".npy", "")]
-            loaded = np.load("{}.npy".format(os.path.join(self.data_dir, embedding_list_train[idx].replace(
-                ".npy", ""))))
-            self.X_buffer.put(
-                (*self._get_chunk_array(loaded, self.chunk_size),))
-            # get flicker frame indexes
-            flicker_idxs = np.array(self.raw_labels[real_filename]) - 1
-            # buffer zeros array frame video embedding
-            buf_label = np.zeros(loaded.shape[0], dtype=np.uint8)
-            # set indexes in zeros array based on flicker frame indexes
-            buf_label[flicker_idxs] = 1
-            # consider using tf reduce sum for multiclass
-            self.y_buffer.put(tuple(
-                1 if sum(x) else 0
-                for x in self._get_chunk_array(buf_label, self.chunk_size)
-            ))
-            idx += 1
-
-        gc.collect()
 
 
 def test_MYDS(

@@ -45,7 +45,7 @@ def torch_training(
     ds_val: Streamer,
     model: nn.Module,
     optimizer: torch.optim.Optimizer,
-    f1_metric: Callable = F1Score(),
+    f1_metric: Callable = F1Score('macro'),
     epochs: int = 1000,
     criterion: Callable = nn.BCELoss(),
     objective: Callable = nn.Softmax()
@@ -149,8 +149,48 @@ def torch_testing(
     report_to_df(report)
 
 
-def main(*args):
-    ds_train, ds_val, ds_test, model, optimizer, criterion = args
+if __name__ == "__main__":
+    init_logger()
+
+    label_path = "data/new_label.json"
+    mapping_path = "data/mapping_aug_data.json"
+    data_dir = "data/vgg16_emb/"
+    cache_path = ".cache/train_test"
+    model_path = "model.pth"
+
+    __cache__ = np.load(
+        "{}.npz".format(cache_path), allow_pickle=True)
+    embedding_list_train, embedding_list_val, embedding_list_test = tuple(
+        __cache__[lst] for lst in __cache__)
+
+    chunk_size = 30
+    batch_size = 768
+
+    ipca = pk.load(open("ipca.pk1", "rb")) if os.path.exists(
+        "ipca.pk1") else IncrementalPCA(n_components=2)
+
+    sm = SMOTE(random_state=42, n_jobs=-1)  # , k_neighbors=2)
+    nm = NearMiss(version=3, n_jobs=-1)  # , n_neighbors=1)
+    ds_train = Streamer(embedding_list_train, label_path,
+                        mapping_path, data_dir, mem_split=3, chunk_size=chunk_size, batch_size=batch_size, sampler=sm)  # , ipca=ipca, ipca_fitted=True)
+    ds_val = Streamer(embedding_list_val, label_path,
+                      mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
+    ds_test = Streamer(embedding_list_test, label_path,
+                       mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
+
+    model = LSTM(input_dim=18432, output_dim=2, hidden_dim=256,
+                 layer_dim=1, bidirectional=False)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
+    model = torch.nn.DataParallel(model, device_ids=[0, 1])
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    criterion = nn.CrossEntropyLoss()
+    # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    #     optimizer, patience=5, verbose=True)
+    # lower gpu float precision for larger batch size
+    torch_seeding()
+    logging.info("{}".format(model.train()))
+
     parser = ArgumentParser()
     parser.add_argument(
         "-preprocess", "--preprocess", action="store_true",
@@ -181,47 +221,3 @@ def main(*args):
         logging.info("Starting Evaluation")
         torch_testing(ds_test, model)
         logging.info("Done Evaluation")
-
-
-if __name__ == "__main__":
-    init_logger()
-
-    label_path = "data/new_label.json"
-    mapping_path = "data/mapping_aug_data.json"
-    data_dir = "data/vgg16_emb/"
-    cache_path = ".cache/train_test"
-    model_path = "model.pth"
-
-    __cache__ = np.load(
-        "{}.npz".format(cache_path), allow_pickle=True)
-    embedding_list_train, embedding_list_val, embedding_list_test = tuple(
-        __cache__[lst] for lst in __cache__)
-
-    chunk_size = 30
-    batch_size = 1024
-
-    ipca = pk.load(open("ipca.pk1", "rb")) if os.path.exists(
-        "ipca.pk1") else IncrementalPCA(n_components=2)
-
-    sm = SMOTE(random_state=42, n_jobs=-1)  # , k_neighbors=2)
-    nm = NearMiss(version=3, n_jobs=-1)  # , n_neighbors=1)
-    ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_dir, mem_split=3, chunk_size=chunk_size, batch_size=batch_size, sampler=sm)  # , ipca=ipca, ipca_fitted=True)
-    ds_val = Streamer(embedding_list_val, label_path,
-                      mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
-    ds_test = Streamer(embedding_list_test, label_path,
-                       mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
-
-    model = LSTM(input_dim=18432, output_dim=2, hidden_dim=256,
-                 layer_dim=1, bidirectional=False)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
-    model = torch.nn.DataParallel(model, device_ids=[0, 1])
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-    criterion = nn.CrossEntropyLoss()
-    # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-    #     optimizer, patience=5, verbose=True)
-    # lower gpu float precision for larger batch size
-    torch_seeding()
-    logging.info("{}".format(model.train()))
-    main(ds_train, ds_val, ds_test, model, optimizer, criterion)
