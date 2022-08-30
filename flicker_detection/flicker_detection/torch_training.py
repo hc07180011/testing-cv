@@ -228,7 +228,7 @@ def main() -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     init_logger()
-    torch_seeding(42)
+    torch_seeding(seed=12345)
 
     __cache__ = np.load(
         "{}.npz".format(cache_path), allow_pickle=True)
@@ -265,7 +265,7 @@ def main() -> None:
                             label_path,
                             mapping_path,
                             data_dir,
-                            mem_split=3,
+                            mem_split=10,
                             chunk_size=chunk_size,
                             batch_size=batch_size,
                             multiclass=False,
@@ -298,4 +298,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    """
+    For reproducibility - CUBLAS_WORKSPACE_CONFIG=:4096:8 python3 torch_training.py --train
+    """
     main()

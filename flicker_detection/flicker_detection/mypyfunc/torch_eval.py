@@ -300,40 +300,30 @@ class Evaluation(object):
         test_set: str = None,
     ) -> None:
         midx = (y_classes != y_true).nonzero().flatten()
-        logging.debug(f"{X_test[midx]} - {len(midx)}")
-        X_test = X_test[midx]
-        # X_test = X_test[midx].reshape(
-        # (X_test[midx].shape[0]*X_test[midx].shape[1], X_test[midx].shape[-1]))
+        chunk_size = X_test.shape[1]
+        X_test = X_test[midx].flatten(start_dim=0, end_dim=1)
+        # logging.debug(f"{len(midx)} - {X_test.shape}")
 
         if len(midx) > 0 and os.path.isdir(data_src) and len(os.listdir(data_src)) != 0:
             missed_labels = {}
             for emb in test_set:
                 embedding = torch.from_numpy(
                     np.load(f"{os.path.join(data_src,emb)}"))
-
-                X_test = torch.cat((
-                    X_test,
-                    torch.ones(
-                        (embedding.shape[0]//X_test.shape[1] - X_test.shape[0], *X_test.shape[1:]), dim=0)
-                ))
-
-                if embedding.shape[0]//X_test.shape[1] < X_test.shape[0]:
+                if embedding.shape[0] < X_test.shape[0]:
                     embedding = torch.cat((
                         embedding,
-                        torch.ones((
-                            (X_test.shape[1] - embedding.shape[0] % X_test.shape[1]) +
-                            (X_test.shape[0] - embedding.shape[0]//X_test.shape[1] - 1) *
-                            X_test.shape[1],
-                            X_test.shape[-1]))
-                    ), dim=0)
-
-                embedding = embedding.reshape(
-                    (embedding.shape[0]//X_test.shape[1], *X_test.shape[1:]))
+                        torch.ones((X_test.shape[0]-embedding.shape[0], X_test.shape[-1])
+                                   )), dim=0)
+                else:
+                    X_test = torch.cat((
+                        X_test,
+                        torch.ones((embedding.shape[0]-X_test.shape[0], embedding.shape[-1])
+                                   )), dim=0)
 
                 idx = torch.logical_not(
                     torch.sum((X_test - embedding), dim=1)).sum().item()
-                logging.debug(f"{emb} - {idx} - {type(idx)}")
-                missed_labels[emb] = idx//X_test.shape[1]
+                # logging.debug(f"{emb} - {idx//chunk_size} - {type(idx)}")
+                missed_labels[emb] = idx//chunk_size
             json.dump(missed_labels, open(f"{missed_out}", "w"))
         return X_test[midx]
 

@@ -71,10 +71,19 @@ def load_metrics(load_path):
 
 
 def torch_seeding(seed=12345):
+    """
+    CUBLAS_WORKSPACE_CONFIG=:4096:8 python3 torch_training.py --train
+    """
+    # Application-side randomness
     np.random.seed(seed)
-    random.seed(seed)
     torch.manual_seed(seed)
+    random.seed(seed)
+
+    # Benchmarking randomness
+    torch.backends.cudnn.benchmark = False
+
+    # CUDA algorithmic randomness
+    torch.use_deterministic_algorithms(True)
+
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-    # torch.backends.cudnn.deterministic = True
-    # torch.backends.cudnn.benchmark = False
