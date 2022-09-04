@@ -31,8 +31,8 @@ def augment_and_save_frames(video_reader, output_folder_path, video_clip_name, i
 
     # These 4 lines take care of abnormal file names
     temp = video_clip_name.replace(" ", "")
-    temp = temp.split(".")
-    editted_name = temp[0]+"_"+str(i)+"."+temp[1]
+    temp = temp.split(".mp4")
+    editted_name = f"{temp[0]}_aug_{i}{temp[1]}.mp4"
     path_of_video_to_save = output_folder_path+"//"+editted_name
     # Noise value to add to videos for augmentation
 #   noise_value = random.randint(0,60)
@@ -113,11 +113,10 @@ if __name__ == '__main__':
         shutil.rmtree(output_folder_path)
     os.makedirs(output_folder_path, exist_ok=True)
 
-    video_clip_names, mapping = os.listdir(
-        main_folder_path), json.load(open('mapping_test.json', 'r'))
+    video_clip_names = os.listdir(main_folder_path)
     labeled = tuple(json.load(open('new_label.json', 'r')))
     video_clip_names = np.array(
-        [l for l in video_clip_names if mapping[l] in labeled])
+        [l for l in video_clip_names if l.split(".mp4")[0] in labeled])
 
     no_of_clips_available = len(tuple(video_clip_names))
     print(

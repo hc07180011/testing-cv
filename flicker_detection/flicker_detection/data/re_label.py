@@ -27,42 +27,6 @@ def save_flicker_img(vid_path: str, init_sec, flicker_frames: list = None, raw_n
     cap.release()
 
 
-def label_aug():
-    mapping = json.load(open("mapping.json", "r"))
-    vids = dict(map(lambda s: (s[:4], s), mapping.keys()))
-    for aug_vid in os.listdir("augmented/"):
-        if aug_vid[:4] in vids:
-            mapping[aug_vid] = mapping[vids[aug_vid[:4]]]
-    json.dump(mapping, open("mapping_test.json", "w"))
-
-
-def read_proto_string():
-    with open('new_label.textproto', 'r') as f:
-        lines = f.readlines()
-    dic = {}
-    vid_name = None
-    for line in lines:
-        if 'video' in line:
-            vid_name = str(line[10:-2])
-            if vid_name not in dic.keys():
-                dic[vid_name] = None
-        if 'frame' in line and 'flicker' not in line:
-            if not dic[vid_name] and ',' in line:
-                dic[vid_name] = list(
-                    map(int, line[10:-2].replace(' ', '').split(',')))
-            elif not dic[vid_name] and line[10:-2] != '':
-                dic[vid_name] = [int(line[10:-2])]
-            elif dic[vid_name] and ',' in line:
-                dic[vid_name].extend(list(
-                    map(int, line[10:-2].replace(' ', '').split(','))))
-            elif dic[vid_name] and line[10:-2] != '':
-                dic[vid_name].append(int(line[10:-2]))
-
-    with open('test.json', 'w') as out:
-        json.dump(dic, out)
-    return dic
-
-
 def writeimg_new_labels():
     matplotlib.use('Agg')
     plt.ioff()
@@ -155,6 +119,71 @@ def check_fps(vid_path: str) -> bool:
     return True
 
 
+def read_proto_string(infile: str = '0824.textproto', outfile: str = 'new_label.json') -> dict:
+    with open(infile, 'r') as f:
+        lines = f.readlines()
+    dic = {}
+    vid_name = None
+    for line in lines:
+        if 'video' in line:
+            vid_name = str(line[10:-2])
+            if vid_name not in dic.keys():
+                dic[vid_name] = None
+        if 'frame' in line and 'flicker' not in line:
+            if not dic[vid_name] and ',' in line:
+                dic[vid_name] = list(
+                    map(int, line[10:-2].replace(' ', '').split(',')))
+            elif not dic[vid_name] and line[10:-2] != '':
+                dic[vid_name] = [int(line[10:-2])]
+            elif dic[vid_name] and ',' in line:
+                dic[vid_name].extend(list(
+                    map(int, line[10:-2].replace(' ', '').split(','))))
+            elif dic[vid_name] and line[10:-2] != '':
+                dic[vid_name].append(int(line[10:-2]))
+
+    json.dump(dic, open(outfile, "w"))
+    return dic
+
+
+def add_normal_vid_labels(
+    new_labels_json: str = "new_label.json",
+    videos_path: str = 'flicker-detection',
+) -> None:
+    new_labels = json.load(open(new_labels_json, "r"))
+    for f in os.listdir(videos_path):
+        if f.split(".mp4")[0] not in new_labels:
+            new_labels[f.split(".mp4")[0]] = []
+    json.dump(new_labels, open(new_labels_json, "w"))
+
+
+def videos_mapping(
+    videos_path: str = 'flicker-detection',
+    mapping_path: str = "mapping.json"
+) -> None:
+    mapping = {
+        f'{str(idx).zfill(4)}': file.split(".mp4")[0].replace(" ", "")
+        for idx, file in enumerate(os.listdir(videos_path))
+        if file[-4:] == '.mp4'
+    }
+    json.dump(mapping, open(mapping_path, "w"))
+
+
+def label_aug(
+    mapping_path: str = "mapping.json",
+    aug_dir: str = "augmented"
+) -> None:
+    mapping = json.load(open(mapping_path, "r"))
+    map_reverse = {
+        encode: num
+        for num, encode in mapping.items()
+    }
+    for aug_vid in os.listdir(aug_dir):
+        name = aug_vid.split("_aug")
+        mapping["{}{}".format(map_reverse[name[0]],
+                              name[1].replace(".mp4", ""))] = mapping[map_reverse[name[0]]]
+    json.dump(mapping, open(mapping_path, "w"))
+
+
 if __name__ == "__main__":
     """
     sudomen
@@ -169,19 +198,19 @@ if __name__ == "__main__":
     ffprobe -i test_01.mp4 -show_frames | grep pkt_pts_time
 
     Convert variable frame rate to standard fps
-    for file in flicker-detection/*; 
-        do ffmpeg -y -i $file -c copy -f h264 "h264_vids/${file:18:4}.h264"; 
+    for file in flicker-detection/*;
+        do ffmpeg -y -i $file -c copy -f h264 "h264_vids/${file:18:4}.h264";
     done
-    for file in h264_vids/*; 
-        do ffmpeg -y -r 30 -i $file -c copy "standard_fps_vid/${file:10:4}.mp4"; 
-    done
-
-    for file in augmented/*; 
-       do ffmpeg -y -i $file -c copy -f h264 "h264_vids/${file:10:6}.h264"; 
+    for file in h264_vids/*;
+        do ffmpeg -y -r 30 -i $file -c copy "standard_fps_vid/${file:10:4}.mp4";
     done
 
-    for file in h264_vids/*; 
-        do ffmpeg -y -r 30 -i $file -c copy "standard_fps_vid/${file:10:6}.mp4"; 
+    for file in augmented/*;
+       do ffmpeg -y -i $file -c copy -f h264 "h264_vids/${file:10:6}.h264";
+    done
+
+    for file in h264_vids/*;
+        do ffmpeg -y -r 30 -i $file -c copy "standard_fps_vid/${file:10:6}.mp4";
     done
     Check frame count ffmpeg
     ffmpeg -i "path to file" -f null /dev/null
@@ -193,10 +222,12 @@ if __name__ == "__main__":
     ffmpeg
     """
     # save_flicker_img("flicker-detection/0145.mp4", 13)
-    read_proto_string()
     # writeimg_new_labels()
     # manual_label('flicker-detection/0136.mp4')
     # for vid in os.listdir('standard_fps_vid/'):
     #     check_fps(os.path.join('standard_fps_vid/',vid))
     # check_fps('flicker-detection/0001.mp4')
-    # label_aug()
+    # read_proto_string()
+    # add_normal_vid_labels()
+    # videos_mapping()
+    label_aug()

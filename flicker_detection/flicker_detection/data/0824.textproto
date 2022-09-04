@@ -1,3 +1,4 @@
+
 flicker_frames: {
   video: "0A271FQCB00132_video_0_7ecccac8-95eb-42bb-bb45-66378867e1db"
   frame: [66, 67]
@@ -33,37 +34,6 @@ flicker_frames: {
 }
 
 flicker_frames: {
-  video: "00_flicker_issue_00_00_32 - 00_00_33_6c2d8a6b-1eae-4e80-9740-7f018dcd254a"
-  frame: [117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_00_32 - 00_00_33_6c2d8a6b-1eae-4e80-9740-7f018dcd254a"
-  frame: [285, 286, 287, 288, 289, 290, 291, 292, 293, 294, 295, 296, 297, 298, 299, 300, 301, 302, 303, 304, 305, 306, 307, 308, 309]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_00_32 - 00_00_33_6c2d8a6b-1eae-4e80-9740-7f018dcd254a"
-  frame: [354, 355, 356, 357, 358, 359]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_00_32 - 00_00_33_6c2d8a6b-1eae-4e80-9740-7f018dcd254a"
-  frame: [410, 411, 412, 413, 414, 415, 416, 417, 418]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_00_32 - 00_00_33_6c2d8a6b-1eae-4e80-9740-7f018dcd254a"
-  frame: [659, 660]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_00_32 - 00_00_33_6c2d8a6b-1eae-4e80-9740-7f018dcd254a"
-  frame: [780, 781]
-}
-
-
-flicker_frames: {
   video: "00_flicker_issue_00_00_32 - 00_00_33_606ae6bf-cd77-4792-9cf6-82277c3b1416"
   frame: [281, 282, 283, 284, 285, 286, 287, 288, 289, 290, 291]
 }
@@ -88,100 +58,6 @@ flicker_frames: {
   frame: [598]
 }
 
-flicker_frames: {
-  video: "00_flicker_issue_00_00_40.509 - 00_00_40.645_60f7fbc5-8cfe-46af-8e08-569c4a25c985_2"
-  frame: [598]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_06 - 00_01_07_8d88507b-58f9-4762-b7d7-d6c845ed5aa9"
-  frame: [403,404,405,406,407,408,409,410,411,412,413,414,415,416,417,418,419,420,421,422,423,424,425,426,427,428,429,430,431,432,433,434,435,436,437,438,439,440,441,442,443,444,445,446,447,448]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_06 - 00_01_07_8d88507b-58f9-4762-b7d7-d6c845ed5aa9"
-  frame: [579, 580, 581, 582, 583, 584, 585, 586, 587, 588, 589]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_06 - 00_01_07_8d88507b-58f9-4762-b7d7-d6c845ed5aa9"
-  frame: [632, 633, 634, 635, 636]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_06 - 00_01_07_8d88507b-58f9-4762-b7d7-d6c845ed5aa9"
-  frame: [732, 733, 734, 735, 736]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_06 - 00_01_07_8d88507b-58f9-4762-b7d7-d6c845ed5aa9"
-  frame: [776, 777, 778, 779, 780, 781, 782, 783, 784, 785, 786, 787, 788, 789]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_06 - 00_01_07_8d88507b-58f9-4762-b7d7-d6c845ed5aa9"
-  frame: [829, 830, 831, 832, 833, 834]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_06 - 00_01_07_8d88507b-58f9-4762-b7d7-d6c845ed5aa9"
-  frame: [872, 873, 874, 875, 876, 877, 878, 879, 880, 881]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_06 - 00_01_07_8d88507b-58f9-4762-b7d7-d6c845ed5aa9"
-  frame: [934, 935, 936, 937, 938, 939, 940, 941]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_06 - 00_01_07_8d88507b-58f9-4762-b7d7-d6c845ed5aa9"
-  frame: [974, 975, 976, 977, 978, 979, 980, 981]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_07 - 00_01_08_4105e4ce-095a-4bb2-b4ab-1eb5481da6cb"
-  frame: [411, 412, 413, 414, 415, 416, 417, 418, 419, 420, 421, 422, 423, 424, 425, 426, 427, 428, 429, 430]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_07 - 00_01_08_4105e4ce-095a-4bb2-b4ab-1eb5481da6cb"
-  frame: [513, 514, 515, 516, 517, 518, 519]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_07 - 00_01_08_4105e4ce-095a-4bb2-b4ab-1eb5481da6cb"
-  frame: [572, 573, 574, 575, 576, 577, 578, 579]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_07 - 00_01_08_4105e4ce-095a-4bb2-b4ab-1eb5481da6cb"
-  frame: [639, 640, 641, 642, 643, 644, 645, 646]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_07 - 00_01_08_4105e4ce-095a-4bb2-b4ab-1eb5481da6cb"
-  frame: [690, 691, 692, 693, 694, 695, 696, 697]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_07 - 00_01_08_4105e4ce-095a-4bb2-b4ab-1eb5481da6cb"
-  frame: [745, 746, 747, 748]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_07 - 00_01_08_4105e4ce-095a-4bb2-b4ab-1eb5481da6cb"
-  frame: [795, 796, 797, 798, 799, 800, 801, 802]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_07 - 00_01_08_4105e4ce-095a-4bb2-b4ab-1eb5481da6cb"
-  frame: [861, 862, 863, 864]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_07 - 00_01_08_4105e4ce-095a-4bb2-b4ab-1eb5481da6cb"
-  frame: [912, 913, 914, 915, 916, 917, 918]
-}
 
 flicker_frames: {
   video: "00_flicker_issue_00_01_08 - 00_01_09_1bfd3a7d-11a8-4b60-b5bd-aa55f809d175"
@@ -234,66 +110,6 @@ flicker_frames: {
 }
 
 flicker_frames: {
-  video: "00_flicker_issue_00_01_15 - 00_01_16_5a9858ff-800f-48a5-a23c-9b53b92e0827"
-  frame: [433, 434, 435, 436, 437, 438, 439, 440, 441, 442, 443, 444, 445, 446, 447, 448, 449, 450, 451, 452, 453, 454]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_15 - 00_01_16_5a9858ff-800f-48a5-a23c-9b53b92e0827"
-  frame: [511, 512, 513, 514, 515, 516, 517]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_15 - 00_01_16_5a9858ff-800f-48a5-a23c-9b53b92e0827"
-  frame: [562, 563, 564, 565, 566, 567, 568, 569, 570]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_15 - 00_01_16_5a9858ff-800f-48a5-a23c-9b53b92e0827"
-  frame: [617, 618, 619, 620, 621, 622]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_15 - 00_01_16_5a9858ff-800f-48a5-a23c-9b53b92e0827"
-  frame: [661, 662, 663, 664, 665, 666, 667, 668, 669]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_15 - 00_01_16_5a9858ff-800f-48a5-a23c-9b53b92e0827"
-  frame: [719, 720, 721, 722]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_15 - 00_01_16_5a9858ff-800f-48a5-a23c-9b53b92e0827"
-  frame: [765, 766, 767, 768, 769, 770, 771]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_15 - 00_01_16_5a9858ff-800f-48a5-a23c-9b53b92e0827"
-  frame: [820, 821, 822, 823, 824, 825]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_15 - 00_01_16_5a9858ff-800f-48a5-a23c-9b53b92e0827"
-  frame: [865, 866, 867, 868, 869, 870]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_31 - 00_01_32_5e2fc80f-c6ea-4c45-9147-89fa6f3b1620"
-  frame: [275, 276, 277, 278, 279, 280, 281, 282, 283, 284, 285, 286, 287, 288, 289]
-}
-
-flicker_frames: {
-  video: "00_flicker_issue_00_01_31 - 00_01_32_5e2fc80f-c6ea-4c45-9147-89fa6f3b1620"
-  frame: [749, 750, 751, 752, 753, 754, 755, 756, 757, 758, 759, 760, 761, 762]
-}
-
-flicker_frames: {
-  video: "00_flicker_issues_00_00_12 - 00_00_13_1bfd3a7d-11a8-4b60-b5bd-aa55f809d175"
-  frame: [263]
-}
-
-flicker_frames: {
   video: "00_flicker_issues_00_00_28 - 00_00_29_f589f9bd-9f38-4c83-8917-9081ae176447"
   frame: [714]
 }
@@ -301,31 +117,6 @@ flicker_frames: {
 flicker_frames: {
   video: "00_flicker_issues_00_00_28 - 00_00_29_f589f9bd-9f38-4c83-8917-9081ae176447"
   frame: [726, 727]
-}
-
-flicker_frames: {
-  video: "00_flicker_issues_00_00_43 - 00_00_44_b563013b-832f-4d3b-85a9-95b221c88454"
-  frame: [244]
-}
-
-flicker_frames: {
-  video: "00_flicker_issues_00_00_43 - 00_00_44_b563013b-832f-4d3b-85a9-95b221c88454"
-  frame: [257]
-}
-
-flicker_frames: {
-  video: "00_flicker_issues_00_00_46 - 00_00_47_7ecccac8-95eb-42bb-bb45-66378867e1db"
-  frame: [66, 67]
-}
-
-flicker_frames: {
-  video: "00_flicker_issues_00_00_46 - 00_00_47_7ecccac8-95eb-42bb-bb45-66378867e1db"
-  frame: [78]
-}
-
-flicker_frames: {
-  video: "00_flicker_issues_00_01_12 - 00_01_13_1bfd3a7d-11a8-4b60-b5bd-aa55f809d175"
-  frame: [263]
 }
 
 flicker_frames: {
@@ -460,7 +251,7 @@ flicker_frames: {
 
 flicker_frames: {
   video: "04011FDD4000FC_video_0_ 6dc2c4c6-0951-4bfc-9b2e-50bf5382778c"
-  frame: [1009, 1100, 1101, 1102]
+  frame: [1099, 1100, 1101, 1102]
 }
 
 flicker_frames: {
@@ -931,7 +722,7 @@ flicker_frames: {
 
 flicker_frames: {
   video: "06051FDD4000K6_video_0_b563013b-832f-4d3b-85a9-95b221c88454"
-  frame: [245]
+  frame: [244]
 }
 
 flicker_frames: {
@@ -1350,6 +1141,6 @@ flicker_frames: {
 
 flicker_frames: {
   video: "04161FQCB00182_video_0_a6b13d7f-4e05-4824-8d32-4eadc3274a2e"
-  frame: [133, 134, 135]
+  frame: [135]
 }
 

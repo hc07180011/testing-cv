@@ -13,7 +13,7 @@ from argparse import ArgumentParser
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.applications import DenseNet121, mobilenet, vgg16, InceptionResNetV2, InceptionV3
 from tensorflow.keras import Model
-#from tensorflow_addons.metrics import F1Score
+# from tensorflow_addons.metrics import F1Score
 from mypyfunc.logger import init_logger
 from typing import Tuple
 from preprocessing.embedding.backbone import BaseCNN, Serializer
@@ -57,10 +57,14 @@ def serialize_embed(
 
 def np_embed(
     video_data_dir: str,
+    mapping_path: str,
     output_dir: str
 ) -> None:
     os.makedirs(output_dir, exist_ok=True)
-
+    mapping = {
+        encode: num
+        for num, encode in json.load(open(mapping_path, "r")).items()
+    }
     feature_extractor = BaseCNN()
     feature_extractor.extractor(vgg16.VGG16)  # mobilenet.MobileNet
     for path in tqdm.tqdm(os.listdir(video_data_dir)):
@@ -79,8 +83,12 @@ def np_embed(
             success, image = vidcap.read()
 
         embeddings = np.array(embeddings)
-
-        np.save(os.path.join(output_dir, path), embeddings)
+        real_name = path.split(".mp4")[0].replace(" ", "")
+        np.save(os.path.join(
+            output_dir,
+            mapping[real_name[4:-2]] +
+                f"_aug{real_name[-2:]}" if 'aug' in path else mapping[real_name]
+                ), embeddings)
 
 
 def preprocessing(
@@ -94,39 +102,31 @@ def preprocessing(
         __cache__ = np.load("/{}.npz".format(cache_path), allow_pickle=True)
         return tuple(__cache__[k] for k in __cache__)
 
-    pass_videos = (
-        "0126.mp4", "0127.mp4",
-        "0178.mp4", "0180.mp4"
-    )
-    pass_videos += tuple(vid[:4]+f"_{i}.mp4.npy"for i in range(10)
-                         for vid in pass_videos)
     raw_labels = json.load(open(label_path, "r"))
     encoding_filename_mapping = json.load(open(mapping_path, "r"))
 
     embedding_path_list = sorted([
         x for x in os.listdir(data_dir)
-        if x.split(".tfrecords")[0] not in pass_videos
-        and encoding_filename_mapping[x.replace(".npy", "")] in raw_labels
+        if encoding_filename_mapping[x.replace(".npy", "")] in raw_labels
     ])
 
-    # embedding_list_train, embedding_list_test, _, _ = train_test_split(
-    #     tuple(file for file in embedding_path_list if "_" not in file),
-    #     # dummy buffer just to split embedding_path_list
-    #     tuple(
-    #         range(len(tuple(file for file in embedding_path_list if "_" not in file)))),
-    #     test_size=0.1,
-    #     random_state=42
-    # )
-    embedding_list_test = (
-        "0002.mp4.npy", "0003.mp4.npy", "0006.mp4.npy",
-        "0016.mp4.npy", "0044.mp4.npy", "0055.mp4.npy",
-        "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
-        "0169.mp4.npy", "0145.mp4.npy", "0179.mp4.npy",
-        "0098.mp4.npy", "0147.mp4.npy", "0125.mp4.npy",
-        "0181.mp4.npy", "0182.mp4.npy", "0183.mp4.npy",
-        "0184.mp4.npy", "0185.mp4.npy", "0186.mp4.npy",
-        '0123.mp4.npy', '0170.mp4.npy'
+    embedding_list_train, embedding_list_test, _, _ = train_test_split(
+        tuple(file for file in embedding_path_list),
+        # dummy buffer just to split embedding_path_list
+        tuple(range(len(tuple(file for file in embedding_path_list)))),
+        test_size=0.1,
+        random_state=42
     )
+    # embedding_list_test = (
+    #     "0002.mp4.npy", "0003.mp4.npy", "0006.mp4.npy",
+    #     "0016.mp4.npy", "0044.mp4.npy", "0055.mp4.npy",
+    #     "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
+    #     "0169.mp4.npy", "0145.mp4.npy", "0179.mp4.npy",
+    #     "0098.mp4.npy", "0147.mp4.npy", "0125.mp4.npy",
+    #     "0181.mp4.npy", "0182.mp4.npy", "0183.mp4.npy",
+    #     "0184.mp4.npy", "0185.mp4.npy", "0186.mp4.npy",
+    #     '0123.mp4.npy', '0170.mp4.npy'
+    # )
 
     embedding_list_train = tuple(
         set(embedding_path_list) - set(embedding_list_test)
@@ -206,9 +206,9 @@ def command_arg() -> ArgumentParser:
     parser = ArgumentParser()
     parser.add_argument('--label_path', type=str, default="data/new_label.json",
                         help='path of json that store the labeled frames')
-    parser.add_argument('--mapping_path', type=str, default="data/mapping_aug_data.json",
+    parser.add_argument('--mapping_path', type=str, default="data/mapping.json",
                         help='path of json that maps encrpypted video file name to simple naming')
-    parser.add_argument('--data_dir', type=str, default="data/vgg16_emb/",
+    parser.add_argument('--data_dir', type=str, default="data/vgg16_emb",
                         help='directory of extracted feature embeddings')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
@@ -252,7 +252,8 @@ def main():
     logging.info("[Embedding] Start ...")
     np_embed(
         videos_path,
-        data_path
+        mapping_path,
+        data_path,
     )
     logging.info("[Embedding] done.")
 

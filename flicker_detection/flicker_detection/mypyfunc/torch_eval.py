@@ -299,6 +299,9 @@ class Evaluation(object):
         missed_out: str = 'data/missed_labels.json',
         test_set: str = None,
     ) -> None:
+        """
+        use numpy mesh grid for all combinations 
+        """
         midx = (y_classes != y_true).nonzero().flatten()
         chunk_size = X_test.shape[1]
         X_test = X_test[midx].flatten(start_dim=0, end_dim=1)
