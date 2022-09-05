@@ -229,5 +229,5 @@ if __name__ == "__main__":
     # check_fps('flicker-detection/0001.mp4')
     # read_proto_string()
     # add_normal_vid_labels()
-    # videos_mapping()
+    videos_mapping()
     label_aug()

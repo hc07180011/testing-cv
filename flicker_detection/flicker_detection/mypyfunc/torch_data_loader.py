@@ -296,7 +296,7 @@ def test_MYDS(
 
 if __name__ == '__main__':
     label_path = "../data/new_label.json"
-    mapping_path = "../data/mapping_aug_data.json"
+    mapping_path = "../data/mapping.json"
     data_dir = "../data/vgg16_emb/"
     __cache__ = np.load("{}.npz".format(
         "../.cache/train_test"), allow_pickle=True)
@@ -304,7 +304,7 @@ if __name__ == '__main__':
         __cache__[lst] for lst in __cache__)
 
     chunk_size = 30
-    batch_size = 1024
+    batch_size = 1024  # GPU memory
     ipca = pk.load(open("../ipca.pk1", "rb"))\
         if os.path.exists("../ipca.pk1") else IncrementalPCA(n_components=2)
     sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=1)
@@ -319,7 +319,7 @@ if __name__ == '__main__':
     train_encodings = Streamer(embedding_list_train, label_path,
                                mapping_path, '../data/pts_encodings', mem_split=5, chunk_size=chunk_size, batch_size=batch_size, sampler=sm, multiclass=True)
     # ds_train.plot_dist(dest='../plots/X_train_dist.png')
-    image = 0
+    image = 0  # (1024,30,flattened feature embeddding size) - (h,w,(rgb))
     for (x, y) in ds_train:
         print(x.shape, y.shape)
         image += y.shape[0]

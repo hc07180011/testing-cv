@@ -1,5 +1,6 @@
 import os
 import logging
+from unicodedata import bidirectional
 from sklearn.decomposition import IncrementalPCA
 import torch
 import numpy as np
@@ -202,7 +203,7 @@ def command_arg() -> ArgumentParser:
     parser = ArgumentParser()
     parser.add_argument('--label_path', type=str, default="data/new_label.json",
                         help='path of json that store the labeled frames')
-    parser.add_argument('--mapping_path', type=str, default="data/mapping_aug_data.json",
+    parser.add_argument('--mapping_path', type=str, default="data/mapping.json",
                         help='path of json that maps encrpypted video file name to simple naming')
     parser.add_argument('--data_dir', type=str, default="data/vgg16_emb/",
                         help='directory of extracted feature embeddings')
@@ -236,7 +237,13 @@ def main() -> None:
         __cache__[lst] for lst in __cache__)
 
     chunk_size = 30
-    batch_size = 1024
+    batch_size = 256
+    input_dim = 18432
+    output_dim = 2
+    hidden_dim = 256
+    layer_dim = 1
+    bidirectional = True
+    normalize = False
 
     ipca = pk.load(open("ipca.pk1", "rb")) if os.path.exists(
         "ipca.pk1") else IncrementalPCA(n_components=2)
@@ -244,8 +251,8 @@ def main() -> None:
     nm = NearMiss(version=1, n_jobs=-1,
                   sampling_strategy='majority', n_neighbors=1)
     sm = SMOTE(random_state=42, n_jobs=-1)  # k_neighbors=3)
-    model0 = LSTM(input_dim=18432, output_dim=2, hidden_dim=256,
-                  layer_dim=1, bidirectional=False, normalize=False)
+    model0 = LSTM(input_dim=input_dim, output_dim=output_dim, hidden_dim=hidden_dim,
+                  layer_dim=layer_dim, bidirectional=bidirectional, normalize=normalize)
     model0 = torch.nn.DataParallel(model0)
     model0.to(device)
     logging.info("\n{}".format(model0.train()))

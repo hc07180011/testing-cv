@@ -83,12 +83,15 @@ def np_embed(
             success, image = vidcap.read()
 
         embeddings = np.array(embeddings)
-        real_name = path.split(".mp4")[0].replace(" ", "")
-        np.save(os.path.join(
-            output_dir,
-            mapping[real_name[4:-2]] +
-                f"_aug{real_name[-2:]}" if 'aug' in path else mapping[real_name]
-                ), embeddings)
+
+        if 'aug' in path:
+            split_name = path.split("_aug")
+            real_name = "{}{}".format(
+                mapping[split_name[0]], split_name[1].replace(".mp4", ""))
+        else:
+            real_name = mapping[path.split(".mp4")[0]]
+
+        np.save(os.path.join(output_dir, real_name), embeddings)
 
 
 def preprocessing(
@@ -212,7 +215,7 @@ def command_arg() -> ArgumentParser:
                         help='directory of extracted feature embeddings')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
-    parser.add_argument('--videos_path', type=str, default="data/flicker-detection",
+    parser.add_argument('--videos_path', type=str, default="data/augmented",
                         help='src directory to extract embeddings from')
     parser.add_argument(
         "-train", "--train", action="store_true",
@@ -250,11 +253,11 @@ def main():
     init_logger()
 
     logging.info("[Embedding] Start ...")
-    np_embed(
-        videos_path,
-        mapping_path,
-        data_path,
-    )
+    # np_embed(
+    #     videos_path,
+    #     mapping_path,
+    #     data_path,
+    # )
     logging.info("[Embedding] done.")
 
     logging.info("[Preprocessing] Start ...")
