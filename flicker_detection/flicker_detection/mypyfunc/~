@@ -102,11 +102,9 @@ class Streamer(object):
                  ipca_fitted: bool = False,
                  keras: bool = False,
                  multiclass: bool = False,
-                 overlap_chunking: bool = False,
                  ) -> None:
         self.keras = keras
         self.multiclass = multiclass
-        self.overlap_chunking = overlap_chunking
         self.embedding_list_train = embedding_list_train
         self.chunk_embedding_list = np.array_split(
             embedding_list_train, mem_split)
@@ -153,6 +151,7 @@ class Streamer(object):
 
         if self.keras:
             return tf.convert_to_tensor(X[idx], dtype=tf.float32), tf.convert_to_tensor(y[idx], dtype=tf.float32)
+        return torch.from_numpy(X[idx]).long(),torch.from_numpy(y[idx]).long()
         return torch.from_numpy(X[idx]).float(), torch.from_numpy(y[idx]).long()
 
     def _re_sample(self,) -> None:
@@ -194,23 +193,12 @@ class Streamer(object):
                 "{}.npy".format(os.path.join(
                     self.data_dir, key.replace(".npy", "")))
             )
+            self.X_buffer += (*self._get_chunk_array(loaded, self.chunk_size),)
             flicker_idxs = np.array(self.raw_labels[real_filename]) - 1
             buf_label = np.zeros(loaded.shape[0], dtype=np.uint8)
             buf_label[flicker_idxs.tolist()] = 1
-
-            if self.overlap_chunking:
-                self.X_buffer += (*self._overlap_chunks(loaded,
-                                  flicker_idxs, self.chunk_size),)
-                self.y_buffer += tuple(
-                    sum(x) if self.multiclass else 1 if sum(x) else 0
-                    for x in self._overlap_chunks(buf_label, flicker_idxs, self.chunk_size)
-                )
-
-            self.X_buffer += (*self._get_chunk_array(loaded,
-                                                     self.chunk_size),)
             self.y_buffer += tuple(
-                sum(x) if self.multiclass else 1 if sum(x) else 0
-                for x in self._get_chunk_array(buf_label, self.chunk_size)
+                sum(x) if self.multiclass else 1 if sum(x) else 0 for x in self._get_chunk_array(buf_label, self.chunk_size)
             )
             gc.collect()
 
@@ -236,20 +224,6 @@ class Streamer(object):
         plt.savefig(f'{dest}')
 
     @staticmethod
-    def _overlap_chunks(
-        input_arr: np.ndarray,
-        labels: np.ndarray,
-        chunk_size: int
-    ) -> Tuple:
-        vid_pad = np.zeros(
-            (input_arr.shape[0]+chunk_size, *input_arr.shape[1:]))
-        vid_pad[chunk_size//2:-chunk_size//2] = input_arr
-        return np.array([
-            vid_pad[idx:idx+chunk_size]
-            for idx in labels
-        ])
-
-    @staticmethod
     def _get_chunk_array(input_arr: np.array, chunk_size: int) -> Tuple:
         chunks = np.array_split(
             input_arr,
@@ -262,7 +236,7 @@ class Streamer(object):
         i_pad = np.zeros(chunks[0].shape)
         i_pad[:len(chunks[-1])] = chunks[-1]
         chunks[-1] = i_pad
-        return chunks
+        return tuple(map(tuple, chunks))
 
     @staticmethod
     def _sampling(
@@ -336,34 +310,18 @@ if __name__ == '__main__':
         if os.path.exists("../ipca.pk1") else IncrementalPCA(n_components=2)
     sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=1)
     nm = NearMiss(version=3, n_jobs=-1)  # , n_neighbors=1)
-    ds_train = Streamer(
-        embedding_list_train,
-        label_path,
-        mapping_path,
-        data_dir,
-        mem_split=10,
-        chunk_size=chunk_size,
-        batch_size=batch_size,
-        sampler=sm,
-        multiclass=None)  # [('near_miss', nm), ('smote', sm)])  # ipca=ipca, ipca_fitted=True)
+    ds_train = Streamer(embedding_list_train, label_path,
+                        mapping_path, data_dir, mem_split=10, chunk_size=chunk_size, batch_size=batch_size, sampler=sm, multiclass=None)  # [('near_miss', nm), ('smote', sm)])  # ipca=ipca, ipca_fitted=True)
     ds_val = Streamer(embedding_list_val, label_path,
                       mapping_path, data_dir, batch_size=256)
-    ds_test = Streamer(
-        embedding_list_test,
-        label_path,
-        mapping_path,
-        data_dir,
-        mem_split=1,
-        batch_size=1024,
-        sampler=sm,
-        overlap_chunking=True
-    )
+    ds_test = Streamer(embedding_list_test, label_path,
+                       mapping_path, data_dir, mem_split=1, batch_size=256, sampler=None)
 
     train_encodings = Streamer(embedding_list_train, label_path,
-                               mapping_path, '../data/pts_encodings', mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None, multiclass=True)
+                               mapping_path, '../data/pts_encodings', mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=sm, multiclass=True)
     # ds_train.plot_dist(dest='../plots/X_train_dist.png')
     image = 0  # (1024,30,flattened feature embeddding size) - (h,w,(rgb))
-    for (x, y) in ds_test:
+    for (x, y) in train_encodings:
         print(x.shape, y.shape)
         image += y.shape[0]
     print(image)

@@ -1,6 +1,5 @@
 import os
 import logging
-from unicodedata import bidirectional
 from sklearn.decomposition import IncrementalPCA
 import torch
 import numpy as np
@@ -8,12 +7,12 @@ import pickle as pk
 import torch.nn as nn
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import NearMiss
-from typing import Callable
+from typing import Callable, Tuple
 
 from argparse import ArgumentParser
 from mypyfunc.logger import init_logger
 from mypyfunc.torch_eval import F1Score, Evaluation
-from mypyfunc.torch_models import LSTM
+from mypyfunc.torch_models import LSTM, SentimentRNN
 from mypyfunc.torch_data_loader import Streamer
 from mypyfunc.torch_utility import save_checkpoint, save_metrics, load_checkpoint, load_metrics, torch_seeding
 
@@ -29,7 +28,7 @@ def torch_training(
     epochs: int = 1000,
     device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
     save_path: str = 'model0',
-) -> tuple[nn.Module, nn.Module]:
+) -> Tuple[nn.Module, nn.Module]:
 
     val_max_f1 = 0
     f1_callback, loss_callback, val_f1_callback, val_loss_callback = (), (), (), ()
@@ -224,6 +223,11 @@ def command_arg() -> ArgumentParser:
 
 
 def main() -> None:
+    # overlapping sequences
+    # take difference between images and then vectorize or difference between vecotrs is also fine(standard for motion detection),
+    # key is rapid changes between change, normalize them between 0 - 255,
+    # use the difference of consecutive frames as data, or both
+    # train end to end, integrate cnn with lstm, and do back prop for same loss function
     args = command_arg()
     label_path, mapping_path, data_dir, cache_path, model_path = args.label_path, args.mapping_path, args.data_dir, args.cache_path, args.model_path
 
@@ -237,22 +241,39 @@ def main() -> None:
         __cache__[lst] for lst in __cache__)
 
     chunk_size = 30
-    batch_size = 256
+    batch_size = 1024
     input_dim = 18432
     output_dim = 2
-    hidden_dim = 256
+    hidden_dim = 30
     layer_dim = 1
-    bidirectional = True
+    vocab_size = 0
+    bidirectional = False
     normalize = False
+    multiclass = False
+    overlap_chunking = True
 
     ipca = pk.load(open("ipca.pk1", "rb")) if os.path.exists(
         "ipca.pk1") else IncrementalPCA(n_components=2)
 
     nm = NearMiss(version=1, n_jobs=-1,
                   sampling_strategy='majority', n_neighbors=1)
-    sm = SMOTE(random_state=42, n_jobs=-1)  # k_neighbors=3)
-    model0 = LSTM(input_dim=input_dim, output_dim=output_dim, hidden_dim=hidden_dim,
-                  layer_dim=layer_dim, bidirectional=bidirectional, normalize=normalize)
+    sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=3)
+
+    # model = SentimentRNN(
+    #     num_layers=2,
+    #     vocab_size=30,
+    #     hidden_dim=256,
+    #     embedding_dim=64,
+    #     drop_prob=0.5
+    # )
+    model0 = LSTM(
+        input_dim=input_dim,
+        output_dim=output_dim,
+        hidden_dim=hidden_dim,
+        layer_dim=layer_dim,
+        bidirectional=bidirectional,
+        normalize=normalize,
+        vocab_size=vocab_size)
     model0 = torch.nn.DataParallel(model0)
     model0.to(device)
     logging.info("\n{}".format(model0.train()))
@@ -272,11 +293,13 @@ def main() -> None:
                             label_path,
                             mapping_path,
                             data_dir,
-                            mem_split=10,
+                            mem_split=3,
                             chunk_size=chunk_size,
                             batch_size=batch_size,
-                            multiclass=False,
-                            sampler=sm)  # [('near_miss', nm), ('smote', sm)])
+                            multiclass=multiclass,
+                            sampler=sm,
+                            overlap_chunking=overlap_chunking,
+                            )  # [('near_miss', nm), ('smote', sm)])
         ds_val = Streamer(embedding_list_val,
                           label_path,
                           mapping_path,
@@ -284,7 +307,14 @@ def main() -> None:
                           mem_split=1,
                           chunk_size=chunk_size,
                           batch_size=batch_size,
-                          sampler=None)
+                          multiclass=multiclass,
+                          sampler=None,
+                          overlap_chunking=overlap_chunking,
+                          )
+        train_encodings = Streamer(embedding_list_train, label_path,
+                                   mapping_path, 'data/pts_encodings', mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=sm, multiclass=False)
+        val_encodings = Streamer(embedding_list_test, label_path,
+                                 mapping_path, 'data/pts_encodings', mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None, multiclass=False)
         logging.info("Loaded Data...")
 
         optimizer0 = torch.optim.Adam(model0.parameters(), lr=0.00001)
@@ -294,8 +324,19 @@ def main() -> None:
         logging.info("Done Training Image Model...")
 
     if args.test:
-        ds_test = Streamer(embedding_list_test, label_path,
-                           mapping_path, data_dir, mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None)
+        ds_test = Streamer(
+            embedding_list_test,
+            label_path,
+            mapping_path,
+            data_dir,
+            mem_split=1,
+            chunk_size=chunk_size,
+            batch_size=batch_size,
+            sampler=None,
+            overlap_chunking=overlap_chunking,
+        )
+        test_encodings = Streamer(embedding_list_test, label_path,
+                                  mapping_path, 'data/pts_encodings', mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None, multiclass=False)
         model0.load_state_dict(torch.load(os.path.join(
             model_path, 'model.pth'))['model_state_dict'])
         logging.info("Starting Evaluation")

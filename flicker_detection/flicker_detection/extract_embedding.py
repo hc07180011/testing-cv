@@ -215,7 +215,7 @@ def command_arg() -> ArgumentParser:
                         help='directory of extracted feature embeddings')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
-    parser.add_argument('--videos_path', type=str, default="data/augmented",
+    parser.add_argument('--videos_path', type=str, default="data/flicker-detection",
                         help='src directory to extract embeddings from')
     parser.add_argument(
         "-train", "--train", action="store_true",
@@ -253,11 +253,11 @@ def main():
     init_logger()
 
     logging.info("[Embedding] Start ...")
-    # np_embed(
-    #     videos_path,
-    #     mapping_path,
-    #     data_path,
-    # )
+   # np_embed(
+    #    videos_path,
+     #   mapping_path,
+    #    data_path,
+   # )
     logging.info("[Embedding] done.")
 
     logging.info("[Preprocessing] Start ...")

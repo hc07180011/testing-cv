@@ -10,7 +10,16 @@ warnings.filterwarnings('ignore')
 
 
 class LSTM(nn.Module):
-    def __init__(self, input_dim, output_dim, hidden_dim, layer_dim, bidirectional=False, normalize=False) -> None:
+    def __init__(
+        self,
+        input_dim: int,
+        output_dim: int,
+        hidden_dim: int,
+        layer_dim: int,
+        bidirectional=False,
+        normalize=False,
+        vocab_size: int = 0,
+    ) -> None:
         super(LSTM, self).__init__()
         # Hidden dimensions
         self.hidden_dim = hidden_dim
@@ -21,9 +30,10 @@ class LSTM(nn.Module):
         self.n_directions = 2 if bidirectional else 1
         self.normalize = normalize
 
-        # Building your LSTM
-        # batch_first=True causes input/output tensors to be of shape
-        # (batch_dim, seq_dim, feature_dim)
+        # embedding layer
+        self.embedding = nn.Embedding(vocab_size, input_dim, padding_idx=0)\
+            if bool(vocab_size) else None
+        # LSTM Layer
         self.lstm = nn.LSTM(input_dim, hidden_dim, layer_dim,
                             batch_first=True, bidirectional=bidirectional)
         # Linear Dense
@@ -34,15 +44,25 @@ class LSTM(nn.Module):
         self.initialization()
 
     def init_hidden(self, x) -> torch.FloatTensor:
-        h0 = torch.zeros(self.layer_dim*self.n_directions, x.size(
-            0), self.hidden_dim, device="cuda").requires_grad_()
+        h0 = torch.zeros(
+            self.layer_dim*self.n_directions,
+            x.size(0),
+            self.hidden_dim,
+            device="cuda"
+        ).requires_grad_()
 
         # Initialize cell state
-        c0 = torch.zeros(self.layer_dim*self.n_directions, x.size(
-            0), self.hidden_dim, device="cuda").requires_grad_()
+        c0 = torch.zeros(
+            self.layer_dim*self.n_directions,
+            x.size(0),
+            self.hidden_dim,
+            device="cuda"
+        ).requires_grad_()
         return h0, c0
 
     def forward(self, x) -> torch.Tensor:
+        if self.embedding:
+            x = self.embedding(x)
         # One time step
         out, (hn, cn) = self.lstm(x, self.init_hidden(x))
         # Dense lstm
@@ -67,6 +87,78 @@ class LSTM(nn.Module):
                             nn.init.xavier_uniform_(param[i*mul:(i+1)*mul])
                     elif 'bias' in name:
                         nn.init.zeros_(param.data)
+
+
+
+
+class SentimentRNN(nn.Module):
+    def __init__(
+        self,
+        no_layers,
+        vocab_size,
+        hidden_dim,
+        embedding_dim,
+        output_dim,
+        ):
+        super(SentimentRNN,self).__init__()
+ 
+        self.output_dim = output_dim
+        self.hidden_dim = hidden_dim
+ 
+        self.no_layers = no_layers
+        self.vocab_size = vocab_size
+    
+        # embedding and LSTM layers
+        self.embedding = nn.Embedding(vocab_size, embedding_dim)
+        
+        #lstm
+        self.lstm = nn.LSTM(input_size=embedding_dim,hidden_size=self.hidden_dim,
+                           num_layers=no_layers, batch_first=True)
+        
+        # dropout layer
+        self.dropout = nn.Dropout(0.3)
+    
+        # linear and sigmoid layer
+        self.fc = nn.Linear(self.hidden_dim, output_dim)
+        self.sig = nn.Sigmoid()
+        
+    def forward(self,x,hidden):
+        batch_size = x.size(0)
+        # embeddings and lstm_out
+        embeds = self.embedding(x)  # shape: B x S x Feature   since batch = True
+        #print(embeds.shape)  #[50, 500, 1000]
+        lstm_out, hidden = self.lstm(embeds, hidden)
+        
+        lstm_out = lstm_out.contiguous().view(-1, self.hidden_dim) 
+        
+        # dropout and fully connected layer
+        out = self.dropout(lstm_out)
+        out = self.fc(out)
+        
+        # sigmoid function
+        sig_out = self.sig(out)
+        
+        # reshape to be batch_size first
+        sig_out = sig_out.view(batch_size, -1)
+
+        sig_out = sig_out[:, -1] # get last batch of labels
+        
+        # return last sigmoid output and hidden state
+        return sig_out, hidden
+        
+    def init_hidden(self, batch_size):
+        ''' Initializes hidden state '''
+        # Create two new tensors with sizes n_layers x batch_size x hidden_dim,
+        # initialized to zero, for hidden state and cell state of LSTM
+        h0 = torch.zeros((self.no_layers,batch_size,self.hidden_dim),device='cuda')
+        c0 = torch.zeros((self.no_layers,batch_size,self.hidden_dim),device='cuda')
+        hidden = (h0,c0)
+        return hidden
+
+              
+
+
+
 
 
 """
