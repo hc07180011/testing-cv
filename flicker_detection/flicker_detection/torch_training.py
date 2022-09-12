@@ -224,9 +224,9 @@ def command_arg() -> ArgumentParser:
 
 def main() -> None:
     # overlapping sequences
-    # take difference between images and then vectorize or difference between vecotrs is also fine(standard for motion detection),
+    # take difference between images and then vectorize or difference between vectors is also fine(standard for motion detection),
     # key is rapid changes between change, normalize them between 0 - 255,
-    # use the difference of consecutive frames as data, or both
+    # use the difference of consecutive frames as data, or both(how? not good results? use difference as mask to highlight difference?)
     # train end to end, integrate cnn with lstm, and do back prop for same loss function
     args = command_arg()
     label_path, mapping_path, data_dir, cache_path, model_path = args.label_path, args.mapping_path, args.data_dir, args.cache_path, args.model_path
@@ -241,30 +241,33 @@ def main() -> None:
         __cache__[lst] for lst in __cache__)
 
     chunk_size = 30
-    batch_size = 1024
+    batch_size = 506
     input_dim = 18432
     output_dim = 2
-    hidden_dim = 30
+    hidden_dim = 64
     layer_dim = 1
     vocab_size = 0
-    bidirectional = False
+    bidirectional = True
     normalize = False
     multiclass = False
     overlap_chunking = True
+    moving_difference = False
 
     ipca = pk.load(open("ipca.pk1", "rb")) if os.path.exists(
         "ipca.pk1") else IncrementalPCA(n_components=2)
 
     nm = NearMiss(version=1, n_jobs=-1,
                   sampling_strategy='majority', n_neighbors=1)
-    sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=3)
+    sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=7)
 
-    # model = SentimentRNN(
+    # model0 = SentimentRNN(
     #     num_layers=2,
     #     vocab_size=30,
     #     hidden_dim=256,
     #     embedding_dim=64,
-    #     drop_prob=0.5
+    #     output_dim=2,
+    #     drop_prob=0.5,
+    #     batch_size=batch_size,
     # )
     model0 = LSTM(
         input_dim=input_dim,
@@ -273,7 +276,8 @@ def main() -> None:
         layer_dim=layer_dim,
         bidirectional=bidirectional,
         normalize=normalize,
-        vocab_size=vocab_size)
+        vocab_size=vocab_size
+    )
     model0 = torch.nn.DataParallel(model0)
     model0.to(device)
     logging.info("\n{}".format(model0.train()))
@@ -293,12 +297,13 @@ def main() -> None:
                             label_path,
                             mapping_path,
                             data_dir,
-                            mem_split=3,
+                            mem_split=6,
                             chunk_size=chunk_size,
                             batch_size=batch_size,
                             multiclass=multiclass,
                             sampler=sm,
                             overlap_chunking=overlap_chunking,
+                            moving_difference=moving_difference
                             )  # [('near_miss', nm), ('smote', sm)])
         ds_val = Streamer(embedding_list_val,
                           label_path,
@@ -310,11 +315,32 @@ def main() -> None:
                           multiclass=multiclass,
                           sampler=None,
                           overlap_chunking=overlap_chunking,
+                          moving_difference=moving_difference
                           )
-        train_encodings = Streamer(embedding_list_train, label_path,
-                                   mapping_path, 'data/pts_encodings', mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=sm, multiclass=False)
-        val_encodings = Streamer(embedding_list_test, label_path,
-                                 mapping_path, 'data/pts_encodings', mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None, multiclass=False)
+        train_encodings = Streamer(
+            embedding_list_train,
+            label_path,
+            mapping_path,
+            'data/pts_encodings',
+            mem_split=1,
+            chunk_size=chunk_size,
+            batch_size=batch_size,
+            sampler=sm,
+            text_based=True,
+            multiclass=False,
+        )
+        val_encodings = Streamer(
+            embedding_list_test,
+            label_path,
+            mapping_path,
+            'data/pts_encodings',
+            mem_split=1,
+            chunk_size=chunk_size,
+            batch_size=batch_size,
+            sampler=None,
+            text_based=True,
+            multiclass=False
+        )
         logging.info("Loaded Data...")
 
         optimizer0 = torch.optim.Adam(model0.parameters(), lr=0.00001)
@@ -334,6 +360,7 @@ def main() -> None:
             batch_size=batch_size,
             sampler=None,
             overlap_chunking=overlap_chunking,
+            moving_difference=moving_difference
         )
         test_encodings = Streamer(embedding_list_test, label_path,
                                   mapping_path, 'data/pts_encodings', mem_split=1, chunk_size=chunk_size, batch_size=batch_size, sampler=None, multiclass=False)

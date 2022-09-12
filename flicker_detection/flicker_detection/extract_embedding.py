@@ -114,27 +114,22 @@ def preprocessing(
     ])
 
     embedding_list_train, embedding_list_test, _, _ = train_test_split(
-        tuple(file for file in embedding_path_list),
+        embedding_path_list,
         # dummy buffer just to split embedding_path_list
-        tuple(range(len(tuple(file for file in embedding_path_list)))),
+        list(range(len(embedding_path_list))),
         test_size=0.1,
         random_state=42
     )
-    # embedding_list_test = (
-    #     "0002.mp4.npy", "0003.mp4.npy", "0006.mp4.npy",
-    #     "0016.mp4.npy", "0044.mp4.npy", "0055.mp4.npy",
-    #     "0070.mp4.npy", "0108.mp4.npy", "0121.mp4.npy",
-    #     "0169.mp4.npy", "0145.mp4.npy", "0179.mp4.npy",
-    #     "0098.mp4.npy", "0147.mp4.npy", "0125.mp4.npy",
-    #     "0181.mp4.npy", "0182.mp4.npy", "0183.mp4.npy",
-    #     "0184.mp4.npy", "0185.mp4.npy", "0186.mp4.npy",
-    #     '0123.mp4.npy', '0170.mp4.npy'
-    # )
-
-    embedding_list_train = tuple(
-        set(embedding_path_list) - set(embedding_list_test)
-    )
+    false_positives_vid = [
+        '0115.npy', '0078.npy', '0120.npy',
+        '0092.npy', '0052.npy', '0010.npy'
+    ]
+    embedding_list_test += false_positives_vid
+    # logging.debug(f"{embedding_list_test}")
     embedding_list_val = embedding_list_test
+
+    embedding_list_train = list(
+        set(embedding_list_train) - set(embedding_list_test))
 
     length = max([len(embedding_list_test), len(
         embedding_list_val), len(embedding_list_train)])
@@ -255,7 +250,7 @@ def main():
     logging.info("[Embedding] Start ...")
    # np_embed(
     #    videos_path,
-     #   mapping_path,
+    #   mapping_path,
     #    data_path,
    # )
     logging.info("[Embedding] done.")
@@ -274,12 +269,12 @@ def main():
     embedding_list_train, embedding_list_val, embedding_list_test = tuple(
         __cache__[lst] for lst in __cache__)
 
-    ds_train = Streamer(embedding_list_train, label_path,
-                        mapping_path, data_path, mem_split=20, batch_size=256, keras=True)
-    ds_val = Streamer(embedding_list_test, label_path,
-                      mapping_path, data_path, mem_split=1, batch_size=256, keras=True)
-    ds_test = Streamer(embedding_list_test, label_path,
-                       mapping_path, data_path, mem_split=1, batch_size=256, keras=True)
+    # ds_train = Streamer(embedding_list_train, label_path,
+    #                     mapping_path, data_path, mem_split=20, batch_size=256, keras=True)
+    # ds_val = Streamer(embedding_list_test, label_path,
+    #                   mapping_path, data_path, mem_split=1, batch_size=256, keras=True)
+    # ds_test = Streamer(embedding_list_test, label_path,
+    #                    mapping_path, data_path, mem_split=1, batch_size=256, keras=True)
 
     if args.train:
         logging.info("[Training] Start ...")
