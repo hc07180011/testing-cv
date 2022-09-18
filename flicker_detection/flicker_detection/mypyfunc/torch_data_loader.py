@@ -2,12 +2,14 @@ import os
 import json
 import gc
 import random
+import cv2
+import torch
 import numpy as np
 import pickle as pk
-import torch
 import multiprocessing as mp
 import seaborn as sns
 import logging
+import skvideo.io
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import NearMiss
 from imblearn.pipeline import Pipeline
@@ -319,6 +321,126 @@ class Streamer(object):
         return X, y
 
 
+class DecordLoader(object):
+    def __init__(
+        self,
+        embedding_list_train: list,
+        label_path: str,
+        mapping_path: str,
+        data_dir: str,
+        mem_split: int,
+        chunk_size: int,
+        batch_size: int,
+        shape: tuple,
+        sampler: Callable = None,
+    ) -> None:
+        self.encoding_filename_mapping = json.load(open(mapping_path, "r"))
+        self.raw_labels = json.load(open(label_path, "r"))
+        self.chunk_embedding_list = np.array_split(
+            embedding_list_train, mem_split)
+        self.data_dir = data_dir
+
+        self.mem_split = mem_split
+        self.chunk_size = chunk_size
+        self.batch_size = batch_size
+        self.sampler = sampler
+
+        self.to_process = None
+        self.chunk_idx, self.start_idx, self.end_idx = 0, 0, 0
+
+        self.next_chunk = False
+        self.cache = np.zeros(shape)
+        self.loaded_labels = np.zeros(shape[0])
+        self.out_x = np.zeros((shape[0], shape[1]//2, *shape[2:]))
+        self.out_sequence = list(range(shape[0]))
+
+    def __len__(self) -> int:
+        # FIX ME
+        return len(self.out_sequence)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self) -> Tuple[torch.Tensor, torch.Tensor]:
+        if self.next_chunk and self.chunk_idx == len(self.chunk_embedding_list):
+            gc.collect()
+            raise StopIteration
+
+        if self.next_chunk:
+            self._load(
+                self.chunk_embedding_list[self.cur_chunk]+self.to_process)
+            self.out_x[:, :, :self.out_x.shape[3]//2,
+                       :] = self._mov_div(self.cache)
+            self.out_x[:, :, self.out_x.shape[3] //
+                       2:, :] = self._norm(self.cache)
+
+            self.cur_chunk += 1
+            self.next_chunk = False
+            gc.collect()
+
+        idx = self.out_sequence.pop()
+        return torch.from_numpy(self.out_x[idx:self.chunk_size]), torch.from_numpy(self.loaded_labels[idx:self.chunk_size])
+
+    def _load(
+        self,
+        videos: list
+    ) -> Tuple[int, int]:
+        for i in range(videos):
+            loaded = skvideo.io.vread(
+                os.path.join(self.data_dir, videos[i])
+            ).astype(np.uint8)
+
+            self.start_idx += self.end_idx
+            self.end_idx += loaded.shape[0]
+
+            if self.end_idx > self.cache.shape[0]:
+                self.next_chunk = True
+                self.start_idx = self.end_idx = 0
+                self.to_process = videos[i:]
+                break
+
+            flicker_idxs = np.array(
+                self.raw_labels[videos[i]], dtype=np.int8) - 1
+            buf_label = np.zeros(loaded.shape[0], dtype=np.uint8)
+            buf_label[flicker_idxs.tolist()] = 1
+
+            self.loaded_labels[self.start_idx:self.end_idx] = buf_label
+            self.cache[self.start_idx:self.end_idx] = loaded
+
+        return self.start_idx, self.end_idx
+
+    def _shuffle(self) -> None:
+        random.shuffle(self.embedding_list_train)
+        random.shuffle(self.out_sequence)
+        self.chunk_embedding_list = np.array_split(
+            self.embedding_list_train, self.mem_split)
+        self.cur_chunk = 0
+        gc.collect()
+
+    @staticmethod
+    def _mov_div(arr: np.ndarray) -> np.ndarray:
+        arr = cv2.resize(
+            arr,
+            dsize=(*np.array(arr.shape)//2,),
+            interpolation=cv2.INTER_CUBIC
+        )
+        arr = np.diff(arr, axis=0).astype(np.uint8)
+        return np.apply_along_axis(
+            lambda frame: (frame*(255/frame.max())).astype(np.uint8),
+            axis=0, arr=arr)
+
+    @staticmethod
+    def _norm(arr: np.ndarray) -> np.ndarray:
+        arr = cv2.resize(
+            arr,
+            dsize=(*np.array(arr.shape)//2,),
+            interpolation=cv2.INTER_CUBIC
+        )
+        return np.apply_along_axis(
+            lambda frame: (frame - frame.mean())/frame.std().astype(np.uint8),
+            axis=0, arr=arr)
+
+
 def test_MYDS(
     embedding_list_train: list,
     embedding_list_val: list,
@@ -435,9 +557,15 @@ if __name__ == '__main__':
         text_based=True,
         multiclass=False,
     )
-    # ds_train.plot_dist(dest='../plots/X_train_dist.png')
+    vl = DecordLoader(
+        os.listdir('../data/flicker-detection'),
+        ctx=[cpu(0)],
+        shape=(11, 3040//2, 1440//2, 3),
+        interval=1,
+        skip=5,
+        shuffle=0,
+        labels=json.load(open(label_path, "r"))
+    )
     image = 0  # (1024,30,flattened feature embeddding size) - (h,w,(rgb))
-    for (x, y) in ds_train:
-        print(x.shape, y.shape)
-        image += y.shape[0]
-    print(image)
+    for x in vl:
+        print(x.shape)

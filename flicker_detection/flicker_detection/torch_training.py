@@ -223,11 +223,14 @@ def command_arg() -> ArgumentParser:
 
 
 def main() -> None:
-    # overlapping sequences
     # take difference between images and then vectorize or difference between vectors is also fine(standard for motion detection),
     # key is rapid changes between change, normalize them between 0 - 255,
-    # use the difference of consecutive frames as data, or both(how? not good results? use difference as mask to highlight difference?)
+    # use the difference of consecutive frames as data, or both (just concatenate the embeddings)
     # train end to end, integrate cnn with lstm, and do back prop for same loss function
+    # smaller windows of variable frame rate should have few percent performance boost
+    # need to verify smote
+    # sliding window each frame is a data point
+    # do not delete flicker frames for non flickers data points
     args = command_arg()
     label_path, mapping_path, data_dir, cache_path, model_path = args.label_path, args.mapping_path, args.data_dir, args.cache_path, args.model_path
 
@@ -240,8 +243,8 @@ def main() -> None:
     embedding_list_train, embedding_list_val, embedding_list_test = tuple(
         __cache__[lst] for lst in __cache__)
 
-    chunk_size = 30
-    batch_size = 506
+    chunk_size = 11
+    batch_size = 1024
     input_dim = 18432
     output_dim = 2
     hidden_dim = 64
