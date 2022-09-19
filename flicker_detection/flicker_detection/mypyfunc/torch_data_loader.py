@@ -346,27 +346,26 @@ class DecordLoader(object):
         self.sampler = sampler
 
         self.to_process = None
-        self.chunk_idx, self.start_idx, self.end_idx = 0, 0, 0
+        self.chunk_idx, self.start_idx, self.end_idx, self.pidx = 0, 0, 0, 0
 
         self.next_chunk = False
         self.cache = np.zeros(shape)
-        self.loaded_labels = np.zeros(shape[0])
         self.out_x = np.zeros((shape[0], shape[1]//2, *shape[2:]))
-        self.out_sequence = list(range(shape[0]))
+        self.loaded_labels = np.zeros(shape[0])
+        self.out_sequence = []
 
     def __len__(self) -> int:
-        # FIX ME
         return len(self.out_sequence)
 
     def __iter__(self):
         return self
 
     def __next__(self) -> Tuple[torch.Tensor, torch.Tensor]:
-        if self.next_chunk and self.chunk_idx == len(self.chunk_embedding_list):
+        if not self.out_sequence and self.chunk_idx == len(self.chunk_embedding_list):
             gc.collect()
             raise StopIteration
 
-        if self.next_chunk:
+        if not self.out_sequence and self.next_chunk:
             self._load(
                 self.chunk_embedding_list[self.cur_chunk]+self.to_process)
             self.out_x[:, :, :self.out_x.shape[3]//2,
@@ -378,8 +377,13 @@ class DecordLoader(object):
             self.next_chunk = False
             gc.collect()
 
-        idx = self.out_sequence.pop()
-        return torch.from_numpy(self.out_x[idx:self.chunk_size]), torch.from_numpy(self.loaded_labels[idx:self.chunk_size])
+        # How to handle transition between videos, chunks at the cut off between videos?
+        # TO DO return in batches - index out of range issues for both sliding window and batches
+        idx = self.out_sequence[self.pidx:self.pidx+self.batch_size if (
+            self.pidx + self.batch_size) < len(self.out_sequence) else -1]
+        self.pidx += self.batch_size
+        return self._batch_sample(self.out_x, self.out_y, idx, self.chunk_size)
+        # return torch.from_numpy(self.out_x[idx:self.chunk_size]), torch.from_numpy(self.loaded_labels[idx:self.chunk_size])
 
     def _load(
         self,
@@ -404,8 +408,19 @@ class DecordLoader(object):
             buf_label = np.zeros(loaded.shape[0], dtype=np.uint8)
             buf_label[flicker_idxs.tolist()] = 1
 
+            # TO DO over sample here
             self.loaded_labels[self.start_idx:self.end_idx] = buf_label
             self.cache[self.start_idx:self.end_idx] = loaded
+
+            self.out_sequence += np.array([
+                tuple(range(i-self.chunk_size//2, i+self.chunk_size//2))
+                for i in range(self.start_idx, self.end_idx) if self.loaded_labels[i] == 1
+            ]).flatten().tolist()
+
+            self.out_sequence += [
+                i for i in range(self.start_idx, self.end_idx)
+                if i not in self.out_sequence
+            ]
 
         return self.start_idx, self.end_idx
 
@@ -415,7 +430,19 @@ class DecordLoader(object):
         self.chunk_embedding_list = np.array_split(
             self.embedding_list_train, self.mem_split)
         self.cur_chunk = 0
+        self.out_sequence = []
         gc.collect()
+
+    @staticmethod
+    def _batch_sample(
+        X: np.ndarray,
+        y: np.ndarray,
+        idx: list,
+        chunk_size: int
+    ) -> Tuple[torch.Tensors, torch.Tensors]:
+        X = torch.from_numpy([X[i:i+chunk_size] for i in idx])
+        y = torch.from_numpy([y[i:i+chunk_size] for i in idx])
+        return X, y
 
     @staticmethod
     def _mov_div(arr: np.ndarray) -> np.ndarray:
