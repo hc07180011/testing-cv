@@ -55,20 +55,24 @@ def mov_dif_aug(src: str, dst: str) -> None:
     for vid in os.listdir(src):
         if os.path.exists(os.path.join(dst, "mvd_"+vid)):
             continue
-        writer = skvideo.io.FFmpegWriter(os.path.join(dst, "mvd_"+vid))
         mvd = skvideo.io.vread(os.path.join(src, vid))
         mvd = np.array([
             cv2.resize(frame, dsize=(
                 *np.array(mvd.shape[1:3:])[::-1]//2,), interpolation=cv2.INTER_CUBIC)
             for frame in mvd
         ])
+        nmv = np.apply_along_axis(
+            lambda frame: (frame - frame.mean())/frame.std().astype(np.uint8),
+            axis=0, arr=mvd)
         mvd = np.diff(mvd, axis=0).astype(np.uint8)
         mvd = np.apply_along_axis(
             lambda frame: (frame*(255/frame.max())).astype(np.uint8),
             axis=0, arr=mvd)
-        for frame in mvd:
-            writer.writeFrame(frame)
-        writer.close()
+
+        np.save(
+            os.path.join(dst, "mvd_"+vid.split('.mp4')[0]),
+            np.hstack((mvd, nmv))
+        )
         # skvideo.io.vwrite(os.path.join(dst, "mvd_"+vid), mvd)
         gc.collect()
 
@@ -77,7 +81,6 @@ def norm_aug(src: str, dst: str) -> None:
     for vid in os.listdir(src):
         if os.path.exists(os.path.join(dst, "nmv_"+vid)):
             continue
-        writer = skvideo.io.FFmpegWriter(os.path.join(dst, "nmv_"+vid))
         nmv = skvideo.io.vread(os.path.join(src, vid)).astype(np.uint8)
         nmv = np.array([
             cv2.resize(frame, dsize=(
@@ -87,25 +90,18 @@ def norm_aug(src: str, dst: str) -> None:
         nmv = np.apply_along_axis(
             lambda frame: (frame - frame.mean())/frame.std().astype(np.uint8),
             axis=0, arr=nmv)
-        for frame in nmv:
-            writer.writeFrame(frame)
-        writer.close()
+        np.save(os.path.join(dst, "nmv_"+vid.split('.mp4')[0]), nmv)
         # skvideo.io.vwrite(os.path.join(dst, "nmv_"+vid), nmv)
         gc.collect()
 
 
 if __name__ == "__main__":
     src = 'flicker-detection/'
+    dst = 'meta_data/'
     # get_pts(src)
     # test_frame_extraction(
     #     'flicker-detection/00_flicker_issue_00_00_18.304 - 00_00_18.606_b1d8b1fc-a81d-4ab6-bbc9-d9e8f6e072dd.mp4',
     #     'test_frames/00_flicker_issue_00_00_18.304 - 00_00_18.606_b1d8b1fc-a81d-4ab6-bbc9-d9e8f6e072dd'
     # )
-    mov_dif_aug(
-        'flicker-detection/',
-        'augmented/'
-    )
-    # norm_aug(
-    #     'flicker-detection/',
-    #     'augmented/'
-    # )
+    mov_dif_aug(src, dst)
+    # norm_aug(src, dst)
