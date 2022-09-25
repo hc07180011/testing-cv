@@ -231,6 +231,7 @@ def main() -> None:
     # need to verify smote
     # sliding window each frame is a data point
     # do not delete flicker frames for non flickers data points
+    # divide by 255 to get range of 0,1 normalization(known cv preprocess, may not affect)
     args = command_arg()
     label_path, mapping_path, data_dir, cache_path, model_path = args.label_path, args.mapping_path, args.data_dir, args.cache_path, args.model_path
 

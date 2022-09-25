@@ -248,11 +248,11 @@ def main():
     init_logger()
 
     logging.info("[Embedding] Start ...")
-   # np_embed(
-    #    videos_path,
-    #   mapping_path,
-    #    data_path,
-   # )
+    np_embed(
+        videos_path,
+        mapping_path,
+        data_path,
+    )
     logging.info("[Embedding] done.")
 
     logging.info("[Preprocessing] Start ...")

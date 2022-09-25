@@ -1,10 +1,11 @@
-import torch.nn as nn
 import torch
+import torchvision
+import torch.nn as nn
+# from torchvision.models import vgg16
 from torch import nn
 from torch.autograd import Variable
 # from torchsummary import summary as summary
 import pkbar
-
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -89,65 +90,33 @@ class LSTM(nn.Module):
                         nn.init.zeros_(param.data)
 
 
-class SentimentRNN(nn.Module):
+class CNN_LSTM(LSTM):
     def __init__(
         self,
-        num_layers: int,
-        vocab_size: int,
-        hidden_dim: int,
-        embedding_dim: int,
+        model: torchvision.models,
+        input_dim: int,
         output_dim: int,
-        drop_prob: float,
-        batch_size: int
-    ):
-        super(SentimentRNN, self).__init__()
+        hidden_dim: int,
+        layer_dim: int,
+        bidirectional=False,
+        normalize=False,
+        vocab_size: int = 0,
+    ) -> None:
+        super.__init__(
+            input_dim=input_dim,
+            output_dim=output_dim,
+            hidden_dim=hidden_dim,
+            layer_dim=layer_dim,
+            bidirectional=bidirectional,
+            normalize=normalize,
+            vocab_size=vocab_size,
+        )
+        super.initialization()
+        self.cnn = model(pretrained=True)
 
-        self.output_dim = output_dim
-        self.hidden_dim = hidden_dim
-
-        self.no_layers = num_layers
-        self.vocab_size = vocab_size
-
-        # initialize LSTM hidden state
-        self.hidden = self.init_hidden(batch_size)
-        # embedding and LSTM layers
-        self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        # lstm
-        self.lstm = nn.LSTM(input_size=embedding_dim, hidden_size=self.hidden_dim,
-                            num_layers=num_layers, batch_first=True)
-        # dropout layer
-        self.dropout = nn.Dropout(drop_prob)
-        # linear and sigmoid layer
-        self.fc = nn.Linear(self.hidden_dim, output_dim)
-
-    def forward(self, x):
-        # embeddings and lstm_out
-        # shape: B x S x Feature   since batch = True
-        embeds = self.embedding(x)
-        print(embeds.shape)  # [50, 500, 1000]
-        lstm_out, self.hidden = self.lstm(embeds, self.hidden)
-
-        lstm_out = lstm_out.contiguous().view(-1, self.hidden_dim)
-        # dropout and fully connected layer
-        out = self.dropout(lstm_out)
-        out = self.fc(out)
-        return out[:, -1]
-
-    def init_hidden(self, batch_size: int):
-        ''' Initializes hidden state '''
-        # Create two new tensors with sizes n_layers x batch_size x hidden_dim,
-        # initialized to zero, for hidden state and cell state of LSTM
-        h0 = torch.zeros((
-            self.no_layers,
-            batch_size,
-            self.hidden_dim
-        ), device='cuda').requires_grad_()
-        c0 = torch.zeros((
-            self.no_layers,
-            batch_size,
-            self.hidden_dim
-        ), device='cuda').requires_grad_()
-        return (h0, c0)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        out = self.cnn(x)
+        return super.forward(out)
 
 
 """

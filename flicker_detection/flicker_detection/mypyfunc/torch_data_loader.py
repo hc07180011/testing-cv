@@ -321,19 +321,19 @@ class Streamer(object):
         return X, y
 
 
-class DecordLoader(object):
+class VideoLoader(object):
     def __init__(
         self,
         embedding_list_train: list,
         label_path: str,
-        mapping_path: str,
         data_dir: str,
         chunk_size: int,
         batch_size: int,
         shape: tuple,
         sampler: Callable = None,
+        mov: bool = False,
+        norm: bool = False
     ) -> None:
-        self.encoding_filename_mapping = json.load(open(mapping_path, "r"))
         self.raw_labels = json.load(open(label_path, "r"))
         self.embedding_list_train = self.to_process = embedding_list_train
         self.data_dir = data_dir
@@ -341,15 +341,15 @@ class DecordLoader(object):
         self.chunk_size = chunk_size
         self.batch_size = batch_size
         self.sampler = sampler
+        self.mov = mov
+        self.norm = norm
 
-        self.chunk_idx = self.end_idx = 0
-        self.start_idx = self.pidx = chunk_size//2
+        self.pidx = shape[0]
+        self.start_idx = self.end_idx = 0
 
-        self.next_chunk = False
-        self.cache = np.zeros(shape)
-        self.out_x = np.zeros((shape[0], shape[1]//2, *shape[2:]))
+        self.out_x = np.zeros(shape)
         self.out_y = np.zeros(shape[0])
-        self.out_sequence = []
+        self.out_sequence = self.window_chunks = []
 
     def __len__(self) -> int:
         return len(self.out_sequence)
@@ -358,54 +358,69 @@ class DecordLoader(object):
         return self
 
     def __next__(self) -> Tuple[torch.Tensor, torch.Tensor]:
-        if self.pidx > self.out_sequence and len(self.to_process) == 1:
+        if self.pidx > len(self.out_sequence) and len(self.to_process) == 1:
             gc.collect()
             raise StopIteration
 
-        if self.pidx > self.out_sequence and self.next_chunk:
+        # print(self.pidx, len(self.out_sequence))
+        if self.pidx > len(self.out_sequence):
+            # TO DO fix me need to refresh cache with empty tensor
+            # self.out_x.fill(0)
+            # self.out_y.fill(0)
             self._load(self.to_process)
-            self.out_x[:, :, :self.out_x.shape[3] //
-                       2, :] = self._mov_div(self.cache)
-            self.out_x[:, :, self.out_x.shape[3] //
-                       2:, :] = self._norm(self.cache)
+            self.window_chunks += self._chunking(
+                self.out_x,
+                self.out_sequence,
+                self.chunk_size
+            )
 
-            self.cur_chunk += 1
-            self.next_chunk = False
+            if self.sampler and np.any(self.out_y) == 1:
+                self.window_chunks, self.out_y = self._sampling(
+                    self.window_chunks,
+                    self.out_y[self.out_sequence],
+                    self.sampler
+                )
+            if self.mov:
+                self.out_x[:, :, :self.out_x.shape[3] //
+                           2, :] = self._mov_div(self.cache)
+            if self.norm:
+                self.out_x[:, :, self.out_x.shape[3] //
+                           2:, :] = self._norm(self.cache)
+            self.pidx = 0
             gc.collect()
 
-        # Need to handle chunk padding in out sequence
-        # How to handle transition between videos, chunks at the cut off between videos?
+        random.shuffle(self.out_sequence)
         idx = self.out_sequence[self.pidx:(self.pidx+self.batch_size) if (
             self.pidx + self.batch_size) < len(self.out_sequence) else -1]
         self.pidx += self.batch_size
-        return self._batch_sample(self.out_x, self.out_y, idx, self.chunk_size)
+
+        return
 
     def _load(
         self,
         videos: list
     ) -> Tuple[int, int]:
-        for i in range(videos):
-            loaded = skvideo.io.vread(
-                os.path.join(self.data_dir, videos[i])
+        for idx, vid in enumerate(videos):
+            loaded = np.load(
+                os.path.join(self.data_dir, vid)
             ).astype(np.uint8)
 
-            self.start_idx += self.end_idx
-            self.end_idx += loaded.shape[0]
+            self.start_idx += self.end_idx + self.chunk_size//2
+            self.end_idx = self.start_idx + loaded.shape[0]
 
-            if self.end_idx > self.cache.shape[0]:
-                self.next_chunk = True
+            if self.end_idx > self.out_x.shape[0]:
                 self.start_idx = self.end_idx = 0
-                self.to_process = videos[i:]
+                self.to_process = videos[idx:]
+                self.out_sequence = []
                 break
 
             flicker_idxs = np.array(
-                self.raw_labels[videos[i]], dtype=np.int8) - 1
+                self.raw_labels[vid.replace("reduced_", "").replace(".npy", "")], dtype=np.int8) - 1
             buf_label = np.zeros(loaded.shape[0], dtype=np.uint8)
             buf_label[flicker_idxs.tolist()] = 1
 
-            # TO DO over sample here
             self.out_y[self.start_idx:self.end_idx] = buf_label
-            self.cache[self.start_idx:self.end_idx] = loaded
+            self.out_x[self.start_idx:self.end_idx] = loaded
 
             self.out_sequence += np.array([
                 tuple(range(i-self.chunk_size//2, i+self.chunk_size//2))
@@ -421,24 +436,20 @@ class DecordLoader(object):
 
     def _shuffle(self) -> None:
         random.shuffle(self.embedding_list_train)
-        random.shuffle(self.out_sequence)
         self.to_process = self.embedding_list_train
-        self.cur_chunk = 0
         self.out_sequence = []
         gc.collect()
 
     @staticmethod
-    def _batch_sample(
+    def _chunking(
         X: np.ndarray,
-        y: np.ndarray,
         idx: list,
         chunk_size: int
-    ) -> Tuple[torch.Tensors, torch.Tensors]:
-        X = torch.from_numpy([X[i-chunk_size//2:i+chunk_size//2]
-                             for i in idx]).long()
-        y = torch.from_numpy([y[i-chunk_size//2:i+chunk_size//2]
-                             for i in idx]).long()
-        return X, y
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        return torch.from_numpy(np.array([
+            X[i-chunk_size//2:i+chunk_size//2]
+            for i in idx
+        ])).float()
 
     @staticmethod
     def _mov_div(arr: np.ndarray) -> np.ndarray:
@@ -464,131 +475,27 @@ class DecordLoader(object):
             axis=0, arr=arr)
 
 
-def test_MYDS(
-    embedding_list_train: list,
-    embedding_list_val: list,
-    embedding_list_test: list,
-    label_path: str,
-    mapping_path: str,
-    data_dir: str,
-) -> None:
-    d_train = MYDS(embedding_list_train, label_path, mapping_path, data_dir)
-    ds = MYDS(embedding_list_val, label_path, mapping_path, data_dir)
-    ds = MYDS(embedding_list_test, label_path, mapping_path, data_dir)
-    dl = DataLoader(ds, batch_size=256, shuffle=True, num_workers=16)
-
-    t_sample = 0
-    for batch_idx, (x, y) in enumerate(dl):
-        print(batch_idx, x.shape, y.shape)
-        t_sample += y.shape[0]
-    print(t_sample)
-
-
-if __name__ == '__main__':
-    """
-    torch.Size([390, 30, 1, 64])                                                                                                                                                                 
-    torch.Size([390, 30, 1, 64])                                                                                                                                                                 
-    Traceback (most recent call last):                                                                                                                                                           
-    File "/home/ntu-cv/testing-cv/flicker_detection/flicker_detection/torch_training.py", line 375, in <module>                                                                                
-        main()                                                                                                                                                                                   
-    File "/home/ntu-cv/testing-cv/flicker_detection/flicker_detection/torch_training.py", line 345, in main                                                                                    
-        torch_training(train_encodings, val_encodings, model0,                                                                                                                                   
-    File "/home/ntu-cv/testing-cv/flicker_detection/flicker_detection/torch_training.py", line 60, in torch_training                                                                           
-        y_pred = model(x0)                                                                                                                                                                       
-    File "/home/ntu-cv/anaconda3/envs/cv2/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1130, in _call_impl                                                                    
-        return forward_call(*input, **kwargs)                                                                                                                                                    
-    File "/home/ntu-cv/anaconda3/envs/cv2/lib/python3.9/site-packages/torch/nn/parallel/data_parallel.py", line 168, in forward                                                                
-        outputs = self.parallel_apply(replicas, inputs, kwargs)                                                                                                                                  
-    File "/home/ntu-cv/anaconda3/envs/cv2/lib/python3.9/site-packages/torch/nn/parallel/data_parallel.py", line 178, in parallel_apply                                                         
-        return parallel_apply(replicas, inputs, kwargs, self.device_ids[:len(replicas)])                                                                                                         
-    File "/home/ntu-cv/anaconda3/envs/cv2/lib/python3.9/site-packages/torch/nn/parallel/parallel_apply.py", line 86, in parallel_apply                                                         
-        output.reraise()                                                                                                                                                                         
-    File "/home/ntu-cv/anaconda3/envs/cv2/lib/python3.9/site-packages/torch/_utils.py", line 461, in reraise                                                                                   
-        raise exception                                                                                                                                                                          
-    RuntimeError: Caught RuntimeError in replica 0 on device 0.                                                                                                                                  
-    Original Traceback (most recent call last):                                                                                                                                                  
-    File "/home/ntu-cv/anaconda3/envs/cv2/lib/python3.9/site-packages/torch/nn/parallel/parallel_apply.py", line 61, in _worker                                                                
-        output = module(*input, **kwargs)                                                                                                                                                        
-    File "/home/ntu-cv/anaconda3/envs/cv2/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1130, in _call_impl                                                                    
-        return forward_call(*input, **kwargs)                                                                                                                                                    
-    File "/home/ntu-cv/testing-cv/flicker_detection/flicker_detection/mypyfunc/torch_models.py", line 131, in forward                                                                          
-        lstm_out, self.hidden = self.lstm(embeds, self.hidden)                                                                                                                                   
-    File "/home/ntu-cv/anaconda3/envs/cv2/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1130, in _call_impl                                                                    
-        return forward_call(*input, **kwargs)                                                                                                                                                    
-    File "/home/ntu-cv/anaconda3/envs/cv2/lib/python3.9/site-packages/torch/nn/modules/rnn.py", line 760, in forward                                                                           
-        raise RuntimeError(msg)                                                                                                                                                                  
-    RuntimeError: For unbatched 2-D input, hx and cx should also be 2-D but got (3-D, 3-D) tensors
-    """
+if __name__ == "__main__":
     label_path = "../data/new_label.json"
-    mapping_path = "../data/mapping.json"
-    data_dir = "../data/vgg16_emb/"
-    __cache__ = np.load("{}.npz".format(
-        "../.cache/train_test"), allow_pickle=True)
+    data_dir = "../data/meta_data"
+    cache_path = "../.cache/train_test"
+    __cache__ = np.load(
+        "{}.npz".format(cache_path), allow_pickle=True)
     embedding_list_train, embedding_list_val, embedding_list_test = tuple(
         __cache__[lst] for lst in __cache__)
 
-    chunk_size = 30
-    batch_size = 1024  # GPU memory
-    ipca = pk.load(open("../ipca.pk1", "rb"))\
-        if os.path.exists("../ipca.pk1") else IncrementalPCA(n_components=2)
     sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=7)
-    nm = NearMiss(version=3, n_jobs=-1)  # , n_neighbors=1)
-    ds_train = Streamer(embedding_list_train,
-                        label_path,
-                        mapping_path,
-                        data_dir,
-                        mem_split=4,
-                        chunk_size=30,
-                        batch_size=1024,
-                        multiclass=False,
-                        sampler=sm,
-                        overlap_chunking=True,
-                        moving_difference=False,
-                        )  # [('near_miss', nm), ('smote', sm)])  # ipca=ipca, ipca_fitted=True)
-    ds_val = Streamer(embedding_list_val,
-                      label_path,
-                      mapping_path,
-                      data_dir,
-                      mem_split=1,
-                      chunk_size=chunk_size,
-                      batch_size=batch_size,
-                      multiclass=False,
-                      sampler=None,
-                      overlap_chunking=True,
-                      )
-    ds_test = Streamer(
-        embedding_list_test,
-        label_path,
-        mapping_path,
-        data_dir,
-        mem_split=1,
-        chunk_size=chunk_size,
-        batch_size=batch_size,
-        sampler=None,
-        overlap_chunking=True,
-    )
 
-    train_encodings = Streamer(
-        embedding_list_train,
-        label_path,
-        mapping_path,
-        '../data/pts_encodings',
-        mem_split=1,
-        chunk_size=30,
-        batch_size=1024,
-        sampler=sm,
-        text_based=True,
-        multiclass=False,
+    vl = VideoLoader(
+        embedding_list_train=embedding_list_train,
+        label_path=label_path,
+        data_dir=data_dir,
+        chunk_size=11,
+        batch_size=256,
+        shape=(15000, 380, 360, 3),
+        sampler=None,
+        mov=False,
+        norm=False
     )
-    vl = DecordLoader(
-        os.listdir('../data/flicker-detection'),
-        ctx=[cpu(0)],
-        shape=(11, 3040//2, 1440//2, 3),
-        interval=1,
-        skip=5,
-        shuffle=0,
-        labels=json.load(open(label_path, "r"))
-    )
-    image = 0  # (1024,30,flattened feature embeddding size) - (h,w,(rgb))
-    for x in vl:
-        print(x.shape)
+    for x, y in vl:
+        print(x.shape, y.shape)
