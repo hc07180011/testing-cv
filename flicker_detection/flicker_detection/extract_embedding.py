@@ -83,6 +83,7 @@ def np_embed(
             success, image = vidcap.read()
 
         embeddings = np.array(embeddings)
+        logging.info(f"{path} / {embeddings.shape}")
 
         if 'aug' in path:
             split_name = path.split("_aug")
@@ -210,7 +211,7 @@ def command_arg() -> ArgumentParser:
                         help='directory of extracted feature embeddings')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
-    parser.add_argument('--videos_path', type=str, default="data/flicker-detection",
+    parser.add_argument('--videos_path', type=str, default="data/lower_res",
                         help='src directory to extract embeddings from')
     parser.add_argument(
         "-train", "--train", action="store_true",

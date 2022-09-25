@@ -162,18 +162,14 @@ class Streamer(object):
         return torch.from_numpy(X[idx]).long() if self.text_based else torch.from_numpy(X[idx]).float(), torch.from_numpy(y[idx]).long()
 
     def _re_sample(self,) -> Tuple[np.ndarray, np.ndarray]:
-        if self.sampler is None and self.ipca is None:
-            return np.array(self.X_buffer), np.array(self.y_buffer)
+        X, y = np.array(self.X_buffer), np.array(self.y_buffer)
+        if self.sampler is None and self.ipca is None or not np.any(np.array(self.y_buffer)) == 1:
+            return X, y
 
-        if self.sampler is not None:
-            # print(type(self.X_buffer[0]), type(self.y_buffer[0]))
-            X, y = self._sampling(
-                np.array(self.X_buffer),
-                np.array(self.y_buffer),
-                self.sampler
-            )
+        if self.sampler:
+            return self._sampling(X, y, self.sampler)
+
         if self.ipca is not None and self.ipca_fitted:
-            X, y = np.array(self.X_buffer), np.array(self.y_buffer)
             x_origin = X.shape
             X = self.ipca.inverse_transform(self.ipca.transform(
                 np.reshape(X, (-1, np.prod(x_origin[1:])))
@@ -198,8 +194,9 @@ class Streamer(object):
     ) -> None:
         for key in embedding_list_train:
             # print(f"{key}")
-            real_filename = self.encoding_filename_mapping[key.replace(
-                ".npy", "")]
+            # real_filename = self.encoding_filename_mapping[key.replace(
+            #     ".npy", "")]
+            real_filename = key.replace("reduced_", "").replace(".npy", "")
             loaded = np.load(
                 "{}.npy".format(os.path.join(
                     self.data_dir, key.replace(".npy", "")))
@@ -208,8 +205,8 @@ class Streamer(object):
                 loaded = self._mov_dif_chunks(loaded)
 
             flicker_idxs = np.array(
-                self.raw_labels[real_filename], dtype=np.int16) - 1
-
+                self.raw_labels[real_filename], dtype=np.uint16) - 1
+            print("LABELS ", loaded.shape, flicker_idxs)
             if self.overlap_chunking:
                 self.X_buffer += (*self._overlap_chunks(loaded,
                                   flicker_idxs, self.chunk_size),)
@@ -217,7 +214,7 @@ class Streamer(object):
                 loaded = np.delete(loaded, flicker_idxs, axis=0)
                 flicker_idxs = np.array([])
 
-            buf_label = np.zeros(loaded.shape[0], dtype=np.uint8)
+            buf_label = np.zeros(loaded.shape[0])
             buf_label[flicker_idxs.tolist()] = 1
             self.X_buffer += (*self._get_chunk_array(loaded,
                                                      self.chunk_size),)
@@ -347,9 +344,9 @@ class VideoLoader(object):
         self.pidx = shape[0]
         self.start_idx = self.end_idx = 0
 
-        self.out_x = np.zeros(shape)
-        self.out_y = np.zeros(shape[0])
-        self.out_sequence = self.window_chunks = []
+        self.cache_x = np.zeros(shape)
+        self.cache_y = np.zeros(shape[0])
+        self.out_sequence = self.out_x = self.out_y = ()
 
     def __len__(self) -> int:
         return len(self.out_sequence)
@@ -362,82 +359,89 @@ class VideoLoader(object):
             gc.collect()
             raise StopIteration
 
-        # print(self.pidx, len(self.out_sequence))
         if self.pidx > len(self.out_sequence):
             # TO DO fix me need to refresh cache with empty tensor
             # self.out_x.fill(0)
             # self.out_y.fill(0)
-            self._load(self.to_process)
-            self.window_chunks += self._chunking(
-                self.out_x,
+            self._load(self.to_process.tolist())
+            self.out_x += self._chunking(
+                self.cache_x,
                 self.out_sequence,
                 self.chunk_size
             )
-
+            self.out_sequence = list(self.out_sequence)
+            self.out_x, self.out_y = np.array(
+                self.out_x), self.cache_y[self.out_sequence]
             if self.sampler and np.any(self.out_y) == 1:
-                self.window_chunks, self.out_y = self._sampling(
-                    self.window_chunks,
-                    self.out_y[self.out_sequence],
+                self.out_x, self.out_y = self._sampling(
+                    self.out_x,
+                    self.out_y,
                     self.sampler
                 )
-            if self.mov:
-                self.out_x[:, :, :self.out_x.shape[3] //
-                           2, :] = self._mov_div(self.cache)
-            if self.norm:
-                self.out_x[:, :, self.out_x.shape[3] //
-                           2:, :] = self._norm(self.cache)
             self.pidx = 0
+            random.shuffle(self.out_sequence)
             gc.collect()
 
-        random.shuffle(self.out_sequence)
-        idx = self.out_sequence[self.pidx:(self.pidx+self.batch_size) if (
+        X = self.out_x[self.pidx:(self.pidx+self.batch_size) if (
+            self.pidx + self.batch_size) < len(self.out_sequence) else -1]
+        y = self.out_y[self.pidx:(self.pidx+self.batch_size) if (
             self.pidx + self.batch_size) < len(self.out_sequence) else -1]
         self.pidx += self.batch_size
-
-        return
+        return torch.from_numpy(X), torch.from_numpy(y)
 
     def _load(
         self,
         videos: list
     ) -> Tuple[int, int]:
-        for idx, vid in enumerate(videos):
+        repeated = ()
+        while videos:
+            vid = videos.pop(0)
+            print("WTF", vid)
+            if vid in repeated:
+                break
             loaded = np.load(
                 os.path.join(self.data_dir, vid)
             ).astype(np.uint8)
 
+            flicker_idxs = np.array(
+                self.raw_labels[vid.replace(
+                    "reduced_", "").replace(".npy", "")],
+                dtype=np.uint16) - 1
+            buf_label = np.zeros(loaded.shape[0], dtype=np.uint16)
+            print("labels", buf_label.shape, flicker_idxs)
+            buf_label[flicker_idxs.tolist()] = 1
+
             self.start_idx += self.end_idx + self.chunk_size//2
             self.end_idx = self.start_idx + loaded.shape[0]
 
-            if self.end_idx > self.out_x.shape[0]:
-                self.start_idx = self.end_idx = 0
-                self.to_process = videos[idx:]
-                self.out_sequence = []
-                break
+            print("buffer", self.end_idx, self.cache_x.shape[0])
+            if self.end_idx > self.cache_x.shape[0]:
+                videos += [vid]
+                repeated += (vid,)
+                # print("repeated", repeated)
+                continue
 
-            flicker_idxs = np.array(
-                self.raw_labels[vid.replace("reduced_", "").replace(".npy", "")], dtype=np.int8) - 1
-            buf_label = np.zeros(loaded.shape[0], dtype=np.uint8)
-            buf_label[flicker_idxs.tolist()] = 1
+            self.cache_y[self.start_idx:self.end_idx] = buf_label
+            self.cache_x[self.start_idx:self.end_idx] = loaded
 
-            self.out_y[self.start_idx:self.end_idx] = buf_label
-            self.out_x[self.start_idx:self.end_idx] = loaded
-
-            self.out_sequence += np.array([
+            self.out_sequence += tuple(np.array([
                 tuple(range(i-self.chunk_size//2, i+self.chunk_size//2))
-                for i in range(self.start_idx, self.end_idx) if self.out_y[i] == 1
-            ]).flatten().tolist()
+                for i in range(self.start_idx, self.end_idx) if self.cache_y[i] == 1
+            ]).flatten().tolist())
 
-            self.out_sequence += [
+            self.out_sequence += tuple(
                 i for i in range(self.start_idx, self.end_idx)
                 if i not in self.out_sequence
-            ]
+            )
 
+        self.start_idx = self.end_idx = 0
+        self.to_process = np.array(repeated)
+        gc.collect()
         return self.start_idx, self.end_idx
 
     def _shuffle(self) -> None:
         random.shuffle(self.embedding_list_train)
         self.to_process = self.embedding_list_train
-        self.out_sequence = []
         gc.collect()
 
     @staticmethod
@@ -445,11 +449,27 @@ class VideoLoader(object):
         X: np.ndarray,
         idx: list,
         chunk_size: int
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        return torch.from_numpy(np.array([
-            X[i-chunk_size//2:i+chunk_size//2]
+    ) -> tuple:
+        return tuple(
+            X[i-chunk_size//2:(i+1)+chunk_size//2]
             for i in idx
-        ])).float()
+        )
+
+    @staticmethod
+    def _sampling(
+        X_train: np.array,
+        y_train: np.array,
+        sampler: Callable,
+    ) -> Tuple[np.array, np.array]:
+        if isinstance(sampler, list):
+            sampler = Pipeline(sampler)
+        original_X_shape = X_train.shape
+        X_train, y_train = sampler.fit_resample(
+            np.reshape(X_train, (-1, np.prod(original_X_shape[1:]))),
+            y_train
+        )
+        X_train = np.reshape(X_train, (-1,) + original_X_shape[1:])
+        return X_train, y_train
 
     @staticmethod
     def _mov_div(arr: np.ndarray) -> np.ndarray:
@@ -479,6 +499,7 @@ if __name__ == "__main__":
     label_path = "../data/new_label.json"
     data_dir = "../data/meta_data"
     cache_path = "../.cache/train_test"
+    mapping_path = "../data/mapping.json"
     __cache__ = np.load(
         "{}.npz".format(cache_path), allow_pickle=True)
     embedding_list_train, embedding_list_val, embedding_list_test = tuple(
@@ -492,10 +513,23 @@ if __name__ == "__main__":
         data_dir=data_dir,
         chunk_size=11,
         batch_size=256,
-        shape=(15000, 380, 360, 3),
+        shape=(10000, 380, 360, 3),
         sampler=None,
         mov=False,
         norm=False
     )
-    for x, y in vl:
+    ds_train = Streamer(
+        embedding_list_train,
+        label_path,
+        mapping_path,
+        data_dir,
+        mem_split=10,
+        chunk_size=11,
+        batch_size=256,
+        multiclass=False,
+        sampler=sm,
+        overlap_chunking=True,
+        moving_difference=False
+    )  # [('near_miss', nm), ('smote', sm)])
+    for x, y in ds_train:
         print(x.shape, y.shape)

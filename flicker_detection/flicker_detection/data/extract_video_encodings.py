@@ -62,43 +62,43 @@ def mov_dif_aug(
     9C041FFBA0013V_video_0_aa4c2e7b-0813-4694-b673-9b7b8b8e0f89
     """
     for vid in os.listdir(src):
-        if os.path.exists(os.path.join(dst, vid)):
+        if os.path.exists(os.path.join(dst, vid.split('.mp4')[0]+'.npy')):
             continue
 
-        frames = ()
-        vidcap = cv2.VideoCapture(os.path.join(src, vid))
-        success, frame = vidcap.read()
-        while success:
-            frames += (cv2.resize(frame, dsize=res,
-                       interpolation=cv2.INTER_CUBIC),)
-            success, frame = vidcap.read()
-        frames = np.array(frames)
-
-        # mvd = skvideo.io.vread(os.path.join(src, vid))
-        # frames = np.array([
-        #     cv2.resize(frame, dsize=res, interpolation=cv2.INTER_CUBIC)
-        #     for frame in frames
-        # ])
+        mvd = skvideo.io.vread(os.path.join(src, vid))
+        frames = np.array([
+            cv2.resize(frame, dsize=res, interpolation=cv2.INTER_CUBIC)
+            for frame in mvd
+        ])
         nvm = frames.copy()
-        # nvm = np.array([
-        #     cv2.normalize(img, None, alpha=0, beta=1,
-        #                   norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-        #     for img in mvd])
+        nvm = np.array([
+            cv2.normalize(img, None, alpha=0, beta=1,
+                          norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+            for img in mvd])
 
+        # vidcap = cv2.VideoCapture(os.path.join(src, vid))
+        # success, image = vidcap.read()
+        # frames = ()
+        # while success:
+        #     frames += (image,)
+        #     success, image = vidcap.read()
+        # frames = np.array(frames)
+        # print(vid, frames.shape)
+
+        # nvm = frames.copy()
         frames = np.apply_along_axis(
-            lambda f: (f*(255/f.max())).astype(np.uint8),
-            axis=0, arr=np.diff(frames, axis=0).astype(np.uint8))
+            lambda f: (f*(255/f.max())).astype(np.uint16),
+            axis=0, arr=np.diff(frames, axis=0).astype(np.uint16))
 
         stacked = np.array([
             np.hstack((norm, mov))
             for norm, mov in zip(nvm, frames)
         ])
-        print(vid, stacked.shape)
         np.save(
             os.path.join(dst, vid.split('.mp4')[0]),
             stacked
         )
-        # skvideo.io.vwrite(os.path.join(dst, vid), stacked)
+        # skvideo.io.vwrite(os.path.join("augmented", vid), stacked)
         gc.collect()
 
 
@@ -119,6 +119,15 @@ def preprocessing(
         if x.split("reduced_")[1].replace(".npy", "") in raw_labels
     ])
 
+    pass_vid = [
+        # 29 frames - more than 81 flickers
+        '95281FFBA0006K_video_0_a53ca302-6735-4bb1-914f-b05a14124a20_2',
+        # 110 frames - 125 flickers
+        '9C041FFBA0013V_video_0_aa4c2e7b-0813-4694-b673-9b7b8b8e0f89'
+        '04011FDD4000FC_video_3_fefe88a6-40ac-4a4a-84c8-c9ec25ef27b9'
+    ]
+    # embedding_path_list.remove(
+    #     'reduced_9C041FFBA0013V_video_0_aa4c2e7b-0813-4694-b673-9b7b8b8e0f89')
     embedding_list_train, embedding_list_test, _, _ = train_test_split(
         embedding_path_list,
         # dummy buffer just to split embedding_path_list
