@@ -59,7 +59,6 @@ def mov_dif_aug(
     https://github.com/dmlc/decord
     https://ottverse.com/change-resolution-resize-scale-video-using-ffmpeg/
     normalize frames later
-    9C041FFBA0013V_video_0_aa4c2e7b-0813-4694-b673-9b7b8b8e0f89
     """
     for vid in os.listdir(src):
         if os.path.exists(os.path.join(dst, vid.split('.mp4')[0]+'.npy')):
@@ -71,21 +70,10 @@ def mov_dif_aug(
             for frame in mvd
         ])
         nvm = frames.copy()
-        nvm = np.array([
-            cv2.normalize(img, None, alpha=0, beta=1,
-                          norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-            for img in mvd])
-
-        # vidcap = cv2.VideoCapture(os.path.join(src, vid))
-        # success, image = vidcap.read()
-        # frames = ()
-        # while success:
-        #     frames += (image,)
-        #     success, image = vidcap.read()
-        # frames = np.array(frames)
-        # print(vid, frames.shape)
-
-        # nvm = frames.copy()
+        # nvm = np.array([
+        #     cv2.normalize(img, None, alpha=0, beta=1,
+        #                   norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+        #     for img in mvd])
         frames = np.apply_along_axis(
             lambda f: (f*(255/f.max())).astype(np.uint16),
             axis=0, arr=np.diff(frames, axis=0).astype(np.uint16))
@@ -98,7 +86,7 @@ def mov_dif_aug(
             os.path.join(dst, vid.split('.mp4')[0]),
             stacked
         )
-        # skvideo.io.vwrite(os.path.join("augmented", vid), stacked)
+        skvideo.io.vwrite(os.path.join("augmented", vid), stacked)
         gc.collect()
 
 
@@ -119,15 +107,6 @@ def preprocessing(
         if x.split("reduced_")[1].replace(".npy", "") in raw_labels
     ])
 
-    pass_vid = [
-        # 29 frames - more than 81 flickers
-        '95281FFBA0006K_video_0_a53ca302-6735-4bb1-914f-b05a14124a20_2',
-        # 110 frames - 125 flickers
-        '9C041FFBA0013V_video_0_aa4c2e7b-0813-4694-b673-9b7b8b8e0f89'
-        '04011FDD4000FC_video_3_fefe88a6-40ac-4a4a-84c8-c9ec25ef27b9'
-    ]
-    # embedding_path_list.remove(
-    #     'reduced_9C041FFBA0013V_video_0_aa4c2e7b-0813-4694-b673-9b7b8b8e0f89')
     embedding_list_train, embedding_list_test, _, _ = train_test_split(
         embedding_path_list,
         # dummy buffer just to split embedding_path_list
@@ -136,12 +115,12 @@ def preprocessing(
         random_state=42
     )
     false_positives_vid = [
-        '17271FQCB00002_video_6',
-        'video_0B061FQCB00136_barbet_07-07-2022_00-05-51-678',
-        'video_0B061FQCB00136_barbet_07-07-2022_00-12-11-280',
-        'video_0B061FQCB00136_barbet_07-21-2022_15-37-32-891',
-        'video_0B061FQCB00136_barbet_07-21-2022_14-17-42-501',
-        'video_03121JEC200057_sunfish_07-06-2022_23-18-35-286'
+        'reduced_17271FQCB00002_video_6',
+        'reduced_video_0B061FQCB00136_barbet_07-07-2022_00-05-51-678',
+        'reduced_video_0B061FQCB00136_barbet_07-07-2022_00-12-11-280',
+        'reduced_video_0B061FQCB00136_barbet_07-21-2022_15-37-32-891',
+        'reduced_video_0B061FQCB00136_barbet_07-21-2022_14-17-42-501',
+        'reduced_video_03121JEC200057_sunfish_07-06-2022_23-18-35-286'
     ]
     embedding_list_test += false_positives_vid
     embedding_list_val = embedding_list_test

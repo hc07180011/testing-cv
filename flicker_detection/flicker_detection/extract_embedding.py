@@ -277,20 +277,20 @@ def main():
     # ds_test = Streamer(embedding_list_test, label_path,
     #                    mapping_path, data_path, mem_split=1, batch_size=256, keras=True)
 
-    if args.train:
-        logging.info("[Training] Start ...")
-        training(
-            ds_train,
-            ds_val,
-        )
-        logging.info("[Training] done.")
-    if args.test:
-        logging.info("[Testing] start ...")
-        testing(
-            ds_test,
-            "h5_models/test.h5"
-        )
-        logging.info("[Testing] done.")
+    # if args.train:
+    #     logging.info("[Training] Start ...")
+    #     training(
+    #         ds_train,
+    #         ds_val,
+    #     )
+    #     logging.info("[Training] done.")
+    # if args.test:
+    #     logging.info("[Testing] start ...")
+    #     testing(
+    #         ds_test,
+    #         "h5_models/test.h5"
+    #     )
+    #     logging.info("[Testing] done.")
 
 
 if __name__ == "__main__":

@@ -321,7 +321,7 @@ class Streamer(object):
 class VideoLoader(object):
     def __init__(
         self,
-        embedding_list_train: list,
+        vid_list: list,
         label_path: str,
         data_dir: str,
         chunk_size: int,
@@ -332,7 +332,7 @@ class VideoLoader(object):
         norm: bool = False
     ) -> None:
         self.raw_labels = json.load(open(label_path, "r"))
-        self.embedding_list_train = self.to_process = embedding_list_train
+        self.vid_list = self.to_process = vid_list
         self.data_dir = data_dir
 
         self.chunk_size = chunk_size
@@ -440,8 +440,8 @@ class VideoLoader(object):
         return self.start_idx, self.end_idx
 
     def _shuffle(self) -> None:
-        random.shuffle(self.embedding_list_train)
-        self.to_process = self.embedding_list_train
+        random.shuffle(self.vid_list)
+        self.to_process = self.vid_list
         gc.collect()
 
     @staticmethod
@@ -508,7 +508,7 @@ if __name__ == "__main__":
     sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=7)
 
     vl = VideoLoader(
-        embedding_list_train=embedding_list_train,
+        vid_list=embedding_list_train,
         label_path=label_path,
         data_dir=data_dir,
         chunk_size=11,
