@@ -13,7 +13,6 @@ import skvideo.io
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import NearMiss
 from imblearn.pipeline import Pipeline
-from sklearn.decomposition import IncrementalPCA
 from torch.utils.data import Dataset, DataLoader
 from typing import Callable, Tuple
 
@@ -196,10 +195,10 @@ class Streamer(object):
             # print(f"{key}")
             # real_filename = self.encoding_filename_mapping[key.replace(
             #     ".npy", "")]
-            real_filename = key.replace("reduced_", "").replace(".npy", "")
+            real_filename = key.replace("reduced_", "").replace(".mp4", "")
             loaded = np.load(
-                "{}.npy".format(os.path.join(
-                    self.data_dir, key.replace(".npy", "")))
+                "{}".format(os.path.join(
+                    self.data_dir, key))
             )
             if mov_dif:
                 loaded = self._mov_dif_chunks(loaded)
@@ -341,12 +340,11 @@ class VideoLoader(object):
         self.mov = mov
         self.norm = norm
 
-        self.pidx = shape[0]
         self.start_idx = self.end_idx = 0
 
         self.cache_x = np.zeros(shape)
         self.cache_y = np.zeros(shape[0])
-        self.out_sequence = self.out_x = self.out_y = ()
+        self.out_sequence = self.out_x = self.out_y = []
 
     def __len__(self) -> int:
         return len(self.out_sequence)
@@ -364,29 +362,31 @@ class VideoLoader(object):
             # self.out_x.fill(0)
             # self.out_y.fill(0)
             self._load(self.to_process.tolist())
-            self.out_x += self._chunking(
+            self.out_x.extend(self._chunking(
                 self.cache_x,
                 self.out_sequence,
                 self.chunk_size
-            )
+            ))
             self.out_sequence = list(self.out_sequence)
-            self.out_x, self.out_y = np.array(
-                self.out_x), self.cache_y[self.out_sequence]
+            # self.out_x, self.out_y = np.array(
+            #     self.out_x), self.cache_y[self.out_sequence]
             if self.sampler and np.any(self.out_y) == 1:
                 self.out_x, self.out_y = self._sampling(
                     self.out_x,
                     self.out_y,
                     self.sampler
                 )
-            self.pidx = 0
             random.shuffle(self.out_sequence)
             gc.collect()
 
-        X = self.out_x[self.pidx:(self.pidx+self.batch_size) if (
-            self.pidx + self.batch_size) < len(self.out_sequence) else -1]
-        y = self.out_y[self.pidx:(self.pidx+self.batch_size) if (
-            self.pidx + self.batch_size) < len(self.out_sequence) else -1]
-        self.pidx += self.batch_size
+        X = self.out_x[:self.batch_size if self.batch_size <
+                       len(self.out_x) else -1]
+        y = self.out_y[:self.batch_size if self.batch_size <
+                       len(self.out_y) else -1]
+        del self.out_x[:self.batch_size if self.batch_size <
+                       len(self.out_x) else -1]
+        del self.out_y[:self.batch_size if self.batch_size <
+                       len(self.out_y) else -1]
         return torch.from_numpy(X), torch.from_numpy(y)
 
     def _load(
@@ -397,42 +397,47 @@ class VideoLoader(object):
         while videos:
             vid = videos.pop(0)
             print("WTF", vid)
+
             if vid in repeated:
                 break
-            loaded = np.load(
+            loaded = skvideo.io.vread(
                 os.path.join(self.data_dir, vid)
             ).astype(np.uint8)
 
+            print("BUFFER", self.start_idx + self.end_idx + self.chunk_size//2,
+                  self.start_idx + self.end_idx + self.chunk_size//2 + loaded.shape[0], self.cache_x.shape[0])
+
+            if self.start_idx + self.end_idx + self.chunk_size//2 + loaded.shape[0] > self.cache_x.shape[0]:
+                break
+
             flicker_idxs = np.array(
                 self.raw_labels[vid.replace(
-                    "reduced_", "").replace(".npy", "")],
+                    "reduced_", "").replace(".mp4", "")],
                 dtype=np.uint16) - 1
             buf_label = np.zeros(loaded.shape[0], dtype=np.uint16)
-            print("labels", buf_label.shape, flicker_idxs)
             buf_label[flicker_idxs.tolist()] = 1
+
+            if self.start_idx + self.end_idx + self.chunk_size//2 < self.cache_x.shape[0]\
+                    and self.start_idx + self.end_idx + self.chunk_size//2 + loaded.shape[0] > self.cache_x.shape[0]:
+                videos += [vid]
+                repeated += (vid,)
+                continue
 
             self.start_idx += self.end_idx + self.chunk_size//2
             self.end_idx = self.start_idx + loaded.shape[0]
 
-            print("buffer", self.end_idx, self.cache_x.shape[0])
-            if self.end_idx > self.cache_x.shape[0]:
-                videos += [vid]
-                repeated += (vid,)
-                # print("repeated", repeated)
-                continue
-
             self.cache_y[self.start_idx:self.end_idx] = buf_label
             self.cache_x[self.start_idx:self.end_idx] = loaded
 
-            self.out_sequence += tuple(np.array([
+            self.out_sequence.extend(np.array([
                 tuple(range(i-self.chunk_size//2, i+self.chunk_size//2))
                 for i in range(self.start_idx, self.end_idx) if self.cache_y[i] == 1
             ]).flatten().tolist())
 
-            self.out_sequence += tuple(
+            self.out_sequence.extend([
                 i for i in range(self.start_idx, self.end_idx)
                 if i not in self.out_sequence
-            )
+            ])
 
         self.start_idx = self.end_idx = 0
         self.to_process = np.array(repeated)
@@ -449,18 +454,18 @@ class VideoLoader(object):
         X: np.ndarray,
         idx: list,
         chunk_size: int
-    ) -> tuple:
-        return tuple(
+    ) -> list:
+        return [
             X[i-chunk_size//2:(i+1)+chunk_size//2]
             for i in idx
-        )
+        ]
 
     @staticmethod
     def _sampling(
-        X_train: np.array,
-        y_train: np.array,
+        X_train: np.ndarray,
+        y_train: np.ndarray,
         sampler: Callable,
-    ) -> Tuple[np.array, np.array]:
+    ) -> Tuple[np.ndarray, np.ndarray]:
         if isinstance(sampler, list):
             sampler = Pipeline(sampler)
         original_X_shape = X_train.shape
@@ -495,9 +500,41 @@ class VideoLoader(object):
             axis=0, arr=arr)
 
 
+class Loader(object):
+    def __init__(
+        self,
+        data_dir: str,
+        batch_size: int,
+        sampler: Callable,
+    ) -> None:
+        self.data_dir = data_dir
+        self.batch_size = batch_size
+        self.sampler = sampler
+        self.out_x = self.out_y = []
+
+    def __len__(self) -> int:
+        return 
+
+    def __iter__(self):
+        return self
+
+    def __next__(self) -> Tuple[torch.Tensor, torch.Tensor]:
+        if True:
+            gc.collect()
+            raise StopIteration
+        
+        if True:
+            pass
+            
+        return
+    
+    def _shuffle(self)->None:
+        pass
+
+
 if __name__ == "__main__":
     label_path = "../data/new_label.json"
-    data_dir = "../data/meta_data"
+    data_dir = "../data/augmented"
     cache_path = "../.cache/train_test"
     mapping_path = "../data/mapping.json"
     __cache__ = np.load(
@@ -513,7 +550,7 @@ if __name__ == "__main__":
         data_dir=data_dir,
         chunk_size=11,
         batch_size=256,
-        shape=(10000, 380, 360, 3),
+        shape=(12000, 360, 360, 3),
         sampler=None,
         mov=False,
         norm=False

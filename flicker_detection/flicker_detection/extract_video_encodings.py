@@ -2,6 +2,8 @@ import os
 import av
 import gc
 import json
+import logging
+import tqdm
 import cv2
 import numpy as np
 import pandas as pd
@@ -10,6 +12,7 @@ import torchvision.transforms as transforms
 from sklearn.model_selection import train_test_split
 from argparse import ArgumentParser
 from typing import Tuple
+from mypyfunc.logger import init_logger
 
 
 def get_pts(
@@ -52,41 +55,49 @@ def test_frame_extraction(inpath: str, outpath: str) -> None:
 def mov_dif_aug(
     src: str,
     dst: str,
-    res: tuple = (200, 200)
+    labels: dict,
+    chunk_size: int,
+    shape: tuple
 ) -> None:
     """
     http://www.scikit-video.org/stable/io.html
     https://github.com/dmlc/decord
     https://ottverse.com/change-resolution-resize-scale-video-using-ffmpeg/
     normalize frames later
+    ffmpeg -i 0096.mp4 -vf scale=-1:512 frame_%d.jpg
     """
-    for vid in os.listdir(src):
-        if os.path.exists(os.path.join(dst, vid.split('.mp4')[0]+'.npy')):
+    w_chunk = np.zeros((chunk_size,)+shape, dtype=np.uint8)
+    for vid in tqdm.tqdm(os.listdir(src)):
+        if os.path.exists(os.path.join(dst, vid)):
             continue
+        # frames = skvideo.io.vread(os.path.join(src, vid)).astype(np.uint8)
 
-        mvd = skvideo.io.vread(os.path.join(src, vid))
-        frames = np.array([
-            cv2.resize(frame, dsize=res, interpolation=cv2.INTER_CUBIC)
-            for frame in mvd
-        ])
-        nvm = frames.copy()
-        # nvm = np.array([
-        #     cv2.normalize(img, None, alpha=0, beta=1,
-        #                   norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-        #     for img in mvd])
-        frames = np.apply_along_axis(
-            lambda f: (f*(255/f.max())).astype(np.uint16),
-            axis=0, arr=np.diff(frames, axis=0).astype(np.uint16))
+        cur = 0
+        vidcap = cv2.VideoCapture(os.path.join(src, vid))
+        success, frame = vidcap.read()
+        while success:
+            w_chunk[cur % chunk_size] = frame
+            cur += 1
+            idx = [i % chunk_size for i in range(cur-chunk_size, cur)]
+            if cur in labels[vid.replace("reduced_", "").replace(".mp4", "")]:
+                idx = [i % chunk_size for i in range(
+                    cur-chunk_size//2,
+                    cur+1+chunk_size//2
+                )]
 
-        stacked = np.array([
-            np.hstack((norm, mov))
-            for norm, mov in zip(nvm, frames)
-        ])
-        np.save(
-            os.path.join(dst, vid.split('.mp4')[0]),
-            stacked
-        )
-        skvideo.io.vwrite(os.path.join("augmented", vid), stacked)
+            mov = np.apply_along_axis(
+                lambda f: (f*(255/f.max())).astype(np.uint8),
+                axis=0, arr=np.diff(w_chunk[idx], axis=0).astype(np.uint8)
+            )
+            stacked = np.array([
+                np.hstack((norm, mov))
+                for norm, mov in zip(w_chunk[idx], mov)
+            ])
+            skvideo.io.vwrite(
+                os.path.join(dst, f"{cur}_"+vid.replace("reduced_", "")),
+                stacked
+            )
+            success, frame = vidcap.read()
         gc.collect()
 
 
@@ -103,10 +114,10 @@ def preprocessing(
     raw_labels = json.load(open(label_path, "r"))
 
     embedding_path_list = sorted([
-        x for x in os.listdir(data_dir)
-        if x.split("reduced_")[1].replace(".npy", "") in raw_labels
+        x.replace(".mp4", "").split("_")[-1]
+        for x in os.listdir(data_dir)
+        if x.replace(".mp4", "").split("_")[-1] in raw_labels
     ])
-
     embedding_list_train, embedding_list_test, _, _ = train_test_split(
         embedding_path_list,
         # dummy buffer just to split embedding_path_list
@@ -115,12 +126,12 @@ def preprocessing(
         random_state=42
     )
     false_positives_vid = [
-        'reduced_17271FQCB00002_video_6',
-        'reduced_video_0B061FQCB00136_barbet_07-07-2022_00-05-51-678',
-        'reduced_video_0B061FQCB00136_barbet_07-07-2022_00-12-11-280',
-        'reduced_video_0B061FQCB00136_barbet_07-21-2022_15-37-32-891',
-        'reduced_video_0B061FQCB00136_barbet_07-21-2022_14-17-42-501',
-        'reduced_video_03121JEC200057_sunfish_07-06-2022_23-18-35-286'
+        '17271FQCB00002_video_6',
+        'video_0B061FQCB00136_barbet_07-07-2022_00-05-51-678',
+        'video_0B061FQCB00136_barbet_07-07-2022_00-12-11-280',
+        'video_0B061FQCB00136_barbet_07-21-2022_15-37-32-891',
+        'video_0B061FQCB00136_barbet_07-21-2022_14-17-42-501',
+        'video_03121JEC200057_sunfish_07-06-2022_23-18-35-286'
     ]
     embedding_list_test += false_positives_vid
     embedding_list_val = embedding_list_test
@@ -142,23 +153,23 @@ def preprocessing(
 
 def command_arg() -> ArgumentParser:
     parser = ArgumentParser()
-    parser.add_argument('--label_path', type=str, default="new_label.json",
+    parser.add_argument('--label_path', type=str, default="data/new_label.json",
                         help='path of json that store the labeled frames')
-    parser.add_argument('--mapping_path', type=str, default="mapping.json",
+    parser.add_argument('--mapping_path', type=str, default="data/mapping.json",
                         help='path of json that maps encrpypted video file name to simple naming')
-    parser.add_argument('--data_dir', type=str, default="meta_data",
+    parser.add_argument('--data_dir', type=str, default="data/meta_data",
                         help='directory of extracted feature embeddings')
-    parser.add_argument('--cache_path', type=str, default="../.cache/train_test",
+    parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
-    parser.add_argument('--videos_path', type=str, default="lower_res",
+    parser.add_argument('--videos_path', type=str, default="data/lower_res",
                         help='src directory to extract embeddings from')
     parser.add_argument(
-        "-train", "--train", action="store_true",
+        "-preprocess", "--preprocess", action="store_true",
         default=False,
         help="Whether to do training"
     )
     parser.add_argument(
-        "-test", "--test", action="store_true",
+        "-split", "--split", action="store_true",
         default=False,
         help="Whether to do testing"
     )
@@ -166,15 +177,22 @@ def command_arg() -> ArgumentParser:
 
 
 if __name__ == "__main__":
+    init_logger()
     args = command_arg()
     videos_path, label_path, mapping_path, data_path, cache_path = args.videos_path, args.label_path, args.mapping_path, args.data_dir, args.cache_path
-    mov_dif_aug(
-        videos_path,
-        data_path,
-        res=(180, 380)
-    )
-    preprocessing(
-        label_path,
-        data_path,
-        cache_path,
-    )
+    if args.preprocess:
+        labels = json.load(open(label_path, "r"))
+        mov_dif_aug(
+            videos_path,
+            data_path,
+            labels,
+            chunk_size=31,
+            shape=(360, 180, 3)
+        )
+
+    if args.split:
+        preprocessing(
+            label_path,
+            data_path,
+            cache_path,
+        )
