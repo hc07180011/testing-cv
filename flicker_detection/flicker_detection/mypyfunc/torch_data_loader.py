@@ -317,189 +317,6 @@ class Streamer(object):
         return X, y
 
 
-class VideoLoader(object):
-    def __init__(
-        self,
-        vid_list: list,
-        label_path: str,
-        data_dir: str,
-        chunk_size: int,
-        batch_size: int,
-        shape: tuple,
-        sampler: Callable = None,
-        mov: bool = False,
-        norm: bool = False
-    ) -> None:
-        self.raw_labels = json.load(open(label_path, "r"))
-        self.vid_list = self.to_process = vid_list
-        self.data_dir = data_dir
-
-        self.chunk_size = chunk_size
-        self.batch_size = batch_size
-        self.sampler = sampler
-        self.mov = mov
-        self.norm = norm
-
-        self.start_idx = self.end_idx = 0
-
-        self.cache_x = np.zeros(shape)
-        self.cache_y = np.zeros(shape[0])
-        self.out_sequence = self.out_x = self.out_y = []
-
-    def __len__(self) -> int:
-        return len(self.out_sequence)
-
-    def __iter__(self):
-        return self
-
-    def __next__(self) -> Tuple[torch.Tensor, torch.Tensor]:
-        if self.pidx > len(self.out_sequence) and len(self.to_process) == 1:
-            gc.collect()
-            raise StopIteration
-
-        if self.pidx > len(self.out_sequence):
-            # TO DO fix me need to refresh cache with empty tensor
-            # self.out_x.fill(0)
-            # self.out_y.fill(0)
-            self._load(self.to_process.tolist())
-            self.out_x.extend(self._chunking(
-                self.cache_x,
-                self.out_sequence,
-                self.chunk_size
-            ))
-            self.out_sequence = list(self.out_sequence)
-            # self.out_x, self.out_y = np.array(
-            #     self.out_x), self.cache_y[self.out_sequence]
-            if self.sampler and np.any(self.out_y) == 1:
-                self.out_x, self.out_y = self._sampling(
-                    self.out_x,
-                    self.out_y,
-                    self.sampler
-                )
-            random.shuffle(self.out_sequence)
-            gc.collect()
-
-        X = self.out_x[:self.batch_size if self.batch_size <
-                       len(self.out_x) else -1]
-        y = self.out_y[:self.batch_size if self.batch_size <
-                       len(self.out_y) else -1]
-        del self.out_x[:self.batch_size if self.batch_size <
-                       len(self.out_x) else -1]
-        del self.out_y[:self.batch_size if self.batch_size <
-                       len(self.out_y) else -1]
-        return torch.from_numpy(X), torch.from_numpy(y)
-
-    def _load(
-        self,
-        videos: list
-    ) -> Tuple[int, int]:
-        repeated = ()
-        while videos:
-            vid = videos.pop(0)
-            print("WTF", vid)
-
-            if vid in repeated:
-                break
-            loaded = skvideo.io.vread(
-                os.path.join(self.data_dir, vid)
-            ).astype(np.uint8)
-
-            print("BUFFER", self.start_idx + self.end_idx + self.chunk_size//2,
-                  self.start_idx + self.end_idx + self.chunk_size//2 + loaded.shape[0], self.cache_x.shape[0])
-
-            if self.start_idx + self.end_idx + self.chunk_size//2 + loaded.shape[0] > self.cache_x.shape[0]:
-                break
-
-            flicker_idxs = np.array(
-                self.raw_labels[vid.replace(
-                    "reduced_", "").replace(".mp4", "")],
-                dtype=np.uint16) - 1
-            buf_label = np.zeros(loaded.shape[0], dtype=np.uint16)
-            buf_label[flicker_idxs.tolist()] = 1
-
-            if self.start_idx + self.end_idx + self.chunk_size//2 < self.cache_x.shape[0]\
-                    and self.start_idx + self.end_idx + self.chunk_size//2 + loaded.shape[0] > self.cache_x.shape[0]:
-                videos += [vid]
-                repeated += (vid,)
-                continue
-
-            self.start_idx += self.end_idx + self.chunk_size//2
-            self.end_idx = self.start_idx + loaded.shape[0]
-
-            self.cache_y[self.start_idx:self.end_idx] = buf_label
-            self.cache_x[self.start_idx:self.end_idx] = loaded
-
-            self.out_sequence.extend(np.array([
-                tuple(range(i-self.chunk_size//2, i+self.chunk_size//2))
-                for i in range(self.start_idx, self.end_idx) if self.cache_y[i] == 1
-            ]).flatten().tolist())
-
-            self.out_sequence.extend([
-                i for i in range(self.start_idx, self.end_idx)
-                if i not in self.out_sequence
-            ])
-
-        self.start_idx = self.end_idx = 0
-        self.to_process = np.array(repeated)
-        gc.collect()
-        return self.start_idx, self.end_idx
-
-    def _shuffle(self) -> None:
-        random.shuffle(self.vid_list)
-        self.to_process = self.vid_list
-        gc.collect()
-
-    @staticmethod
-    def _chunking(
-        X: np.ndarray,
-        idx: list,
-        chunk_size: int
-    ) -> list:
-        return [
-            X[i-chunk_size//2:(i+1)+chunk_size//2]
-            for i in idx
-        ]
-
-    @staticmethod
-    def _sampling(
-        X_train: np.ndarray,
-        y_train: np.ndarray,
-        sampler: Callable,
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        if isinstance(sampler, list):
-            sampler = Pipeline(sampler)
-        original_X_shape = X_train.shape
-        X_train, y_train = sampler.fit_resample(
-            np.reshape(X_train, (-1, np.prod(original_X_shape[1:]))),
-            y_train
-        )
-        X_train = np.reshape(X_train, (-1,) + original_X_shape[1:])
-        return X_train, y_train
-
-    @staticmethod
-    def _mov_div(arr: np.ndarray) -> np.ndarray:
-        arr = cv2.resize(
-            arr,
-            dsize=(*np.array(arr.shape)//2,),
-            interpolation=cv2.INTER_CUBIC
-        )
-        arr = np.diff(arr, axis=0).astype(np.uint8)
-        return np.apply_along_axis(
-            lambda frame: (frame*(255/frame.max())).astype(np.uint8),
-            axis=0, arr=arr)
-
-    @staticmethod
-    def _norm(arr: np.ndarray) -> np.ndarray:
-        arr = cv2.resize(
-            arr,
-            dsize=(*np.array(arr.shape)//2,),
-            interpolation=cv2.INTER_CUBIC
-        )
-        return np.apply_along_axis(
-            lambda frame: (frame - frame.mean())/frame.std().astype(np.uint8),
-            axis=0, arr=arr)
-
-
 class Loader(object):
     def __init__(
         self,
@@ -519,7 +336,12 @@ class Loader(object):
         self.non_flicker_lst = os.listdir(non_flicker_dir)
         self.flicker_lst = os.listdir(flicker_dir)
 
-        self.out_x = self.out_y = None
+        self.manager = mp.Manager()
+        self.producer_q = self.manager.Queue()
+        self.out_x = self.manager.Queue()
+        self.out_y = self.manager.Queue()
+        self.lock = self.manager.Lock()
+        self.event = mp.Event()
 
     def __len__(self) -> int:
         return len(self.non_flicker_lst) // ((self.batch_size//2)*self.in_mem_batches) + 1
@@ -528,12 +350,15 @@ class Loader(object):
         return self
 
     def __next__(self) -> Tuple[torch.Tensor, torch.Tensor]:
-        print(self.batch_size, len(self.non_flicker_lst))
+        print("EPOCH STOP CONDITION ", self.batch_idx, len(self.non_flicker_lst))
         if self.batch_idx > len(self.non_flicker_lst):
             gc.collect()
             raise StopIteration
 
         if not bool(self.cur_batch):
+            self.event.set()
+            self.event = mp.Event()
+
             non_flickers = [
                 os.path.join(self.non_flicker_dir,
                              self.non_flicker_lst[i % len(self.non_flicker_lst)])
@@ -546,49 +371,89 @@ class Loader(object):
             ]
             chunk_lst = non_flickers + flickers
             random.shuffle(chunk_lst)
-            self.out_x, self.out_y = self._load(
-                chunk_lst,
-                self.batch_size,
-                self.in_mem_batches,
-                self.labels
-            )
+            self._load(chunk_lst)
             self.cur_batch = self.in_mem_batches
             self.batch_idx = self.batch_idx + \
                 (self.batch_size//2)*self.in_mem_batches
             gc.collect()
 
         self.cur_batch -= 1
-        return torch.from_numpy(self.out_x.pop()), torch.from_numpy(self.out_y.pop())
+        X, y = self.out_x.get(), self.out_y.get()
+        return torch.from_numpy(X.astype(np.float32)), torch.from_numpy(y.astype(np.uint8))
 
     def _shuffle(self) -> None:
         random.shuffle(self.non_flicker_lst)
         random.shuffle(self.flicker_lst)
         gc.collect()
 
-    @staticmethod
     def _load(
+        self,
         chunk_lst: list,
-        batch_size: int,
-        in_mem_batches: int,
-        labels: dict,
     ) -> tuple:
-        cur_idx = 0
-        out_x = out_y = []
-        for _ in range(in_mem_batches):
-            x = y = ()
-            for path in chunk_lst[cur_idx:cur_idx+batch_size]:
-                idx, vid_name = path.split(
-                    "/")[3].replace(".mp4", "").split("_", 1)
-                y += (int(idx in labels[vid_name]),)
-                x += (skvideo.io.vread(path),)
+        split = np.split(np.array(chunk_lst), self.in_mem_batches)
+        producers = tuple(
+            mp.Process(
+                target=self._producers,
+                args=(chunk, self.labels, self.producer_q, self.lock)
+            )
+            for _, chunk in zip(range(self.in_mem_batches), split)
+        )
+        consumers = tuple(mp.Process(
+            target=self._consumers,
+            args=(self.producer_q, self.out_x, self.out_y,
+                  self.batch_size, self.lock, self.event))
+            for _ in range(os.cpu_count()-self.in_mem_batches)
+        )
+        for c in consumers:
+            c.daemon = True
+            c.start()
 
-            out_y.extend([np.array(y)])
-            out_x.extend([np.array(x)])
-            cur_idx += batch_size
-            gc.collect()
-        #     print(_)
-        # print("Loaded........")
-        return out_x, out_y
+        for p in producers:
+            p.start()
+        for p in producers:
+            p.join()
+        for p in producers:
+            p.close()
+
+        # for c in consumers:
+        #     c.kill()
+        print("LOADED")
+
+    @staticmethod
+    def _producers(
+        cur_batch_lst: list,
+        labels: dict,
+        producer_q: mp.Queue,
+        lock: mp.Lock,
+    ) -> None:
+        for path in cur_batch_lst:
+            idx, vid_name = path.split(
+                "/")[3].replace(".mp4", "").split("_", 1)
+            producer_q.put(
+                (int(idx in labels[vid_name]), skvideo.io.vread(path)))
+            with lock:
+                print(f"PRODUCER {vid_name} {os.getpid()}")
+
+    @staticmethod
+    def _consumers(
+        q: mp.Queue,
+        out_x: mp.Queue,
+        out_y: mp.Queue,
+        batch_size: int,
+        lock: mp.Lock,
+        event: mp.Event
+    ) -> None:
+        X = y = ()
+        while not event.is_set():
+            if len(X) == len(y) == batch_size:
+                out_x.put(np.array(X))
+                out_y.put(np.array(y))
+                X = y = ()
+                with lock:
+                    print(f"CONSUMER NEW BATCH {os.getpid()}")
+            label, input = q.get()
+            X += (input,)
+            y += (label,)
 
 
 if __name__ == "__main__":
@@ -608,7 +473,7 @@ if __name__ == "__main__":
         flicker_dir=flicker_dir,
         labels=labels,
         batch_size=256,
-        in_mem_batches=3
+        in_mem_batches=os.cpu_count()-2
     )
     for x, y in ds_train:
-        print(x.shape, y.shape)
+        print("OUTPUT SHAPE", x.shape, y.shape)
