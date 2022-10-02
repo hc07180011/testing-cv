@@ -52,6 +52,19 @@ def test_frame_extraction(inpath: str, outpath: str) -> None:
             .save("{}_{}_{:.2f}.jpg".format(outpath, int(frame.index), fts))
 
 
+def flicker_chunk(
+    src: str,
+    dst: str,
+    labels: dict
+) -> None:
+    for chunk in os.listdir(src):
+        frame_idx, vid_name = chunk.replace(".mp4", "").split("_", 1)
+        if int(frame_idx) in labels[vid_name]:
+            logging.debug(
+                f"{os.path.join(src, chunk)} - {os.path.join(dst, chunk)}")
+            os.replace(os.path.join(src, chunk), os.path.join(dst, chunk))
+
+
 def mov_dif_aug(
     src: str,
     dst: str,
@@ -66,9 +79,11 @@ def mov_dif_aug(
     normalize frames later
     ffmpeg -i 0096.mp4 -vf scale=-1:512 frame_%d.jpg
     """
+    dst_vid = [vid.split("_", 1)[1].replace(".mp4", "")
+               for vid in os.listdir(dst)]
     w_chunk = np.zeros((chunk_size,)+shape, dtype=np.uint8)
     for vid in tqdm.tqdm(os.listdir(src)):
-        if os.path.exists(os.path.join(dst, vid)):
+        if vid.replace(".mp4", "").replace("reduced_", "") in dst_vid:
             continue
         # frames = skvideo.io.vread(os.path.join(src, vid)).astype(np.uint8)
 
@@ -102,8 +117,8 @@ def mov_dif_aug(
 
 
 def preprocessing(
-    label_path: str,
-    data_dir: str,
+    flicker_dir: str,
+    non_flicker_dir: str,
     cache_path: str,
 ) -> Tuple[np.ndarray, np.ndarray]:
 
@@ -111,20 +126,6 @@ def preprocessing(
         __cache__ = np.load("/{}.npz".format(cache_path), allow_pickle=True)
         return tuple(__cache__[k] for k in __cache__)
 
-    raw_labels = json.load(open(label_path, "r"))
-
-    embedding_path_list = sorted([
-        x.replace(".mp4", "").split("_")[-1]
-        for x in os.listdir(data_dir)
-        if x.replace(".mp4", "").split("_")[-1] in raw_labels
-    ])
-    embedding_list_train, embedding_list_test, _, _ = train_test_split(
-        embedding_path_list,
-        # dummy buffer just to split embedding_path_list
-        list(range(len(embedding_path_list))),
-        test_size=0.1,
-        random_state=42
-    )
     false_positives_vid = [
         '17271FQCB00002_video_6',
         'video_0B061FQCB00136_barbet_07-07-2022_00-05-51-678',
@@ -133,22 +134,41 @@ def preprocessing(
         'video_0B061FQCB00136_barbet_07-21-2022_14-17-42-501',
         'video_03121JEC200057_sunfish_07-06-2022_23-18-35-286'
     ]
-    embedding_list_test += false_positives_vid
-    embedding_list_val = embedding_list_test
+    flicker_lst = os.listdir(flicker_dir)
+    non_flicker_lst = [
+        x for x in os.listdir(non_flicker_dir)
+        if x.replace(".mp4", "").split("_")[-1] not in false_positives_vid
+    ]
+    fp_test = list(set(os.listdir(non_flicker_dir)) - set(non_flicker_lst))
 
-    embedding_list_train = list(
-        set(embedding_list_train) - set(embedding_list_test))
+    flicker_train, flicker_test, _, _ = train_test_split(
+        flicker_lst,
+        # dummy buffer just to split embedding_path_list
+        list(range(len(flicker_lst))),
+        test_size=0.1,
+        random_state=42
+    )
+    non_flicker_train, non_flicker_test, _, _ = train_test_split(
+        non_flicker_lst,
+        # dummy buffer just to split embedding_path_list
+        list(range(len(non_flicker_lst))),
+        test_size=0.1,
+        random_state=42
+    )
+    flicker_train += non_flicker_train
+    flicker_test = non_flicker_test + fp_test
+    flicker_val = flicker_test
 
-    length = max([len(embedding_list_test), len(
-        embedding_list_val), len(embedding_list_train)])
+    length = max([len(flicker_test), len(
+        flicker_val), len(flicker_train)])
     pd.DataFrame({
-        "train": tuple(embedding_list_train) + ("",) * (length - len(embedding_list_train)),
-        "val": tuple(embedding_list_val) + ("",) * (length - len(embedding_list_val)),
-        "test": tuple(embedding_list_test) + ("",) * (length - len(embedding_list_test))
+        "train": tuple(flicker_train) + ("",) * (length - len(flicker_train)),
+        "val": tuple(flicker_val) + ("",) * (length - len(flicker_val)),
+        "test": tuple(flicker_test) + ("",) * (length - len(flicker_test))
     }).to_csv("{}.csv".format(cache_path))
 
-    np.savez(cache_path, embedding_list_train,
-             embedding_list_val, embedding_list_test)
+    np.savez(cache_path, flicker_train,
+             flicker_val, flicker_test)
 
 
 def command_arg() -> ArgumentParser:
@@ -157,8 +177,10 @@ def command_arg() -> ArgumentParser:
                         help='path of json that store the labeled frames')
     parser.add_argument('--mapping_path', type=str, default="data/mapping.json",
                         help='path of json that maps encrpypted video file name to simple naming')
-    parser.add_argument('--data_dir', type=str, default="data/meta_data",
-                        help='directory of extracted feature embeddings')
+    parser.add_argument('--flicker_dir', type=str, default="data/flicker-chunks",
+                        help='directory of flicker videos')
+    parser.add_argument('--non_flicker_dir', type=str, default="data/meta-data",
+                        help='directory of flicker videos')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
     parser.add_argument('--videos_path', type=str, default="data/lower_res",
@@ -177,14 +199,36 @@ def command_arg() -> ArgumentParser:
 
 
 if __name__ == "__main__":
+    """
+    take difference between images and then vectorize or difference between vectors is also fine(standard for motion detection),
+    key is rapid changes between change, normalize them between 0 - 255,
+    use the difference of consecutive frames as data, or both (just concatenate the embeddings)
+    train end to end, integrate cnn with lstm, and do back prop for same loss function
+    smaller windows of variable frame rate should have few percent performance boost
+    need to verify smote
+    sliding window each frame is a data point
+    do not delete flicker frames for non flickers data points
+    divide by 255 to get range of 0,1 normalization(known cv preprocess, may not affect), multiply everything by 255 to rescale it and take floor/ ceeling
+    include flicker frames in non flicker video data ponts as well because testing data will not have data label
+    traiing should be as close as possible to testing(otherwise causes domain shifts network will not perform well)
+    just oversample by drawing to mini batch just make sure epochs dont have repeating minibatch
+    Use torch data loader
+    Anomaly detection
+    find state of art and compare for paper
+
+    25471 : 997
+    """
     init_logger()
     args = command_arg()
-    videos_path, label_path, mapping_path, data_path, cache_path = args.videos_path, args.label_path, args.mapping_path, args.data_dir, args.cache_path
+    videos_path, label_path, mapping_path, flicker_path, non_flicker_path, cache_path = args.videos_path, args.label_path, args.mapping_path, args.flicker_dir, args.non_flicker_dir, args.cache_path
+    labels = json.load(open(label_path, "r"))
+
+    # flicker_chunk(non_flicker_path, "data/flicker_chunks", labels)
+
     if args.preprocess:
-        labels = json.load(open(label_path, "r"))
         mov_dif_aug(
             videos_path,
-            data_path,
+            non_flicker_path,
             labels,
             chunk_size=31,
             shape=(360, 180, 3)
@@ -192,7 +236,7 @@ if __name__ == "__main__":
 
     if args.split:
         preprocessing(
-            label_path,
-            data_path,
+            flicker_path,
+            non_flicker_path,
             cache_path,
         )

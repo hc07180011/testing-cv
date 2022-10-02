@@ -503,33 +503,92 @@ class VideoLoader(object):
 class Loader(object):
     def __init__(
         self,
-        data_dir: str,
+        non_flicker_dir: str,
+        flicker_dir: str,
+        labels: dict,
         batch_size: int,
-        sampler: Callable,
+        in_mem_batches: int,
     ) -> None:
-        self.data_dir = data_dir
+        self.labels = labels
         self.batch_size = batch_size
-        self.sampler = sampler
-        self.out_x = self.out_y = []
+        self.batch_idx = self.cur_batch = 0
+        self.in_mem_batches = in_mem_batches
+
+        self.non_flicker_dir = non_flicker_dir
+        self.flicker_dir = flicker_dir
+        self.non_flicker_lst = os.listdir(non_flicker_dir)
+        self.flicker_lst = os.listdir(flicker_dir)
+
+        self.out_x = self.out_y = None
 
     def __len__(self) -> int:
-        return 
+        return len(self.non_flicker_lst) // ((self.batch_size//2)*self.in_mem_batches) + 1
 
     def __iter__(self):
         return self
 
     def __next__(self) -> Tuple[torch.Tensor, torch.Tensor]:
-        if True:
+        print(self.batch_size, len(self.non_flicker_lst))
+        if self.batch_idx > len(self.non_flicker_lst):
             gc.collect()
             raise StopIteration
-        
-        if True:
-            pass
-            
-        return
-    
-    def _shuffle(self)->None:
-        pass
+
+        if not bool(self.cur_batch):
+            non_flickers = [
+                os.path.join(self.non_flicker_dir,
+                             self.non_flicker_lst[i % len(self.non_flicker_lst)])
+                for i in range(self.batch_idx, self.batch_idx+(self.batch_size//2)*self.in_mem_batches)
+            ]
+            flickers = [
+                os.path.join(self.flicker_dir,
+                             self.flicker_lst[i % len(self.flicker_lst)])
+                for i in range(self.batch_idx, self.batch_idx+(self.batch_size//2)*self.in_mem_batches)
+            ]
+            chunk_lst = non_flickers + flickers
+            random.shuffle(chunk_lst)
+            self.out_x, self.out_y = self._load(
+                chunk_lst,
+                self.batch_size,
+                self.in_mem_batches,
+                self.labels
+            )
+            self.cur_batch = self.in_mem_batches
+            self.batch_idx = self.batch_idx + \
+                (self.batch_size//2)*self.in_mem_batches
+            gc.collect()
+
+        self.cur_batch -= 1
+        return torch.from_numpy(self.out_x.pop()), torch.from_numpy(self.out_y.pop())
+
+    def _shuffle(self) -> None:
+        random.shuffle(self.non_flicker_lst)
+        random.shuffle(self.flicker_lst)
+        gc.collect()
+
+    @staticmethod
+    def _load(
+        chunk_lst: list,
+        batch_size: int,
+        in_mem_batches: int,
+        labels: dict,
+    ) -> tuple:
+        cur_idx = 0
+        out_x = out_y = []
+        for _ in range(in_mem_batches):
+            x = y = ()
+            for path in chunk_lst[cur_idx:cur_idx+batch_size]:
+                idx, vid_name = path.split(
+                    "/")[3].replace(".mp4", "").split("_", 1)
+                y += (int(idx in labels[vid_name]),)
+                x += (skvideo.io.vread(path),)
+
+            out_y.extend([np.array(y)])
+            out_x.extend([np.array(x)])
+            cur_idx += batch_size
+            gc.collect()
+        #     print(_)
+        # print("Loaded........")
+        return out_x, out_y
 
 
 if __name__ == "__main__":
@@ -537,36 +596,19 @@ if __name__ == "__main__":
     data_dir = "../data/augmented"
     cache_path = "../.cache/train_test"
     mapping_path = "../data/mapping.json"
+    flicker_dir = "../data/flicker-chunks"
+    non_flicker_dir = "../data/meta-data"
     __cache__ = np.load(
         "{}.npz".format(cache_path), allow_pickle=True)
     embedding_list_train, embedding_list_val, embedding_list_test = tuple(
         __cache__[lst] for lst in __cache__)
-
-    sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=7)
-
-    vl = VideoLoader(
-        vid_list=embedding_list_train,
-        label_path=label_path,
-        data_dir=data_dir,
-        chunk_size=11,
+    labels = json.load(open(label_path, "r"))
+    ds_train = Loader(
+        non_flicker_dir=non_flicker_dir,
+        flicker_dir=flicker_dir,
+        labels=labels,
         batch_size=256,
-        shape=(12000, 360, 360, 3),
-        sampler=None,
-        mov=False,
-        norm=False
+        in_mem_batches=3
     )
-    ds_train = Streamer(
-        embedding_list_train,
-        label_path,
-        mapping_path,
-        data_dir,
-        mem_split=10,
-        chunk_size=11,
-        batch_size=256,
-        multiclass=False,
-        sampler=sm,
-        overlap_chunking=True,
-        moving_difference=False
-    )  # [('near_miss', nm), ('smote', sm)])
     for x, y in ds_train:
         print(x.shape, y.shape)

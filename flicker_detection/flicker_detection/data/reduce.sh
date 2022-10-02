@@ -17,3 +17,6 @@ ls -f | wc -l
 
 # measure memory size
 du -sh .
+
+# get free GB
+free -g -h -t
