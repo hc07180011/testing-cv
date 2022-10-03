@@ -102,7 +102,7 @@ class CNN_LSTM(LSTM):
         normalize=False,
         vocab_size: int = 0,
     ) -> None:
-        super.__init__(
+        super().__init__(
             input_dim=input_dim,
             output_dim=output_dim,
             hidden_dim=hidden_dim,
@@ -111,12 +111,12 @@ class CNN_LSTM(LSTM):
             normalize=normalize,
             vocab_size=vocab_size,
         )
-        super.initialization()
+        super().initialization()
         self.cnn = model(pretrained=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         out = self.cnn(x)
-        return super.forward(out)
+        return super().forward(out)
 
 
 """

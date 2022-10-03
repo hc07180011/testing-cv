@@ -139,7 +139,9 @@ def preprocessing(
         x for x in os.listdir(non_flicker_dir)
         if x.replace(".mp4", "").split("_")[-1] not in false_positives_vid
     ]
+    logging.debug(f"{non_flicker_lst}")
     fp_test = list(set(os.listdir(non_flicker_dir)) - set(non_flicker_lst))
+    logging.debug(f"{len(non_flicker_lst)} - {len(fp_test)}")
 
     flicker_train, flicker_test, _, _ = train_test_split(
         flicker_lst,
@@ -155,20 +157,24 @@ def preprocessing(
         test_size=0.1,
         random_state=42
     )
-    flicker_train += non_flicker_train
-    flicker_test = non_flicker_test + fp_test
-    flicker_val = flicker_test
 
-    length = max([len(flicker_test), len(
-        flicker_val), len(flicker_train)])
+    length = max([
+        len(fp_test),
+        len(flicker_train),
+        len(flicker_test),
+        len(non_flicker_train),
+        len(non_flicker_test)
+    ])
     pd.DataFrame({
-        "train": tuple(flicker_train) + ("",) * (length - len(flicker_train)),
-        "val": tuple(flicker_val) + ("",) * (length - len(flicker_val)),
-        "test": tuple(flicker_test) + ("",) * (length - len(flicker_test))
+        "flicker_train": tuple(flicker_train) + ("",) * (length - len(flicker_train)),
+        "non_flicker_train": tuple(non_flicker_train) + ("",) * (length - len(non_flicker_train)),
+        "flicker_test": tuple(flicker_test) + ("",) * (length - len(flicker_test)),
+        "non_flicker_test": tuple(non_flicker_test) + ("",) * (length - len(non_flicker_test)),
+        "fp_test": tuple(fp_test) + ("",) * (length - len(fp_test)),
     }).to_csv("{}.csv".format(cache_path))
 
-    np.savez(cache_path, flicker_train,
-             flicker_val, flicker_test)
+    np.savez(cache_path, flicker_train, non_flicker_train,
+             fp_test, flicker_test, non_flicker_test)
 
 
 def command_arg() -> ArgumentParser:

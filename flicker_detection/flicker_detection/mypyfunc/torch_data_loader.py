@@ -1,6 +1,7 @@
 import os
 import json
 import gc
+import string
 import tqdm
 import random
 import psutil
@@ -325,6 +326,8 @@ class Streamer(object):
 class Loader(object):
     def __init__(
         self,
+        non_flicker_lst: str,
+        flicker_lst: str,
         non_flicker_dir: str,
         flicker_dir: str,
         labels: dict,
@@ -336,10 +339,9 @@ class Loader(object):
         self.batch_idx = self.cur_batch = 0
         self.in_mem_batches = in_mem_batches
 
-        self.non_flicker_dir = non_flicker_dir
-        self.flicker_dir = flicker_dir
-        self.non_flicker_lst = os.listdir(non_flicker_dir)
-        self.flicker_lst = os.listdir(flicker_dir)
+        self.non_flicker_lst = [os.path.join(
+            non_flicker_dir, f) for f in non_flicker_lst]
+        self.flicker_lst = [os.path.join(flicker_dir, f) for f in flicker_lst]
 
         self.out_x = self.out_y = None
 
@@ -356,13 +358,11 @@ class Loader(object):
 
         if not bool(self.cur_batch):
             non_flickers = [
-                os.path.join(self.non_flicker_dir,
-                             self.non_flicker_lst[i % len(self.non_flicker_lst)])
+                self.non_flicker_lst[i % len(self.non_flicker_lst)]
                 for i in range(self.batch_idx, self.batch_idx+(self.batch_size//2)*self.in_mem_batches)
             ]
             flickers = [
-                os.path.join(self.flicker_dir,
-                             self.flicker_lst[i % len(self.flicker_lst)])
+                self.flicker_lst[i % len(self.flicker_lst)]
                 for i in range(self.batch_idx, self.batch_idx+(self.batch_size//2)*self.in_mem_batches)
             ]
             chunk_lst = non_flickers + flickers
@@ -398,9 +398,8 @@ class Loader(object):
         for _ in range(in_mem_batches):
             x = y = ()
             for path in chunk_lst[cur_idx:cur_idx+batch_size]:
-                idx, vid_name = path.split(
-                    "/")[3].replace(".mp4", "").split("_", 1)
-                print(vid_name)
+                idx, vid_name = path.replace(".mp4", "").split("_", 1)
+                # print(vid_name)
                 y += (int(idx in labels[vid_name]),)
                 x += (skvideo.io.vread(path),)
 
@@ -408,13 +407,15 @@ class Loader(object):
             out_x.extend([np.array(x)])
             cur_idx += batch_size
             # print(_)
-        print("Loaded........")
+        # print("Loaded........")
         return out_x, out_y
 
 
 class MultiProcessedLoader(object):
     def __init__(
         self,
+        non_flicker_lst: str,
+        flicker_lst: str,
         non_flicker_dir: str,
         flicker_dir: str,
         labels: dict,
@@ -429,8 +430,9 @@ class MultiProcessedLoader(object):
 
         self.non_flicker_dir = non_flicker_dir
         self.flicker_dir = flicker_dir
-        self.non_flicker_lst = os.listdir(non_flicker_dir)
-        self.flicker_lst = os.listdir(flicker_dir)
+        self.non_flicker_lst = [os.path.join(
+            non_flicker_dir, f) for f in non_flicker_lst]
+        self.flicker_lst = [os.path.join(flicker_dir, f) for f in flicker_lst]
 
         self.manager = mp.Manager()
         self.producer_q = self.manager.Queue()
@@ -466,13 +468,11 @@ class MultiProcessedLoader(object):
             self.event = mp.Event()
 
             non_flickers = [
-                os.path.join(self.non_flicker_dir,
-                             self.non_flicker_lst[i % len(self.non_flicker_lst)])
+                self.non_flicker_lst[i % len(self.non_flicker_lst)]
                 for i in range(self.batch_idx, self.batch_idx+(self.batch_size//2)*self.in_mem_batches)
             ]
             flickers = [
-                os.path.join(self.flicker_dir,
-                             self.flicker_lst[i % len(self.flicker_lst)])
+                self.flicker_lst[i % len(self.flicker_lst)]
                 for i in range(self.batch_idx, self.batch_idx+(self.batch_size//2)*self.in_mem_batches)
             ]
             chunk_lst = non_flickers + flickers
@@ -586,12 +586,16 @@ if __name__ == "__main__":
     mapping_path = "../data/mapping.json"
     flicker_dir = "../data/flicker-chunks"
     non_flicker_dir = "../data/meta-data"
+
     __cache__ = np.load(
         "{}.npz".format(cache_path), allow_pickle=True)
-    embedding_list_train, embedding_list_val, embedding_list_test = tuple(
+    flicker_train, non_flicker_train, fp_test, flicker_test, non_flicker_test = tuple(
         __cache__[lst] for lst in __cache__)
-    labels = json.load(open(label_path, "r"))
+    labels = json.load(open(label_path, 'rb'))
+
     ds_train = Loader(
+        non_flicker_lst=non_flicker_train,
+        flicker_lst=flicker_train,
         non_flicker_dir=non_flicker_dir,
         flicker_dir=flicker_dir,
         labels=labels,
@@ -601,15 +605,3 @@ if __name__ == "__main__":
 
     for x, y in ds_train:
         print("OUTPUT SHAPE", x.shape, y.shape)
-    # flicker_lst = [os.path.join(flicker_dir, f)
-    #                for f in os.listdir(flicker_dir)]
-    # non_flicker_lst = [os.path.join(non_flicker_dir, f)
-    #                    for f in os.listdir(non_flicker_dir)]
-    # flicker_lst = flicker_lst*(len(non_flicker_lst)//len(flicker_lst))
-    # print(len(flicker_lst), len(non_flicker_lst))
-    # print(flicker_lst)
-    # vl = VideoLoader(flicker_lst,
-    #                  ctx=[cpu(0)], shape=(30, 360, 360, 3), interval=1, skip=5, shuffle=0)
-    # print(len(vl))
-    # for input in vl:
-    #     print(input[0].shape)

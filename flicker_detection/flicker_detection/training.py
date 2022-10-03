@@ -1,19 +1,18 @@
 import os
 import json
 import logging
+import tqdm
 import torch
 import numpy as np
 import torchvision
 import torch.nn as nn
-from imblearn.over_sampling import SMOTE
-
 from typing import Callable, Tuple
 
 from argparse import ArgumentParser
 from mypyfunc.logger import init_logger
 from mypyfunc.torch_eval import F1Score, Evaluation
 from mypyfunc.torch_models import CNN_LSTM
-from mypyfunc.torch_data_loader import VideoLoader
+from mypyfunc.torch_data_loader import Loader, VideoLoader
 from mypyfunc.torch_utility import save_checkpoint, save_metrics, load_checkpoint, load_metrics, torch_seeding
 
 
@@ -38,7 +37,7 @@ def training(
         model.train()
 
         minibatch_loss_train, minibatch_f1 = 0, 0
-        for n_train, (input, labels) in enumerate(train_loader):
+        for n_train, (input, labels) in enumerate(tqdm.tqdm(train_loader)):
             input, labels = input.to(device), labels(device)
             output = model(input)
             loss = criterion(output, labels)
@@ -59,7 +58,7 @@ def training(
 
         with torch.no_grad():
             minibatch_loss_val, minibatch_f1_val = 0, 0
-            for n_val, (input, label) in enumerate(val_loader):
+            for n_val, (input, label) in enumerate(tqdm.tqdm(val_loader)):
                 input, label = input.to(device), label.to(device)
                 output = model(input)
                 loss = criterion(output, label)
@@ -96,30 +95,6 @@ def training(
     return model
 
 
-def command_arg() -> ArgumentParser:
-    parser = ArgumentParser()
-    parser.add_argument('--label_path', type=str, default="data/new_label.json",
-                        help='path of json that store the labeled frames')
-    parser.add_argument('--mapping_path', type=str, default="data/mapping.json",
-                        help='path of json that maps encrpypted video file name to simple naming')
-    parser.add_argument('--data_dir', type=str, default="data/vgg16_emb/",
-                        help='directory of extracted feature embeddings')
-    parser.add_argument('--cache_path', type=str, default=".cache/train_test",
-                        help='directory of miscenllaneous information')
-    parser.add_argument('--model_path', type=str, default="model0",
-                        help='directory to store model weights and bias')
-    parser.add_argument(
-        "-preprocess", "--preprocess", action="store_true",
-        default=False, help="Whether to perform IPCA")
-    parser.add_argument(
-        "-train", "--train", action="store_true",
-        default=False, help="Whether to do training")
-    parser.add_argument(
-        "-test", "--test", action="store_true",
-        default=False, help="Whether to do testing")
-    return parser.parse_args()
-
-
 def testing(
     test_loader: VideoLoader,
     model: nn.Module,
@@ -134,7 +109,7 @@ def testing(
     model.eval()
     y_pred, y_true = (), ()
     with torch.no_grad():
-        for (input, label) in test_loader:
+        for (input, label) in tqdm.tqdm(test_loader):
             input, label = input.to(device), label.to(device)
             output = model(input)
             y_pred += (objective(output),)
@@ -165,9 +140,30 @@ def testing(
     metrics.report(y_true, y_classes)
 
 
+def command_arg() -> ArgumentParser:
+    parser = ArgumentParser()
+    parser.add_argument('--label_path', type=str, default="data/new_label.json",
+                        help='path of json that store the labeled frames')
+    parser.add_argument('--flicker_dir', type=str, default="data/flicker-chunks",
+                        help='directory of processed flicker video chunks')
+    parser.add_argument('--non_flicker_dir', type=str, default="data/meta-data",
+                        help='directory of processed non flicker video chunks')
+    parser.add_argument('--cache_path', type=str, default=".cache/train_test",
+                        help='directory of miscenllaneous information')
+    parser.add_argument('--model_path', type=str, default="model0",
+                        help='directory to store model weights and bias')
+    parser.add_argument(
+        "-train", "--train", action="store_true",
+        default=False, help="Whether to do training")
+    parser.add_argument(
+        "-test", "--test", action="store_true",
+        default=False, help="Whether to do testing")
+    return parser.parse_args()
+
+
 def main() -> None:
     args = command_arg()
-    label_path, mapping_path, data_dir, cache_path, model_path = args.label_path, args.mapping_path, args.data_dir, args.cache_path, args.model_path
+    label_path, flicker_path, non_flicker_path, cache_path, model_path = args.label_path, args.flicker_dir, args.non_flicker_dir, args.cache_path, args.model_path
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     init_logger()
@@ -175,10 +171,10 @@ def main() -> None:
 
     __cache__ = np.load(
         "{}.npz".format(cache_path), allow_pickle=True)
-    train_list, val_list, test_list = tuple(
+    flicker_train, non_flicker_train, fp_test, flicker_test, non_flicker_test = tuple(
         __cache__[lst] for lst in __cache__)
-
-    chunk_size = 11
+    labels = json.load(open(label_path, 'rb'))
+    logging.debug(f"{fp_test}")
     batch_size = 256
     input_dim = 18432
     output_dim = 2
@@ -188,41 +184,25 @@ def main() -> None:
     bidirectional = True
     normalize = False
 
-    sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=7)
-
-    train = VideoLoader(
-        vid_list=train_list,
-        label_path=label_path,
-        data_dir=data_dir,
-        chunk_size=chunk_size,
+    ds_train = Loader(
+        non_flicker_lst=non_flicker_train,
+        flicker_lst=flicker_train,
+        non_flicker_dir=non_flicker_path,
+        flicker_dir=flicker_path,
+        labels=labels,
         batch_size=batch_size,
-        shape=(15000, 380, 360, 3),
-        sampler=sm,
-        mov=False,
-        norm=False
+        in_mem_batches=8  # os.cpu_count()-4
     )
-    val = VideoLoader(
-        vid_list=val_list,
-        label_path=label_path,
-        data_dir=data_dir,
-        chunk_size=chunk_size,
+    ds_test = Loader(
+        non_flicker_lst=non_flicker_test,
+        flicker_lst=flicker_test,  # +fp_test,
+        non_flicker_dir=non_flicker_path,
+        flicker_dir=flicker_path,
+        labels=labels,
         batch_size=batch_size,
-        shape=(15000, 380, 360, 3),
-        sampler=sm,
-        mov=False,
-        norm=False
+        in_mem_batches=8  # os.cpu_count()-4
     )
-    test = VideoLoader(
-        vid_list=test_list,
-        label_path=label_path,
-        data_dir=data_dir,
-        chunk_size=chunk_size,
-        batch_size=batch_size,
-        shape=(15000, 380, 360, 3),
-        sampler=sm,
-        mov=False,
-        norm=False
-    )
+    ds_val = ds_test
 
     model = CNN_LSTM(
         input_dim=input_dim,
@@ -236,13 +216,17 @@ def main() -> None:
     )
     optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
 
-    training(train, val, optimizer, device=device)
-    model.load_state_dict(torch.load(os.path.join(
-        model_path, 'model.pth'))['model_state_dict'])
+    if args.train:
+        logging.info("Starting Training Image Model")
+        training(ds_train, ds_val, model, optimizer, device=device)
+        logging.info("Done Training Image Model...")
 
-    logging.info("Starting Evaluation")
-    testing(test, model, device=device, classes=2, save_path=model_path)
-    logging.info("Done Evaluation")
+    if args.test:
+        logging.info("Starting Evaluation")
+        model.load_state_dict(torch.load(os.path.join(
+            model_path, 'model.pth'))['model_state_dict'])
+        testing(ds_test, model, device=device, classes=2, save_path=model_path)
+        logging.info("Done Evaluation")
 
 
 if __name__ == "__main__":
