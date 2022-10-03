@@ -1,7 +1,10 @@
 import os
 import json
 import gc
+import tqdm
 import random
+import psutil
+import queue
 import cv2
 import torch
 import numpy as np
@@ -15,6 +18,8 @@ from imblearn.under_sampling import NearMiss
 from imblearn.pipeline import Pipeline
 from torch.utils.data import Dataset, DataLoader
 from typing import Callable, Tuple
+from decord import VideoLoader
+from decord import cpu, gpu
 
 
 class MYDS(Dataset):
@@ -326,6 +331,7 @@ class Loader(object):
         batch_size: int,
         in_mem_batches: int,
     ) -> None:
+        mp.set_start_method("spawn")
         self.labels = labels
         self.batch_size = batch_size
         self.batch_idx = self.cur_batch = 0
@@ -341,7 +347,8 @@ class Loader(object):
         self.out_x = self.manager.Queue()
         self.out_y = self.manager.Queue()
         self.lock = self.manager.Lock()
-        self.event = mp.Event()
+        self.event = None
+        self.producers = self.consumers = None
 
     def __len__(self) -> int:
         return len(self.non_flicker_lst) // ((self.batch_size//2)*self.in_mem_batches) + 1
@@ -350,13 +357,22 @@ class Loader(object):
         return self
 
     def __next__(self) -> Tuple[torch.Tensor, torch.Tensor]:
-        print("EPOCH STOP CONDITION ", self.batch_idx, len(self.non_flicker_lst))
+        print("EPOCH STOP CONDITION ", self.batch_idx,
+              len(self.non_flicker_lst), flush=True)
         if self.batch_idx > len(self.non_flicker_lst):
             gc.collect()
             raise StopIteration
-
+        print(
+            f"OUT {not self.out_x.empty()} - {not self.out_y.empty()}", flush=True)
         if not bool(self.cur_batch):
-            self.event.set()
+            if self.consumers is not None and self.event is not None and self.producers is not None:
+                self.event.set()
+                # for p in self.producers:
+                #     p.join()
+                for p in self.producers:
+                    p.terminate()
+                for c in self.consumers:
+                    c.terminate()
             self.event = mp.Event()
 
             non_flickers = [
@@ -371,7 +387,7 @@ class Loader(object):
             ]
             chunk_lst = non_flickers + flickers
             random.shuffle(chunk_lst)
-            self._load(chunk_lst)
+            self.producers, self.consumers = self._load(chunk_lst)
             self.cur_batch = self.in_mem_batches
             self.batch_idx = self.batch_idx + \
                 (self.batch_size//2)*self.in_mem_batches
@@ -410,14 +426,8 @@ class Loader(object):
 
         for p in producers:
             p.start()
-        for p in producers:
-            p.join()
-        for p in producers:
-            p.close()
-
-        # for c in consumers:
-        #     c.kill()
         print("LOADED")
+        return producers, consumers
 
     @staticmethod
     def _producers(
@@ -432,7 +442,7 @@ class Loader(object):
             producer_q.put(
                 (int(idx in labels[vid_name]), skvideo.io.vread(path)))
             with lock:
-                print(f"PRODUCER {vid_name} {os.getpid()}")
+                print(f"PRODUCER {vid_name} {os.getpid()}", flush=True)
 
     @staticmethod
     def _consumers(
@@ -450,10 +460,33 @@ class Loader(object):
                 out_y.put(np.array(y))
                 X = y = ()
                 with lock:
-                    print(f"CONSUMER NEW BATCH {os.getpid()}")
-            label, input = q.get()
+                    print(
+                        f"CONSUMER NEW BATCH {os.getpid()}", flush=True)
+            try:
+                label, input = q.get(timeout=5)
+            except queue.Empty:
+                cpu_stats()
             X += (input,)
             y += (label,)
+
+
+def cpu_stats():
+    # print(sys.version)
+    print("CPU USAGE - ", psutil.cpu_percent())
+    print("MEMORY USAGE - ", psutil.virtual_memory())  # physical memory usage
+    pid = os.getpid()
+    py = psutil.Process(pid)
+    # memory use in GB...I think
+    memoryUse = py.memory_info()[0] / 2. ** 30
+    print('memory GB:', memoryUse)
+
+
+def test_mem() -> None:
+    input = ()
+    for vid in tqdm.tqdm(os.listdir(non_flicker_dir)):
+        loaded = skvideo.io.vread(os.path.join(non_flicker_dir, vid))
+        input += (loaded,)
+        cpu_stats()
 
 
 if __name__ == "__main__":
@@ -473,7 +506,20 @@ if __name__ == "__main__":
         flicker_dir=flicker_dir,
         labels=labels,
         batch_size=256,
-        in_mem_batches=os.cpu_count()-2
+        in_mem_batches=os.cpu_count()-4
     )
-    for x, y in ds_train:
-        print("OUTPUT SHAPE", x.shape, y.shape)
+
+    # for x, y in ds_train:
+    #     print("OUTPUT SHAPE", x.shape, y.shape)
+    flicker_lst = [os.path.join(flicker_dir, f)
+                   for f in os.listdir(flicker_dir)]
+    non_flicker_lst = [os.path.join(non_flicker_dir, f)
+                       for f in os.listdir(non_flicker_dir)]
+    # flicker_lst = flicker_lst*(len(non_flicker_lst)//len(flicker_lst))
+    print(len(flicker_lst), len(non_flicker_lst))
+    print(flicker_lst)
+    vl = VideoLoader(flicker_lst,
+                     ctx=[cpu(0)], shape=(30, 360, 360, 3), interval=1, skip=5, shuffle=0)
+    print(len(vl))
+    for input in vl:
+        print(input[0].shape)
