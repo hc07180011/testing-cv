@@ -1,5 +1,6 @@
 import os
 import json
+import gc
 import logging
 import tqdm
 import torch
@@ -38,7 +39,7 @@ def training(
 
         minibatch_loss_train, minibatch_f1 = 0, 0
         for n_train, (input, labels) in enumerate(tqdm.tqdm(train_loader)):
-            input, labels = input.to(device), labels(device)
+            input, labels = input.to(device), labels.to(device)
             output = model(input)
             loss = criterion(output, labels)
             optimizer.zero_grad()
@@ -175,14 +176,14 @@ def main() -> None:
         __cache__[lst] for lst in __cache__)
     labels = json.load(open(label_path, 'rb'))
     logging.debug(f"{fp_test}")
-    batch_size = 256
-    input_dim = 18432
+
+    input_dim = 30
     output_dim = 2
     hidden_dim = 64
     layer_dim = 1
-    vocab_size = 0
     bidirectional = True
-    normalize = False
+    in_mem_batches = 1
+    shape = (32, 30, 3, 360, 360)
 
     ds_train = Loader(
         non_flicker_lst=non_flicker_train,
@@ -190,8 +191,8 @@ def main() -> None:
         non_flicker_dir=non_flicker_path,
         flicker_dir=flicker_path,
         labels=labels,
-        batch_size=batch_size,
-        in_mem_batches=8  # os.cpu_count()-4
+        batch_size=shape[0],
+        in_mem_batches=in_mem_batches  # os.cpu_count()-4
     )
     ds_test = Loader(
         non_flicker_lst=non_flicker_test,
@@ -199,27 +200,27 @@ def main() -> None:
         non_flicker_dir=non_flicker_path,
         flicker_dir=flicker_path,
         labels=labels,
-        batch_size=batch_size,
-        in_mem_batches=8  # os.cpu_count()-4
+        batch_size=shape[0],
+        in_mem_batches=in_mem_batches  # os.cpu_count()-4
     )
     ds_val = ds_test
 
     model = CNN_LSTM(
+        cnn=torchvision.models.vgg16,
         input_dim=input_dim,
         output_dim=output_dim,
         hidden_dim=hidden_dim,
         layer_dim=layer_dim,
+        shape=shape,
         bidirectional=bidirectional,
-        normalize=normalize,
-        vocab_size=vocab_size,
-        model=torchvision.models.vgg16
     )
+    model = torch.nn.DataParallel(model)
+    model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
-
-    if args.train:
-        logging.info("Starting Training Image Model")
-        training(ds_train, ds_val, model, optimizer, device=device)
-        logging.info("Done Training Image Model...")
+    logging.info(f"{model.train()}")
+    logging.info("Starting Training Image Model")
+    training(ds_train, ds_val, model, optimizer, device=device)
+    logging.info("Done Training Image Model...")
 
     if args.test:
         logging.info("Starting Evaluation")
@@ -228,6 +229,14 @@ def main() -> None:
         testing(ds_test, model, device=device, classes=2, save_path=model_path)
         logging.info("Done Evaluation")
 
+    del model
+    torch.cuda.empty_cache()
+    gc.collect()
+
 
 if __name__ == "__main__":
+    """
+    RuntimeError: Given groups=1, weight of size [64, 3, 3, 3], expected input[1, 128, 30, 388800] to have 3 channels, but got 128 channels instead
+
+    """
     main()

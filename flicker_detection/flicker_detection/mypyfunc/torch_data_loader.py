@@ -343,7 +343,7 @@ class Loader(object):
             non_flicker_dir, f) for f in non_flicker_lst]
         self.flicker_lst = [os.path.join(flicker_dir, f) for f in flicker_lst]
 
-        self.out_x = self.out_y = None
+        # self.out_x = self.out_y = []
 
     def __len__(self) -> int:
         return len(self.non_flicker_lst) // ((self.batch_size//2)*self.in_mem_batches) + 1
@@ -356,30 +356,31 @@ class Loader(object):
             gc.collect()
             raise StopIteration
 
-        if not bool(self.cur_batch):
-            non_flickers = [
-                self.non_flicker_lst[i % len(self.non_flicker_lst)]
-                for i in range(self.batch_idx, self.batch_idx+(self.batch_size//2)*self.in_mem_batches)
-            ]
-            flickers = [
-                self.flicker_lst[i % len(self.flicker_lst)]
-                for i in range(self.batch_idx, self.batch_idx+(self.batch_size//2)*self.in_mem_batches)
-            ]
-            chunk_lst = non_flickers + flickers
-            random.shuffle(chunk_lst)
-            self.out_x, self.out_y = self._load(
-                chunk_lst,
-                self.batch_size,
-                self.in_mem_batches,
-                self.labels
-            )
-            self.cur_batch = self.in_mem_batches
-            self.batch_idx = self.batch_idx + \
-                (self.batch_size//2)*self.in_mem_batches
-            gc.collect()
+        # if not bool(self.cur_batch):
+        non_flickers = [
+            self.non_flicker_lst[i % len(self.non_flicker_lst)]
+            for i in range(self.batch_idx, self.batch_idx+(self.batch_size//2)*self.in_mem_batches)
+        ]
+        flickers = [
+            self.flicker_lst[i % len(self.flicker_lst)]
+            for i in range(self.batch_idx, self.batch_idx+(self.batch_size//2)*self.in_mem_batches)
+        ]
+        chunk_lst = non_flickers + flickers
+        random.shuffle(chunk_lst)
+        X, y = self._load(
+            chunk_lst,
+            # self.batch_size,
+            # self.in_mem_batches,
+            self.labels
+        )
+        self.cur_batch = self.in_mem_batches
+        self.batch_idx = self.batch_idx + \
+            (self.batch_size//2)*self.in_mem_batches
+        gc.collect()
 
-        self.cur_batch -= 1
-        return torch.from_numpy(self.out_x.pop()), torch.from_numpy(self.out_y.pop())
+        # self.cur_batch -= 1
+        # print(torch.from_numpy(X).shape)
+        return torch.from_numpy(X).permute(0, 4, 1, 2, 3).float(), torch.from_numpy(y).long()
 
     def _shuffle(self) -> None:
         random.shuffle(self.non_flicker_lst)
@@ -389,26 +390,23 @@ class Loader(object):
     @staticmethod
     def _load(
         chunk_lst: list,
-        batch_size: int,
-        in_mem_batches: int,
+        # batch_size: int,
+        # in_mem_batches: int,
         labels: dict,
     ) -> tuple:
-        cur_idx = 0
-        out_x = out_y = []
-        for _ in range(in_mem_batches):
-            x = y = ()
-            for path in chunk_lst[cur_idx:cur_idx+batch_size]:
-                idx, vid_name = path.replace(".mp4", "").split("_", 1)
-                # print(vid_name)
-                y += (int(idx in labels[vid_name]),)
-                x += (skvideo.io.vread(path),)
+        # cur_idx = 0
+        out_x = out_y = ()
+        # for _ in range(in_mem_btches):
+        #     x = y = ()
+        for path in chunk_lst:  # [cur_idx:cur_idx+batch_size]:
+            idx, vid_name = path.replace(".mp4", "").split("_", 1)
+            out_y += (int(idx in labels[vid_name]),)
+            out_x += (skvideo.io.vread(path),)
 
-            out_y.extend([np.array(y)])
-            out_x.extend([np.array(x)])
-            cur_idx += batch_size
-            # print(_)
-        # print("Loaded........")
-        return out_x, out_y
+            # out_y.extend([int(idx in labels[vid_name])])
+            # out_x.extend([skvideo.io.vread(path)])
+            # cur_idx += batch_size
+        return np.array(out_x), np.array(out_y)
 
 
 class MultiProcessedLoader(object):

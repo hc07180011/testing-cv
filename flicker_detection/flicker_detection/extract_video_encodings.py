@@ -206,22 +206,20 @@ def command_arg() -> ArgumentParser:
 
 if __name__ == "__main__":
     """
-    take difference between images and then vectorize or difference between vectors is also fine(standard for motion detection),
-    key is rapid changes between change, normalize them between 0 - 255,
-    use the difference of consecutive frames as data, or both (just concatenate the embeddings)
     train end to end, integrate cnn with lstm, and do back prop for same loss function
     smaller windows of variable frame rate should have few percent performance boost
-    need to verify smote
     sliding window each frame is a data point
-    do not delete flicker frames for non flickers data points
+
     divide by 255 to get range of 0,1 normalization(known cv preprocess, may not affect), multiply everything by 255 to rescale it and take floor/ ceeling
     include flicker frames in non flicker video data ponts as well because testing data will not have data label
-    traiing should be as close as possible to testing(otherwise causes domain shifts network will not perform well)
+    training should be as close as possible to testing(otherwise causes domain shifts network will not perform well)
+
     just oversample by drawing to mini batch just make sure epochs dont have repeating minibatch
     Use torch data loader
     Anomaly detection
     find state of art and compare for paper
 
+    Google uses whole flicker uneven chunks
     25471 : 997
     """
     init_logger()

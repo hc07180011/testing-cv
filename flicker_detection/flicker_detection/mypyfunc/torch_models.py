@@ -5,6 +5,7 @@ import torch.nn as nn
 from torch import nn
 from torch.autograd import Variable
 # from torchsummary import summary as summary
+from typing import Callable
 import pkbar
 import warnings
 warnings.filterwarnings('ignore')
@@ -18,8 +19,6 @@ class LSTM(nn.Module):
         hidden_dim: int,
         layer_dim: int,
         bidirectional=False,
-        normalize=False,
-        vocab_size: int = 0,
     ) -> None:
         super(LSTM, self).__init__()
         # Hidden dimensions
@@ -29,11 +28,7 @@ class LSTM(nn.Module):
         # Output dim classes
         self.output_dim = output_dim
         self.n_directions = 2 if bidirectional else 1
-        self.normalize = normalize
 
-        # embedding layer
-        self.embedding = nn.Embedding(vocab_size, input_dim, padding_idx=0)\
-            if bool(vocab_size) else None
         # LSTM Layer
         self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=layer_dim,
                             batch_first=True, bidirectional=bidirectional)
@@ -62,15 +57,13 @@ class LSTM(nn.Module):
         return h0, c0
 
     def forward(self, x) -> torch.Tensor:
-        if self.embedding:
-            x = self.embedding(x)
         # One time step
         out, self.hidden_state = self.lstm(x, self.init_hidden(x))
         # Dense lstm
         out = self.fc1(out)
         # Dense for softmax
         out = self.fc2(out)
-        return nn.functional.normalize(out[:, -1], dim=-1) if self.normalize else out[:, -1]
+        return out[:, -1]
 
     def initialization(self) -> None:
         for m in self.modules():
@@ -89,18 +82,56 @@ class LSTM(nn.Module):
                     elif 'bias' in name:
                         nn.init.zeros_(param.data)
 
+# Create CNN Model
+
+
+class CNNModel(nn.Module):
+    def __init__(
+        self,
+        num_classes: int
+    ) -> None:
+        super(CNNModel, self).__init__()
+
+        self.conv_layer1 = self._conv_layer_set(3, 32)
+        self.conv_layer2 = self._conv_layer_set(32, 64)
+        self.fc1 = nn.Linear(2**3*64, 128)
+        self.fc2 = nn.Linear(128, num_classes)
+        self.relu = nn.LeakyReLU()
+        self.batch = nn.BatchNorm1d(128)
+        self.drop = nn.Dropout(p=0.15)
+
+    def _conv_layer_set(self, in_c, out_c):
+        conv_layer = nn.Sequential(
+            nn.Conv3d(in_c, out_c, kernel_size=(3, 3, 3), padding=0),
+            nn.LeakyReLU(),
+            nn.MaxPool3d((2, 2, 2)),
+        )
+        return conv_layer
+
+    def forward(self, x):
+        # Set 1
+        out = self.conv_layer1(x)
+        out = self.conv_layer2(out)
+        out = out.view(out.size(0), -1)
+        out = self.fc1(out)
+        out = self.relu(out)
+        out = self.batch(out)
+        out = self.drop(out)
+        out = self.fc2(out)
+
+        return out
+
 
 class CNN_LSTM(LSTM):
     def __init__(
         self,
-        model: torchvision.models,
+        cnn: torchvision.models,
         input_dim: int,
         output_dim: int,
         hidden_dim: int,
         layer_dim: int,
+        shape: tuple,
         bidirectional=False,
-        normalize=False,
-        vocab_size: int = 0,
     ) -> None:
         super().__init__(
             input_dim=input_dim,
@@ -108,15 +139,24 @@ class CNN_LSTM(LSTM):
             hidden_dim=hidden_dim,
             layer_dim=layer_dim,
             bidirectional=bidirectional,
-            normalize=normalize,
-            vocab_size=vocab_size,
         )
-        super().initialization()
-        self.cnn = model(pretrained=True)
+        self.shape = shape
+        self.cnn = cnn(pretrained=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        out = self.cnn(x)
+        print(x.shape)
+        out = self.cnn(x.flatten(start_dim=3))
+        print(out.shape)
         return super().forward(out)
+
+    @staticmethod
+    def apply_along_axis(
+            func: Callable,
+            x: torch.Tensor,
+            axis: int = 0) -> torch.Tensor:
+        return torch.stack([
+            func(x_i) for x_i in torch.unbind(x, dim=axis)
+        ], dim=axis)
 
 
 """
