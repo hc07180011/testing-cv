@@ -21,8 +21,8 @@ def save_checkpoint(save_path, model, optimizer, loss, f1, val_f1, val_loss):
     }
 
     if isinstance(model, tuple):
-        state_dict['model0_state_dict'] = model[0].state_dict()
-        state_dict['model1_state_dict'] = model[1].state_dict()
+        state_dict['feature_extractor'] = model[0].state_dict()
+        state_dict['model'] = model[1].state_dict()
     else:
         state_dict['model_state_dict'] = model.state_dict()
 

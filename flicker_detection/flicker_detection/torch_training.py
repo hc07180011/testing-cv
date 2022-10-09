@@ -223,15 +223,6 @@ def command_arg() -> ArgumentParser:
 
 
 def main() -> None:
-    # take difference between images and then vectorize or difference between vectors is also fine(standard for motion detection),
-    # key is rapid changes between change, normalize them between 0 - 255,
-    # use the difference of consecutive frames as data, or both (just concatenate the embeddings)
-    # train end to end, integrate cnn with lstm, and do back prop for same loss function
-    # smaller windows of variable frame rate should have few percent performance boost
-    # need to verify smote
-    # sliding window each frame is a data point
-    # do not delete flicker frames for non flickers data points
-    # divide by 255 to get range of 0,1 normalization(known cv preprocess, may not affect)
     args = command_arg()
     label_path, mapping_path, data_dir, cache_path, model_path = args.label_path, args.mapping_path, args.data_dir, args.cache_path, args.model_path
 
@@ -264,15 +255,6 @@ def main() -> None:
                   sampling_strategy='majority', n_neighbors=1)
     sm = SMOTE(random_state=42, n_jobs=-1, k_neighbors=7)
 
-    # model0 = SentimentRNN(
-    #     num_layers=2,
-    #     vocab_size=30,
-    #     hidden_dim=256,
-    #     embedding_dim=64,
-    #     output_dim=2,
-    #     drop_prob=0.5,
-    #     batch_size=batch_size,
-    # )
     model0 = LSTM(
         input_dim=input_dim,
         output_dim=output_dim,

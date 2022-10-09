@@ -12,7 +12,7 @@ from typing import Callable, Tuple
 from argparse import ArgumentParser
 from mypyfunc.logger import init_logger
 from mypyfunc.torch_eval import F1Score, Evaluation
-from mypyfunc.torch_models import CNN_LSTM
+from mypyfunc.torch_models import LSTM, ExtractorCNN
 from mypyfunc.torch_data_loader import Loader, VideoLoader
 from mypyfunc.torch_utility import save_checkpoint, save_metrics, load_checkpoint, load_metrics, torch_seeding
 
@@ -20,38 +20,50 @@ from mypyfunc.torch_utility import save_checkpoint, save_metrics, load_checkpoin
 def training(
     train_loader: VideoLoader,
     val_loader: VideoLoader,
-    model: nn.Module,
+    models: Tuple[nn.Module, nn.Module],
     optimizer: torch.optim.Optimizer,
-    f1_metric: Callable = F1Score(average='macro'),
-    criterion: Callable = nn.CrossEntropyLoss(),
-    objective: Callable = nn.Softmax(),
-    epochs: int = 1000,
-    device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+    f1_metric: Callable,
+    criterion: Callable,
+    objective: Callable,
+    epochs: int,
+    device: torch.device,
     save_path: str = 'model0',
 ) -> nn.Module:
     val_max_f1 = 0
     f1_callback, loss_callback, val_f1_callback, val_loss_callback = (), (), (), ()
     for epoch in range(epochs):
-
         if loss_callback and epoch > 10 and loss_callback[-1] < 0.005:
             break
-        model.train()
+
+        models[0].train()
+        models[-1].train()
 
         minibatch_loss_train, minibatch_f1 = 0, 0
-        for n_train, (input, labels) in enumerate(tqdm.tqdm(train_loader)):
-            input, labels = input.to(device), labels.to(device)
-            output = model(input)
-            loss = criterion(output, labels)
+        for n_train, (inputs, labels) in enumerate(tqdm.tqdm(train_loader)):
+            inputs = torch.from_numpy(inputs).permute(
+                0, 1, 4, 2, 3).float().to(device)
+            labels = torch.from_numpy(labels).long().to(device)
+            batch_size, chunk_size = inputs.shape[:2]
+
+            features = models[0](inputs.flatten(
+                end_dim=1)).flatten(start_dim=1)
+            features = features.reshape(
+                (batch_size, chunk_size, features.shape[-1]))
+            outputs = models[-1](features)
+
+            loss = criterion(outputs, labels)
             optimizer.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm(model.parameters(), 1.0)
+            torch.nn.utils.clip_grad_norm(models[-1].parameters(), 1.0)
             optimizer.step()
-            f1 = f1_metric(torch.topk(objective(output),
+
+            f1 = f1_metric(torch.topk(objective(outputs),
                                       k=1, dim=1).indices.flatten(), labels)
             minibatch_loss_train += loss.item()
             minibatch_f1 += f1.item()
 
-        model.eval()
+        models[0].eval()
+        models[-1].eval()
         loss_callback += ((minibatch_loss_train / (n_train + 1))
                           if n_train else minibatch_loss_train,)
         f1_callback += ((minibatch_f1/(n_train + 1))
@@ -59,12 +71,21 @@ def training(
 
         with torch.no_grad():
             minibatch_loss_val, minibatch_f1_val = 0, 0
-            for n_val, (input, label) in enumerate(tqdm.tqdm(val_loader)):
-                input, label = input.to(device), label.to(device)
-                output = model(input)
-                loss = criterion(output, label)
+            for n_val, (inputs, labels) in enumerate(tqdm.tqdm(val_loader)):
+                inputs = torch.from_numpy(inputs).permute(
+                    0, 1, 4, 2, 3).float().to(device)
+                labels = torch.from_numpy(labels).long().to(device)
+                batch_size, chunk_size = inputs.shape[:2]
+
+                features = models[0](inputs.flatten(
+                    end_dim=1)).flatten(start_dim=1)
+                features = features.reshape(
+                    (batch_size, chunk_size, features.shape[-1]))
+                outputs = models[-1](features)
+
+                loss = criterion(outputs, labels)
                 val_f1 = f1_metric(
-                    torch.topk(objective(output), k=1, dim=1).indices.flatten(), label)
+                    torch.topk(objective(outputs), k=1, dim=1).indices.flatten(), labels)
                 minibatch_loss_val += loss.item()
                 minibatch_f1_val += val_f1.item()
 
@@ -83,7 +104,7 @@ def training(
             ))
 
         if epoch > 10 and val_f1_callback[-1] > val_max_f1:
-            save_checkpoint(f'{save_path}/model.pth', model,
+            save_checkpoint(f'{save_path}/model.pth', models,
                             optimizer, loss_callback[-1], f1_callback[-1], val_loss_callback[-1], val_f1_callback[-1])
             save_metrics(f'{save_path}/metrics.pth', loss_callback, f1_callback,
                          val_loss_callback, val_f1_callback)
@@ -93,28 +114,38 @@ def training(
         val_loader.shuffle()
 
     torch.cuda.empty_cache()
-    return model
+    return models
 
 
 def testing(
     test_loader: VideoLoader,
-    model: nn.Module,
-    objective: Callable = nn.Softmax(),
-    classes: int = 6,
-    device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+    models: Tuple[nn.Module, nn.Module],
+    objective: Callable,
+    device: torch.device,
+    classes: int = 2,
     save_path: str = 'model0',
 ) -> None:
     logging.getLogger('matplotlib').setLevel(logging.WARNING)
     metrics = Evaluation(plots_folder="plots/", classes=classes)
 
-    model.eval()
+    models[0].eval()
+    models[-1].eval()
     y_pred, y_true = (), ()
     with torch.no_grad():
-        for (input, label) in tqdm.tqdm(test_loader):
-            input, label = input.to(device), label.to(device)
-            output = model(input)
-            y_pred += (objective(output),)
-            y_true += (label,)
+        for (inputs, labels) in tqdm.tqdm(test_loader):
+            inputs = torch.from_numpy(inputs).permute(
+                0, 1, 4, 2, 3).float().to(device)
+            labels = torch.from_numpy(labels).long().to(device)
+            batch_size, chunk_size = inputs.shape[:2]
+
+            features = models[0](inputs.flatten(
+                end_dim=1)).flatten(start_dim=1)
+            features = features.reshape(
+                (batch_size, chunk_size, features.shape[-1]))
+            outputs = models[-1](features)
+
+            y_pred += (objective(outputs),)
+            y_true += (labels,)
 
     y_pred, y_true = torch.cat(y_pred, dim=0), torch.cat(y_true, dim=0)
     y_pred, y_true = y_pred.detach().cpu().numpy(
@@ -175,58 +206,104 @@ def main() -> None:
     flicker_train, non_flicker_train, fp_test, flicker_test, non_flicker_test = tuple(
         __cache__[lst] for lst in __cache__)
     labels = json.load(open(label_path, 'rb'))
-    logging.debug(f"{fp_test}")
 
-    input_dim = 30
+    input_dim = 61952
     output_dim = 2
     hidden_dim = 64
     layer_dim = 1
-    bidirectional = True
-    in_mem_batches = 1
-    shape = (32, 30, 3, 360, 360)
+    bidirectional = False
+    in_mem_batches = 1000
+    shape = (4, 10, 3, 360, 360)
 
-    ds_train = Loader(
-        non_flicker_lst=non_flicker_train,
-        flicker_lst=flicker_train,
-        non_flicker_dir=non_flicker_path,
-        flicker_dir=flicker_path,
-        labels=labels,
-        batch_size=shape[0],
-        in_mem_batches=in_mem_batches  # os.cpu_count()-4
+    feature_extractor = ExtractorCNN(
+        cnn=torchvision.models.vgg16(pretrained=True)
     )
-    ds_test = Loader(
-        non_flicker_lst=non_flicker_test,
-        flicker_lst=flicker_test,  # +fp_test,
-        non_flicker_dir=non_flicker_path,
-        flicker_dir=flicker_path,
-        labels=labels,
-        batch_size=shape[0],
-        in_mem_batches=in_mem_batches  # os.cpu_count()-4
-    )
-    ds_val = ds_test
-
-    model = CNN_LSTM(
-        cnn=torchvision.models.vgg16,
+    model = LSTM(
         input_dim=input_dim,
         output_dim=output_dim,
         hidden_dim=hidden_dim,
         layer_dim=layer_dim,
-        shape=shape,
         bidirectional=bidirectional,
     )
+
+    feature_extractor = torch.nn.DataParallel(feature_extractor)
     model = torch.nn.DataParallel(model)
+    feature_extractor.to(device)
     model.to(device)
+
     optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
-    logging.info(f"{model.train()}")
-    logging.info("Starting Training Image Model")
-    training(ds_train, ds_val, model, optimizer, device=device)
-    logging.info("Done Training Image Model...")
+    metric = F1Score(average='macro')
+    criterion = nn.CrossEntropyLoss()
+    objective = nn.Softmax()
+    epochs = 1000
+
+    if args.train:
+        logging.info("Loading training set..")
+        ds_train = Loader(
+            non_flicker_lst=non_flicker_train,
+            flicker_lst=flicker_train,
+            non_flicker_dir=non_flicker_path,
+            flicker_dir=flicker_path,
+            labels=labels,
+            batch_size=shape[0],
+            in_mem_batches=in_mem_batches
+        )
+        logging.info("Done loading training set")
+
+        logging.info("Loading validtaion set..")
+        ds_val = Loader(
+            non_flicker_lst=non_flicker_test,
+            flicker_lst=flicker_test + fp_test,
+            non_flicker_dir=non_flicker_path,
+            flicker_dir=flicker_path,
+            labels=labels,
+            batch_size=shape[0],
+            in_mem_batches=in_mem_batches
+        )
+        logging.info("Done loading validation set")
+
+        logging.info(f"{feature_extractor.train()}")
+        logging.info(f"{model.train()}")
+        logging.info("Starting Training Video Model")
+        training(
+            train_loader=ds_train,
+            val_loader=ds_val,
+            models=(feature_extractor, model),
+            optimizer=optimizer,
+            f1_metric=metric,
+            criterion=criterion,
+            objective=objective,
+            epochs=epochs,
+            device=device
+        )
+        logging.info("Done Training Video Model...")
 
     if args.test:
+        logging.info("Loading testing set..")
+        ds_test = Loader(
+            non_flicker_lst=non_flicker_test,
+            flicker_lst=flicker_test + fp_test,
+            non_flicker_dir=non_flicker_path,
+            flicker_dir=flicker_path,
+            labels=labels,
+            batch_size=shape[0],
+            in_mem_batches=in_mem_batches
+        )
+        logging.info("Done loading testing set")
+
         logging.info("Starting Evaluation")
+        feature_extractor.load_state_dict(torch.load(os.path.join(
+            model_path, 'model.pth'))['feature_extractor'])
         model.load_state_dict(torch.load(os.path.join(
-            model_path, 'model.pth'))['model_state_dict'])
-        testing(ds_test, model, device=device, classes=2, save_path=model_path)
+            model_path, 'model.pth'))['model'])
+        testing(
+            ds_test,
+            (feature_extractor, model),
+            objective=objective,
+            device=device,
+            classes=2,
+            save_path=model_path
+        )
         logging.info("Done Evaluation")
 
     del model
@@ -236,7 +313,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     """
-    RuntimeError: Given groups=1, weight of size [64, 3, 3, 3], expected input[1, 128, 30, 388800] to have 3 channels, but got 128 channels instead
-
+    CUBLAS_WORKSPACE_CONFIG=:4096:8 python3 training.py --train
     """
     main()

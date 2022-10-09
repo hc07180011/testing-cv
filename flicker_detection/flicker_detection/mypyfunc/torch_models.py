@@ -82,81 +82,24 @@ class LSTM(nn.Module):
                     elif 'bias' in name:
                         nn.init.zeros_(param.data)
 
-# Create CNN Model
 
-
-class CNNModel(nn.Module):
-    def __init__(
-        self,
-        num_classes: int
-    ) -> None:
-        super(CNNModel, self).__init__()
-
-        self.conv_layer1 = self._conv_layer_set(3, 32)
-        self.conv_layer2 = self._conv_layer_set(32, 64)
-        self.fc1 = nn.Linear(2**3*64, 128)
-        self.fc2 = nn.Linear(128, num_classes)
-        self.relu = nn.LeakyReLU()
-        self.batch = nn.BatchNorm1d(128)
-        self.drop = nn.Dropout(p=0.15)
-
-    def _conv_layer_set(self, in_c, out_c):
-        conv_layer = nn.Sequential(
-            nn.Conv3d(in_c, out_c, kernel_size=(3, 3, 3), padding=0),
-            nn.LeakyReLU(),
-            nn.MaxPool3d((2, 2, 2)),
-        )
-        return conv_layer
-
-    def forward(self, x):
-        # Set 1
-        out = self.conv_layer1(x)
-        out = self.conv_layer2(out)
-        out = out.view(out.size(0), -1)
-        out = self.fc1(out)
-        out = self.relu(out)
-        out = self.batch(out)
-        out = self.drop(out)
-        out = self.fc2(out)
-
-        return out
-
-
-class CNN_LSTM(LSTM):
+class ExtractorCNN(nn.Module):
     def __init__(
         self,
         cnn: torchvision.models,
-        input_dim: int,
-        output_dim: int,
-        hidden_dim: int,
-        layer_dim: int,
-        shape: tuple,
-        bidirectional=False,
     ) -> None:
-        super().__init__(
-            input_dim=input_dim,
-            output_dim=output_dim,
-            hidden_dim=hidden_dim,
-            layer_dim=layer_dim,
-            bidirectional=bidirectional,
-        )
-        self.shape = shape
-        self.cnn = cnn(pretrained=True)
+        super(ExtractorCNN, self).__init__()
+        self.cnn = cnn
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        print(x.shape)
-        out = self.cnn(x.flatten(start_dim=3))
-        print(out.shape)
-        return super().forward(out)
+    def remove_header(self) -> None:
+        self.cnn.classifier = nn.Sequential(
+            *list(self.cnn.classifier.children())[:-3])
 
-    @staticmethod
-    def apply_along_axis(
-            func: Callable,
-            x: torch.Tensor,
-            axis: int = 0) -> torch.Tensor:
-        return torch.stack([
-            func(x_i) for x_i in torch.unbind(x, dim=axis)
-        ], dim=axis)
+    def forward(
+        self,
+        x: torch.Tensor
+    ) -> torch.Tensor:
+        return self.cnn.features(x)
 
 
 """

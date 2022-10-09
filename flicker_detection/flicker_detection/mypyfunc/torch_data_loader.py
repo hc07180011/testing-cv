@@ -343,7 +343,9 @@ class Loader(object):
             non_flicker_dir, f) for f in non_flicker_lst]
         self.flicker_lst = [os.path.join(flicker_dir, f) for f in flicker_lst]
 
-        # self.out_x = self.out_y = []
+        self.flicker_vids = self._load(self.flicker_lst)
+        self.out_x = None
+        self.out_idxs = list(range(self.batch_size))
 
     def __len__(self) -> int:
         return len(self.non_flicker_lst) // ((self.batch_size//2)*self.in_mem_batches) + 1
@@ -355,58 +357,54 @@ class Loader(object):
         if self.batch_idx > len(self.non_flicker_lst):
             gc.collect()
             raise StopIteration
+        if not bool(self.cur_batch):
+            non_flickers = [
+                self.non_flicker_lst[i % len(self.non_flicker_lst)]
+                for i in range(self.batch_idx, self.batch_idx+(self.batch_size//2)*self.in_mem_batches)
+            ]
+            self.out_x = self._load(non_flickers,)
+            self.cur_batch = self.in_mem_batches
+            self.batch_idx = self.batch_idx + \
+                (self.batch_size//2)*self.in_mem_batches
+            gc.collect()
 
-        # if not bool(self.cur_batch):
-        non_flickers = [
-            self.non_flicker_lst[i % len(self.non_flicker_lst)]
-            for i in range(self.batch_idx, self.batch_idx+(self.batch_size//2)*self.in_mem_batches)
-        ]
-        flickers = [
-            self.flicker_lst[i % len(self.flicker_lst)]
-            for i in range(self.batch_idx, self.batch_idx+(self.batch_size//2)*self.in_mem_batches)
-        ]
-        chunk_lst = non_flickers + flickers
-        random.shuffle(chunk_lst)
-        X, y = self._load(
-            chunk_lst,
-            # self.batch_size,
-            # self.in_mem_batches,
-            self.labels
-        )
-        self.cur_batch = self.in_mem_batches
-        self.batch_idx = self.batch_idx + \
-            (self.batch_size//2)*self.in_mem_batches
-        gc.collect()
+        start_idx = (self.in_mem_batches - self.cur_batch)*self.batch_size//2
+        self.cur_batch -= 1
+        cur_batch_idxs = list(range(start_idx, start_idx + self.batch_size//2))
 
-        # self.cur_batch -= 1
-        # print(torch.from_numpy(X).shape)
-        return torch.from_numpy(X).permute(0, 4, 1, 2, 3).float(), torch.from_numpy(y).long()
+        non_flicker_X = self.out_x[self._idx_mapping(
+            len(self.out_x), cur_batch_idxs)]
+        flicker_X = self.flicker_vids[self._idx_mapping(len(
+            self.flicker_vids), cur_batch_idxs)]
+
+        X = np.vstack((non_flicker_X, flicker_X))
+        y = np.array([0]*(self.batch_size//2) + [1] *
+                     (self.batch_size//2), dtype=np.uint8)
+
+        random.shuffle(self.out_idxs)
+        return X[self.out_idxs], y[self.out_idxs]
 
     def _shuffle(self) -> None:
         random.shuffle(self.non_flicker_lst)
-        random.shuffle(self.flicker_lst)
+        # random.shuffle(self.flicker_lst)
+        np.random.shuffle(self.flicker_vids)
         gc.collect()
 
     @staticmethod
-    def _load(
-        chunk_lst: list,
-        # batch_size: int,
-        # in_mem_batches: int,
-        labels: dict,
-    ) -> tuple:
-        # cur_idx = 0
-        out_x = out_y = ()
-        # for _ in range(in_mem_btches):
-        #     x = y = ()
-        for path in chunk_lst:  # [cur_idx:cur_idx+batch_size]:
-            idx, vid_name = path.replace(".mp4", "").split("_", 1)
-            out_y += (int(idx in labels[vid_name]),)
-            out_x += (skvideo.io.vread(path),)
+    def _idx_mapping(
+        arr_length: int,
+        cur_batch_idxs: list
+    ) -> list:
+        return list(map(lambda x: x % arr_length, cur_batch_idxs))
 
-            # out_y.extend([int(idx in labels[vid_name])])
-            # out_x.extend([skvideo.io.vread(path)])
-            # cur_idx += batch_size
-        return np.array(out_x), np.array(out_y)
+    @staticmethod
+    def _load(
+        vid_lst: list,
+    ) -> tuple:
+        return np.array([
+            skvideo.io.vread(path)
+            for path in tqdm.tqdm(vid_lst)
+        ], dtype=np.uint8)
 
 
 class MultiProcessedLoader(object):
@@ -597,9 +595,9 @@ if __name__ == "__main__":
         non_flicker_dir=non_flicker_dir,
         flicker_dir=flicker_dir,
         labels=labels,
-        batch_size=256,
-        in_mem_batches=8  # os.cpu_count()-4
+        batch_size=4,
+        in_mem_batches=10  # os.cpu_count()-4
     )
-
+    # test_mem()
     for x, y in ds_train:
         print("OUTPUT SHAPE", x.shape, y.shape)

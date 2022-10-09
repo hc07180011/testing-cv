@@ -68,7 +68,6 @@ def flicker_chunk(
 def mov_dif_aug(
     src: str,
     dst: str,
-    labels: dict,
     chunk_size: int,
     shape: tuple
 ) -> None:
@@ -85,7 +84,6 @@ def mov_dif_aug(
     for vid in tqdm.tqdm(os.listdir(src)):
         if vid.replace(".mp4", "").replace("reduced_", "") in dst_vid:
             continue
-        # frames = skvideo.io.vread(os.path.join(src, vid)).astype(np.uint8)
 
         cur = 0
         vidcap = cv2.VideoCapture(os.path.join(src, vid))
@@ -94,15 +92,23 @@ def mov_dif_aug(
             w_chunk[cur % chunk_size] = frame
             cur += 1
             idx = [i % chunk_size for i in range(cur-chunk_size, cur)]
-            if cur in labels[vid.replace("reduced_", "").replace(".mp4", "")]:
-                idx = [i % chunk_size for i in range(
-                    cur-chunk_size//2,
-                    cur+1+chunk_size//2
-                )]
+            # if cur in labels[vid.replace("reduced_", "").replace(".mp4", "")]:
+            #     idx = [i % chunk_size for i in range(
+            #         cur-chunk_size//2,
+            #         cur+1+chunk_size//2
+            #     )]
 
             mov = np.apply_along_axis(
                 lambda f: (f*(255/f.max())).astype(np.uint8),
                 axis=0, arr=np.diff(w_chunk[idx], axis=0).astype(np.uint8)
+            )
+            w_chunk[idx] = cv2.normalize(
+                w_chunk[idx],
+                None,
+                alpha=0,
+                beta=1,
+                norm_type=cv2.NORM_MINMAX,
+                dtype=cv2.CV_32F
             )
             stacked = np.array([
                 np.hstack((norm, mov))
@@ -137,12 +143,10 @@ def preprocessing(
     flicker_lst = os.listdir(flicker_dir)
     non_flicker_lst = [
         x for x in os.listdir(non_flicker_dir)
-        if x.replace(".mp4", "").split("_")[-1] not in false_positives_vid
+        if x.replace(".mp4", "").split("_", 1)[-1] not in false_positives_vid
     ]
-    logging.debug(f"{non_flicker_lst}")
     fp_test = list(set(os.listdir(non_flicker_dir)) - set(non_flicker_lst))
-    logging.debug(f"{len(non_flicker_lst)} - {len(fp_test)}")
-
+    # logging.debug(fp_Test)
     flicker_train, flicker_test, _, _ = train_test_split(
         flicker_lst,
         # dummy buffer just to split embedding_path_list
@@ -215,26 +219,31 @@ if __name__ == "__main__":
     training should be as close as possible to testing(otherwise causes domain shifts network will not perform well)
 
     just oversample by drawing to mini batch just make sure epochs dont have repeating minibatch
-    Use torch data loader
-    Anomaly detection
     find state of art and compare for paper
 
-    Google uses whole flicker uneven chunks
     25471 : 997
+    googles uneven chunks will need multiscale detection method - increase computation alooot, multiple networks usage
+
+    relabel classes to beginning of flicker, inside flicker and end flicker for multiclass 
+          - might improve flicker detection performance
+    run simple statistics of flicker duration using labels, learn how long the flicker, get histogram counting number of flicker sequence length 
+
+    find good reference novelty/outlier detection for video understanding, use it as reference
+    can just use simple transformers to replace lstm in the future
+    ask professor liao
     """
     init_logger()
     args = command_arg()
     videos_path, label_path, mapping_path, flicker_path, non_flicker_path, cache_path = args.videos_path, args.label_path, args.mapping_path, args.flicker_dir, args.non_flicker_dir, args.cache_path
     labels = json.load(open(label_path, "r"))
 
-    # flicker_chunk(non_flicker_path, "data/flicker_chunks", labels)
+    # flicker_chunk(non_flicker_path, flicker_path, labels)
 
     if args.preprocess:
         mov_dif_aug(
             videos_path,
             non_flicker_path,
-            labels,
-            chunk_size=31,
+            chunk_size=11,
             shape=(360, 180, 3)
         )
 
