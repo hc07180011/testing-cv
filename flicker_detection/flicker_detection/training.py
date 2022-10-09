@@ -110,8 +110,8 @@ def training(
                          val_loss_callback, val_f1_callback)
             val_max_f1 = val_f1_callback[-1]
 
-        train_loader.shuffle()
-        val_loader.shuffle()
+        train_loader._shuffle()
+        val_loader._shuffle()
 
     torch.cuda.empty_cache()
     return models
@@ -213,7 +213,8 @@ def main() -> None:
     layer_dim = 1
     bidirectional = False
     in_mem_batches = 1000
-    shape = (4, 10, 3, 360, 360)
+    batch_size = 6
+    # shape = (6, 10, 3, 360, 360)
 
     feature_extractor = ExtractorCNN(
         cnn=torchvision.models.vgg16(pretrained=True)
@@ -245,19 +246,20 @@ def main() -> None:
             non_flicker_dir=non_flicker_path,
             flicker_dir=flicker_path,
             labels=labels,
-            batch_size=shape[0],
+            batch_size=batch_size,
             in_mem_batches=in_mem_batches
         )
         logging.info("Done loading training set")
 
         logging.info("Loading validtaion set..")
         ds_val = Loader(
-            non_flicker_lst=non_flicker_test,
-            flicker_lst=flicker_test + fp_test,
+            non_flicker_lst=np.concatenate(
+                (non_flicker_test, fp_test), axis=0),
+            flicker_lst=flicker_test,
             non_flicker_dir=non_flicker_path,
             flicker_dir=flicker_path,
             labels=labels,
-            batch_size=shape[0],
+            batch_size=batch_size,
             in_mem_batches=in_mem_batches
         )
         logging.info("Done loading validation set")
@@ -281,12 +283,13 @@ def main() -> None:
     if args.test:
         logging.info("Loading testing set..")
         ds_test = Loader(
-            non_flicker_lst=non_flicker_test,
-            flicker_lst=flicker_test + fp_test,
+            non_flicker_lst=np.concatenate(
+                (non_flicker_test, fp_test), axis=0),
+            flicker_lst=flicker_test,
             non_flicker_dir=non_flicker_path,
             flicker_dir=flicker_path,
             labels=labels,
-            batch_size=shape[0],
+            batch_size=batch_size,
             in_mem_batches=in_mem_batches
         )
         logging.info("Done loading testing set")
