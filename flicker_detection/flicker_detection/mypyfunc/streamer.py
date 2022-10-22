@@ -6,9 +6,21 @@ import skvideo.io
 import torch
 import torchvision
 from torch.utils.data import IterableDataset, DataLoader
+from torchvision.datasets.folder import make_dataset
+
 
 from typing import Tuple, Callable
 
+def _find_classes(dir):
+    classes = [d.name for d in os.scandir(dir) if d.is_dir()]
+    classes.sort()
+    class_to_idx = {cls_name: i for i, cls_name in enumerate(classes)}
+    return classes, class_to_idx
+
+
+def get_samples(root, extensions=(".mp4", ".avi")):
+    _, class_to_idx = _find_classes(root)
+    return make_dataset(root, class_to_idx, extensions=extensions)
 
 class RandomDataset(torch.utils.data.IterableDataset):
     def __init__(self, root, epoch_size=None, frame_transform=None, video_transform=None, clip_len=16):
@@ -67,11 +79,10 @@ class VideoDataSet(IterableDataset):
         return random.sample(self.vid_lst, len(self.vid_lst))
 
     @staticmethod
-    def _load(vid_lst: list) -> np.ndarray:
-        for vid_name in vid_lst:
-            worker = torch.utils.data.get_worker_info()
-            worker_id = id(worker) if worker is not None else -1,
-            yield worker_id, skvideo.io.vread(vid_name)
+    def _load(vid: str) -> np.ndarray:
+        worker = torch.utils.data.get_worker_info()
+        worker_id = id(worker) if worker is not None else -1,
+        yield worker_id, skvideo.io.vread(vid)
 
     def _get_stream(self, vid_lst: list) -> list:
         return itertools.chain.from_iterable(map(self._load, itertools.cycle(vid_lst)))
@@ -93,7 +104,7 @@ class VideoDataSet(IterableDataset):
         return [loader(vid_lst, batch_size=batch_size//num_workers) for _ in range(num_workers)]
 
     def __iter__(self) -> itertools.chain.from_iterable:
-        return self._get_stream()
+        return self._get_streams()
 
 
 class MultiStreamer(object):
@@ -128,8 +139,8 @@ if __name__ == '__main__':
     video_files = [os.path.join(video_dir, path)
                    for path in os.listdir(video_dir)]
     datasets = VideoDataSet.split_datasets(
-        video_files, batch_size=4, max_workers=1)
+        video_files, batch_size=4, max_workers=8)
     loader = MultiStreamer(datasets)
 
     for batch in loader:
-        print(type(batch))
+        print(len(batch),np.array(batch[-1]).shape)
