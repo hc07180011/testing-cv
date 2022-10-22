@@ -189,7 +189,7 @@ def command_arg() -> ArgumentParser:
                         help='path of json that maps encrpypted video file name to simple naming')
     parser.add_argument('--flicker_dir', type=str, default="data/flicker-chunks",
                         help='directory of flicker videos')
-    parser.add_argument('--non_flicker_dir', type=str, default="data/meta-data",
+    parser.add_argument('--non_flicker_dir', type=str, default="data/20_frame_norm_chunks",
                         help='directory of flicker videos')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
@@ -230,7 +230,6 @@ if __name__ == "__main__":
 
     find good reference novelty/outlier detection for video understanding, use it as reference
     can just use simple transformers to replace lstm in the future
-    ask professor liao
     """
     init_logger()
     args = command_arg()
@@ -243,7 +242,7 @@ if __name__ == "__main__":
         mov_dif_aug(
             videos_path,
             non_flicker_path,
-            chunk_size=11,
+            chunk_size=21,
             shape=(360, 180, 3)
         )
 

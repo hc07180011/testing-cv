@@ -85,12 +85,7 @@ def np_embed(
         embeddings = np.array(embeddings)
         logging.info(f"{path} / {embeddings.shape}")
 
-        if 'aug' in path:
-            split_name = path.split("_aug")
-            real_name = "{}{}".format(
-                mapping[split_name[0]], split_name[1].replace(".mp4", ""))
-        else:
-            real_name = mapping[path.split(".mp4")[0]]
+        real_name = path.split(".mp4")[0]  # mapping[path.split(".mp4")[0]]
 
         np.save(os.path.join(output_dir, real_name), embeddings)
 
@@ -211,7 +206,7 @@ def command_arg() -> ArgumentParser:
                         help='directory of extracted feature embeddings')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
-    parser.add_argument('--videos_path', type=str, default="data/lower_res",
+    parser.add_argument('--videos_path', type=str, default="data/0824",
                         help='src directory to extract embeddings from')
     parser.add_argument(
         "-train", "--train", action="store_true",
@@ -256,19 +251,19 @@ def main():
     )
     logging.info("[Embedding] done.")
 
-    logging.info("[Preprocessing] Start ...")
-    preprocessing(
-        label_path,
-        mapping_path,
-        data_path,
-        cache_path,
-    )
-    logging.info("[Preprocessing] done.")
+    # logging.info("[Preprocessing] Start ...")
+    # preprocessing(
+    #     label_path,
+    #     mapping_path,
+    #     data_path,
+    #     cache_path,
+    # )
+    # logging.info("[Preprocessing] done.")
 
-    __cache__ = np.load("{}.npz".format(cache_path), allow_pickle=True)
+    # __cache__ = np.load("{}.npz".format(cache_path), allow_pickle=True)
 
-    embedding_list_train, embedding_list_val, embedding_list_test = tuple(
-        __cache__[lst] for lst in __cache__)
+    # embedding_list_train, embedding_list_val, embedding_list_test = tuple(
+    #     __cache__[lst] for lst in __cache__)
 
     # ds_train = Streamer(embedding_list_train, label_path,
     #                     mapping_path, data_path, mem_split=20, batch_size=256, keras=True)

@@ -12,7 +12,7 @@ from typing import Callable, Tuple
 from argparse import ArgumentParser
 from mypyfunc.logger import init_logger
 from mypyfunc.torch_eval import F1Score, Evaluation
-from mypyfunc.torch_models import LSTM, ExtractorCNN
+from mypyfunc.torch_models import CNN_LSTM
 from mypyfunc.torch_data_loader import Loader, VideoLoader
 from mypyfunc.torch_utility import save_checkpoint, save_metrics, load_checkpoint, load_metrics, torch_seeding
 
@@ -20,7 +20,7 @@ from mypyfunc.torch_utility import save_checkpoint, save_metrics, load_checkpoin
 def training(
     train_loader: VideoLoader,
     val_loader: VideoLoader,
-    models: Tuple[nn.Module, nn.Module],
+    model: nn.Module,
     optimizer: torch.optim.Optimizer,
     f1_metric: Callable,
     criterion: Callable,
@@ -35,26 +35,20 @@ def training(
         if loss_callback and epoch > 10 and loss_callback[-1] < 0.005:
             break
 
-        models[0].train()
-        models[-1].train()
-
+        model.train()
         minibatch_loss_train, minibatch_f1 = 0, 0
         for n_train, (inputs, labels) in enumerate(tqdm.tqdm(train_loader)):
             inputs = torch.from_numpy(inputs).permute(
                 0, 1, 4, 2, 3).float().to(device)
             labels = torch.from_numpy(labels).long().to(device)
-            batch_size, chunk_size = inputs.shape[:2]
-
-            features = models[0](inputs.flatten(
-                end_dim=1)).flatten(start_dim=1)
-            features = features.reshape(
-                (batch_size, chunk_size, features.shape[-1]))
-            outputs = models[-1](features)
+            logging.debug(
+                "Training : {} - {}".format(inputs.shape, labels.shape))
+            outputs = model(inputs)
 
             loss = criterion(outputs, labels)
             optimizer.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm(models[-1].parameters(), 1.0)
+            torch.nn.utils.clip_grad_norm(model.parameters(), 1.0)
             optimizer.step()
 
             f1 = f1_metric(torch.topk(objective(outputs),
@@ -62,8 +56,7 @@ def training(
             minibatch_loss_train += loss.item()
             minibatch_f1 += f1.item()
 
-        models[0].eval()
-        models[-1].eval()
+        model.eval()
         loss_callback += ((minibatch_loss_train / (n_train + 1))
                           if n_train else minibatch_loss_train,)
         f1_callback += ((minibatch_f1/(n_train + 1))
@@ -75,13 +68,9 @@ def training(
                 inputs = torch.from_numpy(inputs).permute(
                     0, 1, 4, 2, 3).float().to(device)
                 labels = torch.from_numpy(labels).long().to(device)
-                batch_size, chunk_size = inputs.shape[:2]
-
-                features = models[0](inputs.flatten(
-                    end_dim=1)).flatten(start_dim=1)
-                features = features.reshape(
-                    (batch_size, chunk_size, features.shape[-1]))
-                outputs = models[-1](features)
+                logging.debug(
+                    "Val : {} - {}".format(inputs.shape, labels.shape))
+                outputs = model(inputs)
 
                 loss = criterion(outputs, labels)
                 val_f1 = f1_metric(
@@ -104,7 +93,7 @@ def training(
             ))
 
         if epoch > 10 and val_f1_callback[-1] > val_max_f1:
-            save_checkpoint(f'{save_path}/model.pth', models,
+            save_checkpoint(f'{save_path}/model.pth', model,
                             optimizer, loss_callback[-1], f1_callback[-1], val_loss_callback[-1], val_f1_callback[-1])
             save_metrics(f'{save_path}/metrics.pth', loss_callback, f1_callback,
                          val_loss_callback, val_f1_callback)
@@ -114,12 +103,12 @@ def training(
         val_loader._shuffle()
 
     torch.cuda.empty_cache()
-    return models
+    return model
 
 
 def testing(
     test_loader: VideoLoader,
-    models: Tuple[nn.Module, nn.Module],
+    model: nn.Module,
     objective: Callable,
     device: torch.device,
     classes: int = 2,
@@ -128,22 +117,14 @@ def testing(
     logging.getLogger('matplotlib').setLevel(logging.WARNING)
     metrics = Evaluation(plots_folder="plots/", classes=classes)
 
-    models[0].eval()
-    models[-1].eval()
+    model.eval()
     y_pred, y_true = (), ()
     with torch.no_grad():
         for (inputs, labels) in tqdm.tqdm(test_loader):
             inputs = torch.from_numpy(inputs).permute(
                 0, 1, 4, 2, 3).float().to(device)
             labels = torch.from_numpy(labels).long().to(device)
-            batch_size, chunk_size = inputs.shape[:2]
-
-            features = models[0](inputs.flatten(
-                end_dim=1)).flatten(start_dim=1)
-            features = features.reshape(
-                (batch_size, chunk_size, features.shape[-1]))
-            outputs = models[-1](features)
-
+            outputs = model(inputs)
             y_pred += (objective(outputs),)
             y_true += (labels,)
 
@@ -211,15 +192,13 @@ def main() -> None:
     output_dim = 2
     hidden_dim = 64
     layer_dim = 1
-    bidirectional = False
-    in_mem_batches = 1000
-    batch_size = 6
-    # shape = (6, 10, 3, 360, 360)
+    bidirectional = True
+    in_mem_batches = 20
+    batch_size = 4
+    shape = (8, 360, 360, 3)
 
-    feature_extractor = ExtractorCNN(
-        cnn=torchvision.models.vgg16(pretrained=True)
-    )
-    model = LSTM(
+    model = CNN_LSTM(
+        cnn=torchvision.models.vgg16(pretrained=True),
         input_dim=input_dim,
         output_dim=output_dim,
         hidden_dim=hidden_dim,
@@ -227,9 +206,7 @@ def main() -> None:
         bidirectional=bidirectional,
     )
 
-    feature_extractor = torch.nn.DataParallel(feature_extractor)
     model = torch.nn.DataParallel(model)
-    feature_extractor.to(device)
     model.to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
@@ -241,12 +218,13 @@ def main() -> None:
     if args.train:
         logging.info("Loading training set..")
         ds_train = Loader(
-            non_flicker_lst=non_flicker_train,
-            flicker_lst=flicker_train,
+            non_flicker_lst=non_flicker_train[:100],
+            flicker_lst=flicker_train[:100],
             non_flicker_dir=non_flicker_path,
             flicker_dir=flicker_path,
             labels=labels,
             batch_size=batch_size,
+            shape=shape,
             in_mem_batches=in_mem_batches
         )
         logging.info("Done loading training set")
@@ -254,23 +232,23 @@ def main() -> None:
         logging.info("Loading validtaion set..")
         ds_val = Loader(
             non_flicker_lst=np.concatenate(
-                (non_flicker_test, fp_test), axis=0),
-            flicker_lst=flicker_test,
+                (non_flicker_test, fp_test), axis=0)[:100],
+            flicker_lst=flicker_test[:100],
             non_flicker_dir=non_flicker_path,
             flicker_dir=flicker_path,
             labels=labels,
             batch_size=batch_size,
+            shape=shape,
             in_mem_batches=in_mem_batches
         )
         logging.info("Done loading validation set")
 
-        logging.info(f"{feature_extractor.train()}")
         logging.info(f"{model.train()}")
         logging.info("Starting Training Video Model")
         training(
             train_loader=ds_train,
             val_loader=ds_val,
-            models=(feature_extractor, model),
+            model=model,
             optimizer=optimizer,
             f1_metric=metric,
             criterion=criterion,
@@ -290,18 +268,17 @@ def main() -> None:
             flicker_dir=flicker_path,
             labels=labels,
             batch_size=batch_size,
+            shape=shape,
             in_mem_batches=in_mem_batches
         )
         logging.info("Done loading testing set")
 
         logging.info("Starting Evaluation")
-        feature_extractor.load_state_dict(torch.load(os.path.join(
-            model_path, 'model.pth'))['feature_extractor'])
         model.load_state_dict(torch.load(os.path.join(
             model_path, 'model.pth'))['model'])
         testing(
             ds_test,
-            (feature_extractor, model),
+            model,
             objective=objective,
             device=device,
             classes=2,

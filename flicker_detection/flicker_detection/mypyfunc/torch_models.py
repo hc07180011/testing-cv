@@ -11,16 +11,17 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
-class LSTM(nn.Module):
+class CNN_LSTM(nn.Module):
     def __init__(
         self,
+        cnn: nn.Module,
         input_dim: int,
         output_dim: int,
         hidden_dim: int,
         layer_dim: int,
         bidirectional=False,
     ) -> None:
-        super(LSTM, self).__init__()
+        super(CNN_LSTM, self).__init__()
         # Hidden dimensions
         self.hidden_dim = hidden_dim
         # Number of hidden layers
@@ -29,6 +30,8 @@ class LSTM(nn.Module):
         self.output_dim = output_dim
         self.n_directions = 2 if bidirectional else 1
 
+        # Base cnn features layer
+        self.extractor = cnn.features
         # LSTM Layer
         self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=layer_dim,
                             batch_first=True, bidirectional=bidirectional)
@@ -38,6 +41,19 @@ class LSTM(nn.Module):
         self.fc2 = nn.Linear(hidden_dim//2, self.output_dim)
         # initialize weights & bias with stdv -> 0.05
         self.initialization()
+        """
+                self.classifier = nn.Sequential(
+            # LSTM Layer
+            nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=layer_dim,
+                    batch_first=True, bidirectional=bidirectional),
+            # Linear Dense
+            nn.Linear(hidden_dim*self.n_directions, hidden_dim//2),
+            # Linear Dense
+            nn.Linear(hidden_dim//2, self.output_dim)
+            # initialize weights & bias with stdv -> 0.05
+        )
+
+        """
 
     def init_hidden(self, x: torch.Tensor) -> torch.FloatTensor:
         h0 = torch.zeros(
@@ -57,8 +73,13 @@ class LSTM(nn.Module):
         return h0, c0
 
     def forward(self, x) -> torch.Tensor:
+        batch_size, chunk_size = x.shape[:2]
+        # Get features
+        out = self.extractor(x.flatten(end_dim=1)).flatten(start_dim=1)
+        # Shape back to batch x chunk
+        out = out.reshape((batch_size, chunk_size, out.shape[-1]))
         # One time step
-        out, self.hidden_state = self.lstm(x, self.init_hidden(x))
+        out, self.hidden_state = self.lstm(out, self.init_hidden(x))
         # Dense lstm
         out = self.fc1(out)
         # Dense for softmax
