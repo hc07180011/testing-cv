@@ -6,9 +6,83 @@ from torch import nn
 from torch.autograd import Variable
 # from torchsummary import summary as summary
 from typing import Callable
-import pkbar
+from collections import OrderedDict
 import warnings
 warnings.filterwarnings('ignore')
+
+
+class LSTM(torch.nn.Module):
+    def __init__(
+        self,
+        input_dim: int,
+        output_dim: int,
+        hidden_dim: int,
+        layer_dim: int,
+        bidirectional=False,
+    ) -> None:
+        super(LSTM, self).__init__()
+        # Hidden dimensions
+        self.hidden_dim = hidden_dim
+        # Number of hidden layers
+        self.layer_dim = layer_dim
+        # Output dim classes
+        self.output_dim = output_dim
+        self.n_directions = 2 if bidirectional else 1
+
+        # LSTM Layer
+        self.lstm = torch.nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=layer_dim,
+                                  batch_first=True, bidirectional=bidirectional)
+        # Linear Dense
+        self.fc1 = torch.nn.Linear(hidden_dim*self.n_directions, hidden_dim//2)
+        # Linear Dense
+        self.fc2 = torch.nn.Linear(hidden_dim//2, self.output_dim)
+        # initialize weights & bias with stdv -> 0.05
+        self.initialization()
+
+    def init_hidden(self, x: torch.Tensor) -> torch.FloatTensor:
+        h0 = torch.zeros(
+            self.layer_dim*self.n_directions,
+            x.size(0),
+            self.hidden_dim,
+            device="cuda"
+        ).requires_grad_()
+
+        # Initialize cell state
+        c0 = torch.zeros(
+            self.layer_dim*self.n_directions,
+            x.size(0),
+            self.hidden_dim,
+            device="cuda"
+        ).requires_grad_()
+        return h0, c0
+
+    def forward(self, x) -> torch.Tensor:
+        # One time step
+        out, _ = self.lstm(x, self.init_hidden(x))
+        # Dense lstm
+        out = self.fc1(out)
+        # Dense for softmax
+        out = self.fc2(out)
+        return out[:, -1]
+
+    def initialization(self) -> None:
+        for m in self.modules():
+            if isinstance(m, torch.nn.Linear):
+                torch.nn.init.normal_(param.data, std=0.05)
+            elif isinstance(m, torch.nn.LSTM):
+                for name, param in m.named_parameters():
+                    if 'weight_ih' in name:
+                        for i in range(4):
+                            mul = param.shape[0]//4
+                            torch.nn.init.xavier_uniform_(
+                                param[i*mul:(i+1)*mul])
+                    elif 'weight_hh' in name:
+                        for i in range(4):
+                            mul = param.shape[0]//4
+                            torch.nn.init.xavier_uniform_(
+                                param[i*mul:(i+1)*mul])
+                    elif 'bias' in name:
+                        torch.nn.init.zeros_(param.data)
 
 
 class CNN_LSTM(nn.Module):
@@ -41,19 +115,16 @@ class CNN_LSTM(nn.Module):
         self.fc2 = nn.Linear(hidden_dim//2, self.output_dim)
         # initialize weights & bias with stdv -> 0.05
         self.initialization()
-        """
-                self.classifier = nn.Sequential(
-            # LSTM Layer
-            nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=layer_dim,
-                    batch_first=True, bidirectional=bidirectional),
-            # Linear Dense
-            nn.Linear(hidden_dim*self.n_directions, hidden_dim//2),
-            # Linear Dense
-            nn.Linear(hidden_dim//2, self.output_dim)
-            # initialize weights & bias with stdv -> 0.05
-        )
 
-        """
+        # self.classifier = nn.Sequential(OrderedDict([
+        #     # LSTM Layer
+        #     ('lstm', nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=layer_dim,
+        #                      batch_first=True, bidirectional=bidirectional)),
+        #     # Linear Dense
+        #     ('fc1', nn.Linear(hidden_dim*self.n_directions, hidden_dim//2)),
+        #     # Linear Dense
+        #     ('fc2', nn.Linear(hidden_dim//2, self.output_dim)),
+        # ]))
 
     def init_hidden(self, x: torch.Tensor) -> torch.FloatTensor:
         h0 = torch.zeros(
@@ -74,7 +145,7 @@ class CNN_LSTM(nn.Module):
 
     def forward(self, x) -> torch.Tensor:
         batch_size, chunk_size = x.shape[:2]
-        # Get features
+        # Get features (4,10,360,360,3)
         out = self.extractor(x.flatten(end_dim=1)).flatten(start_dim=1)
         # Shape back to batch x chunk
         out = out.reshape((batch_size, chunk_size, out.shape[-1]))

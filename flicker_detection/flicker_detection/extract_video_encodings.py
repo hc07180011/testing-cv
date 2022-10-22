@@ -222,14 +222,13 @@ if __name__ == "__main__":
     find state of art and compare for paper
 
     25471 : 997
-    googles uneven chunks will need multiscale detection method - increase computation alooot, multiple networks usage
 
     relabel classes to beginning of flicker, inside flicker and end flicker for multiclass 
           - might improve flicker detection performance
     run simple statistics of flicker duration using labels, learn how long the flicker, get histogram counting number of flicker sequence length 
 
     find good reference novelty/outlier detection for video understanding, use it as reference
-    can just use simple transformers to replace lstm in the future
+    https://towardsdatascience.com/how-to-make-a-pytorch-transformer-for-time-series-forecasting-69e073d4061e
     """
     init_logger()
     args = command_arg()
