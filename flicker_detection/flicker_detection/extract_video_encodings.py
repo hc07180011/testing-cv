@@ -11,6 +11,7 @@ import skvideo.io
 import torchvision.transforms as transforms
 from sklearn.model_selection import train_test_split
 from argparse import ArgumentParser
+from collections import Counter
 from typing import Tuple
 from mypyfunc.logger import init_logger
 
@@ -179,6 +180,16 @@ def preprocessing(
 
     np.savez(cache_path, flicker_train, non_flicker_train,
              fp_test, flicker_test, non_flicker_test)
+
+
+def histogram(
+    labels: dict,
+    save_path: str
+) -> None:
+    res = Counter(labels.values())
+    plt.hist(res)
+    plt.savefig(save_path)
+    plt.show()
 
 
 def command_arg() -> ArgumentParser:

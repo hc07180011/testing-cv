@@ -186,9 +186,7 @@ def main() -> None:
     hidden_dim = 64
     layer_dim = 1
     bidirectional = True
-    in_mem_batches = 20
     batch_size = 4
-    shape = (8, 360, 360, 3)
 
     model = CNN_LSTM(
         cnn=torchvision.models.vgg16(pretrained=True),
@@ -215,9 +213,9 @@ def main() -> None:
         flicker_train = [os.path.join(flicker_path, f)
                          for f in flicker_train]
         non_flicker_train = VideoDataSet.split_datasets(
-            non_flicker_train[:12], class_size=batch_size//2, max_workers=4, cycle=False)
+            non_flicker_train, class_size=batch_size, max_workers=1, undersample=len(flicker_train))
         flicker_train = VideoDataSet.split_datasets(
-            flicker_train[:4], class_size=batch_size//2, max_workers=4, cycle=True)
+            flicker_train, class_size=batch_size, max_workers=1)
 
         ds_train = MultiStreamer(non_flicker_train, flicker_train, batch_size)
         logging.info("Done loading training set")
@@ -228,9 +226,9 @@ def main() -> None:
         flicker_val = [os.path.join(flicker_path, f)
                        for f in flicker_test]
         non_flicker_val = VideoDataSet.split_datasets(
-            non_flicker_val[:12], class_size=batch_size//2, max_workers=4, cycle=False)
+            non_flicker_val, class_size=batch_size, max_workers=1, undersample=len(flicker_val))
         flicker_val = VideoDataSet.split_datasets(
-            flicker_val[:4], class_size=batch_size//2, max_workers=4, cycle=True)
+            flicker_val, class_size=batch_size, max_workers=1)
 
         ds_val = MultiStreamer(non_flicker_val, flicker_val, batch_size)
         logging.info("Done loading validation set")
@@ -257,9 +255,9 @@ def main() -> None:
         flicker_test = [os.path.join(flicker_path, f)
                         for f in flicker_test]
         non_flicker_test = VideoDataSet.split_datasets(
-            non_flicker_test[:12], class_size=batch_size//2, max_workers=4, cycle=False)
+            non_flicker_test, class_size=batch_size, max_workers=1)
         flicker_test = VideoDataSet.split_datasets(
-            flicker_test[:4], class_size=batch_size//2, max_workers=4, cycle=True)
+            flicker_test, class_size=batch_size, max_workers=1)
 
         ds_test = MultiStreamer(non_flicker_test, flicker_test, batch_size)
         logging.info("Done loading testing set")

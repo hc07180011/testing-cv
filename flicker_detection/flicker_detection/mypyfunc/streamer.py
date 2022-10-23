@@ -25,6 +25,10 @@ def get_samples(root, extensions=(".mp4", ".avi")):
 
 
 class RandomDataset(torch.utils.data.IterableDataset):
+    """
+    https://pytorch.org/vision/main/auto_examples/plot_video_api.html
+    """
+
     def __init__(self, root, epoch_size=None, frame_transform=None, video_transform=None, clip_len=16):
         super(RandomDataset).__init__()
         self.samples = get_samples(root)
@@ -72,11 +76,13 @@ class VideoDataSet(IterableDataset):
         self,
         vid_lst: list,
         class_size: int,
-        cycle: bool,
+        oversample: bool,
+        undersample: int,
     ) -> None:
         self.vid_lst = vid_lst
         self.batch_size = class_size
-        self.cycle = cycle
+        self.oversample = oversample
+        self.undersample = undersample
 
     @property
     def shuffled_data_list(self):
@@ -87,7 +93,11 @@ class VideoDataSet(IterableDataset):
         yield skvideo.io.vread(vid)
 
     def _get_stream(self, vid_lst: list,) -> itertools.chain.from_iterable:
-        return itertools.chain.from_iterable(map(self._load, itertools.cycle(vid_lst) if self.cycle else vid_lst))
+        if self.oversample:
+            vid_lst = itertools.cycle(vid_lst)
+        elif self.undersample:
+            vid_lst = random.sample(vid_lst, self.undersample)
+        return itertools.chain.from_iterable(map(self._load, vid_lst))
 
     def _get_streams(self) -> zip:
         return zip(*[
@@ -101,21 +111,30 @@ class VideoDataSet(IterableDataset):
         vid_lst: list,
         class_size: int,
         max_workers: int,
-        cycle: bool
+        oversample: bool = False,
+        undersample: int = 0,
     ) -> list:
         for n in range(max_workers, 0, -1):
             if class_size % n == 0:
                 num_workers = n
                 break
-        split_lst = np.split(np.array(vid_lst), num_workers)
-        return [cls(lst.tolist(), class_size=class_size//num_workers, cycle=cycle)
-                for lst in split_lst]
+        split_lst = np.array_split(np.array(vid_lst), num_workers)
+        return [cls(
+            lst.tolist(),
+            class_size=class_size,
+            oversample=oversample,
+            undersample=undersample)
+            for lst in split_lst]
 
     def __iter__(self) -> itertools.chain.from_iterable:
         return self._get_streams()
 
 
 class MultiStreamer(object):
+    """
+    https://medium.com/speechmatics/how-to-build-a-streaming-dataloader-with-pytorch-a66dd891d9dd
+    """
+
     def __init__(
         self,
         non_flickers: IterableDataset,
@@ -152,8 +171,8 @@ class MultiStreamer(object):
 if __name__ == '__main__':
     # work with shorter videos with smaller samples to debug
 
-    non_flicker_dir = "../data/10_frame_data/meta-data"
-    flicker_dir = "../data/10_frame_data/flicker-chunks"
+    non_flicker_dir = "../data/meta-data"
+    flicker_dir = "../data/flicker-chunks"
     non_flicker_files = [os.path.join(non_flicker_dir, path)
                          for path in os.listdir(non_flicker_dir)]
     flicker_files = [os.path.join(flicker_dir, path)
@@ -161,11 +180,12 @@ if __name__ == '__main__':
 
     batch_size = 4
     non_flickers = VideoDataSet.split_datasets(
-        non_flicker_files[:12], class_size=batch_size//2, max_workers=4, cycle=False)
+        non_flicker_files[:12], class_size=batch_size, max_workers=4)  # undersample=len(flicker_files[:4]))
     flickers = VideoDataSet.split_datasets(
-        flicker_files[:4], class_size=batch_size//2, max_workers=4, cycle=True)
+        flicker_files[:4], class_size=batch_size, max_workers=4, oversample=True)
 
     loader = MultiStreamer(non_flickers, flickers, batch_size)
     for i in range(2):
+        print(f"{i} WTF")
         for inputs, labels in loader:
             print(inputs.shape, labels.shape)
