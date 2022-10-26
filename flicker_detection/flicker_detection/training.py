@@ -249,23 +249,23 @@ def main() -> None:
     if args.test:
         # TO DO make imbalance
         logging.info("Loading testing set..")
-        non_flicker_val = [os.path.join(non_flicker_path, f)
-                           for f in fp_test]
-        flicker_val = [os.path.join(flicker_path, f)
-                       for f in flicker_test]
-        non_flicker_val = VideoDataSet.split_datasets(
-            non_flicker_val, class_size=batch_size//2, max_workers=1, undersample=len(flicker_val))
-        flicker_val = VideoDataSet.split_datasets(
-            flicker_val, class_size=batch_size//2, max_workers=1)
+        fp_test = [os.path.join(non_flicker_path, f)
+                   for f in fp_test]
+        flicker_test = [os.path.join(flicker_path, f)
+                        for f in flicker_test]
+        fp_test = VideoDataSet.split_datasets(
+            fp_test, class_size=batch_size//2, max_workers=1, undersample=len(flicker_test))
+        flicker_test = VideoDataSet.split_datasets(
+            flicker_test, class_size=batch_size//2, max_workers=1)
 
-        ds_val = MultiStreamer(non_flicker_val, flicker_val, batch_size)
+        ds_test = MultiStreamer(fp_test, flicker_test, batch_size)
         logging.info("Done loading testing set")
 
         logging.info("Starting Evaluation")
         model.load_state_dict(torch.load(os.path.join(
             model_path, 'model.pth'))['model_state_dict'])
         testing(
-            ds_val,
+            ds_test,
             model,
             objective=objective,
             device=device,
