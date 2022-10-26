@@ -41,7 +41,7 @@ def training(
             inputs = inputs.permute(
                 0, 1, 4, 2, 3).float().to(device)
             labels = labels.long().to(device)
-
+            # logging.debug(f"{labels}")
             outputs = model(inputs)
             loss = criterion(outputs, labels)
             optimizer.zero_grad()
@@ -122,11 +122,10 @@ def testing(
             y_true += (labels,)
 
     y_pred, y_true = torch.cat(y_pred, dim=0), torch.cat(y_true, dim=0)
-    y_pred, y_true = y_pred.detach().cpu().numpy(
-    ), y_true.detach().cpu().numpy()  # changed here
+    y_pred, y_true = y_pred.detach().cpu(), y_true.detach().cpu()  # changed here
 
     y_classes = torch.topk(y_pred, k=1, dim=1).indices.flatten()
-    y_classes = y_classes.detach().cpu().numpy()
+    y_classes = y_classes.detach().cpu()
 
     # TO DO re implement frame tracking
     # metrics.miss_classified(X_test, y_classes, y_true,
@@ -179,7 +178,6 @@ def main() -> None:
         "{}.npz".format(cache_path), allow_pickle=True)
     flicker_train, non_flicker_train, fp_test, flicker_test, non_flicker_test = tuple(
         __cache__[lst] for lst in __cache__)
-    labels = json.load(open(label_path, 'rb'))
 
     input_dim = 61952
     output_dim = 2
@@ -213,9 +211,9 @@ def main() -> None:
         flicker_train = [os.path.join(flicker_path, f)
                          for f in flicker_train]
         non_flicker_train = VideoDataSet.split_datasets(
-            non_flicker_train, class_size=batch_size, max_workers=1, undersample=len(flicker_train))
+            non_flicker_train, class_size=batch_size//2, max_workers=1, undersample=len(flicker_train))
         flicker_train = VideoDataSet.split_datasets(
-            flicker_train, class_size=batch_size, max_workers=1)
+            flicker_train, class_size=batch_size//2, max_workers=1)
 
         ds_train = MultiStreamer(non_flicker_train, flicker_train, batch_size)
         logging.info("Done loading training set")
@@ -226,9 +224,9 @@ def main() -> None:
         flicker_val = [os.path.join(flicker_path, f)
                        for f in flicker_test]
         non_flicker_val = VideoDataSet.split_datasets(
-            non_flicker_val, class_size=batch_size, max_workers=1, undersample=len(flicker_val))
+            non_flicker_val, class_size=batch_size//2, max_workers=1, undersample=len(flicker_val))
         flicker_val = VideoDataSet.split_datasets(
-            flicker_val, class_size=batch_size, max_workers=1)
+            flicker_val, class_size=batch_size//2, max_workers=1)
 
         ds_val = MultiStreamer(non_flicker_val, flicker_val, batch_size)
         logging.info("Done loading validation set")
@@ -249,24 +247,25 @@ def main() -> None:
         logging.info("Done Training Video Model...")
 
     if args.test:
+        # TO DO make imbalance
         logging.info("Loading testing set..")
-        non_flicker_test = [os.path.join(non_flicker_path, f)
-                            for f in non_flicker_test]
-        flicker_test = [os.path.join(flicker_path, f)
-                        for f in flicker_test]
-        non_flicker_test = VideoDataSet.split_datasets(
-            non_flicker_test, class_size=batch_size, max_workers=1)
-        flicker_test = VideoDataSet.split_datasets(
-            flicker_test, class_size=batch_size, max_workers=1)
+        non_flicker_val = [os.path.join(non_flicker_path, f)
+                           for f in fp_test]
+        flicker_val = [os.path.join(flicker_path, f)
+                       for f in flicker_test]
+        non_flicker_val = VideoDataSet.split_datasets(
+            non_flicker_val, class_size=batch_size//2, max_workers=1, undersample=len(flicker_val))
+        flicker_val = VideoDataSet.split_datasets(
+            flicker_val, class_size=batch_size//2, max_workers=1)
 
-        ds_test = MultiStreamer(non_flicker_test, flicker_test, batch_size)
+        ds_val = MultiStreamer(non_flicker_val, flicker_val, batch_size)
         logging.info("Done loading testing set")
 
         logging.info("Starting Evaluation")
         model.load_state_dict(torch.load(os.path.join(
-            model_path, 'model.pth'))['model'])
+            model_path, 'model.pth'))['model_state_dict'])
         testing(
-            ds_test,
+            ds_val,
             model,
             objective=objective,
             device=device,

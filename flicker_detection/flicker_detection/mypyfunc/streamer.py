@@ -133,6 +133,8 @@ class VideoDataSet(IterableDataset):
 class MultiStreamer(object):
     """
     https://medium.com/speechmatics/how-to-build-a-streaming-dataloader-with-pytorch-a66dd891d9dd
+    TO DO implement multiprocess labeling from the DataLoader class 
+    for imbalance class and for multiclass
     """
 
     def __init__(
@@ -162,7 +164,6 @@ class MultiStreamer(object):
             f_vid, n_vid = list(itertools.chain(*f)), list(itertools.chain(*n))
             f_labels, n_labels = torch.ones(
                 len(f_vid)), torch.zeros(len(n_vid))
-
             inputs, labels = torch.stack(
                 f_vid+n_vid), torch.cat([f_labels, n_labels])
             yield inputs[self.batch_idx].float(), labels[self.batch_idx].long()
@@ -180,12 +181,13 @@ if __name__ == '__main__':
 
     batch_size = 4
     non_flickers = VideoDataSet.split_datasets(
-        non_flicker_files[:12], class_size=batch_size, max_workers=4)  # undersample=len(flicker_files[:4]))
+        non_flicker_files[:12], class_size=batch_size//2, max_workers=1, undersample=len(flicker_files[:4]))
     flickers = VideoDataSet.split_datasets(
-        flicker_files[:4], class_size=batch_size, max_workers=4, oversample=True)
+        flicker_files[:4], class_size=batch_size//2, max_workers=1)  # oversample=True)
 
     loader = MultiStreamer(non_flickers, flickers, batch_size)
     for i in range(2):
         print(f"{i} WTF")
         for inputs, labels in loader:
-            print(inputs.shape, labels.shape)
+            print(inputs.shape, labels)
+            pass

@@ -308,18 +308,6 @@ class Loader(object):
         # ], dtype=np.uint8)
 
 
-def _find_classes(dir):
-    classes = [d.name for d in os.scandir(dir) if d.is_dir()]
-    classes.sort()
-    class_to_idx = {cls_name: i for i, cls_name in enumerate(classes)}
-    return classes, class_to_idx
-
-
-def get_samples(root, extensions=(".mp4", ".avi")):
-    _, class_to_idx = _find_classes(root)
-    return make_dataset(root, class_to_idx, extensions=extensions)
-
-
 def cpu_stats() -> None:
     # print(sys.version)
     print("CPU USAGE - ", psutil.cpu_percent())

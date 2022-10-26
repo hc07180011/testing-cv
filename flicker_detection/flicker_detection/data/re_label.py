@@ -4,6 +4,7 @@ import cv2
 import matplotlib
 import numpy as np
 import matplotlib.pyplot as plt
+from collections import Counter
 
 
 def save_flicker_img(vid_path: str, init_sec, flicker_frames: list = None, raw_name=None) -> None:
@@ -49,76 +50,6 @@ def show_images(images: list[np.ndarray], save=False, filename=None) -> None:
     plt.savefig(filename) if save else plt.show(block=True)
 
 
-def merge(d1, d2, merge):
-    result = dict(d1)
-    for k, v in d2.items():
-        if k in result:
-            result[k] = merge(result[k], v)
-        else:
-            result[k] = v
-    return result
-
-
-def manual_label(vid_path: str,):
-    cap = cv2.VideoCapture(vid_path)
-    h, w, total, fps = cap.get(cv2.CAP_PROP_FRAME_HEIGHT), cap.get(
-        cv2.CAP_PROP_FRAME_WIDTH), cap.get(cv2.CAP_PROP_FRAME_COUNT), cap.get(cv2.CAP_PROP_FPS)
-    vid_arr = [0]*(int(total)+1)
-    frame_count, success, labels = 0, True, {}
-    while success:
-        success, vid_arr[frame_count] = cap.read()
-        frame_count += int(success)
-    cap.release()
-
-    labels[vid_path] = []
-    cur_frame = int(
-        input(f"Choose frame idx: frames from 0 - {int(total)}\n"))
-    while cur_frame < total:
-
-        show_images(
-            [vid_arr[cur_frame-2], vid_arr[cur_frame-1], vid_arr[cur_frame]])
-        r = str(input("Save set?[y/n/q]\n"))
-        if r == 'q':
-            break
-        if r == 'y':
-            labels[vid_path].extend([cur_frame])
-
-        cur_frame = int(
-            input(f"Choose frame idx: frames from 0 - {int(total)}\n"))
-
-    if os.path.exists("manual_labels.json"):
-        with open("manual_labels.json", 'r') as infile:
-            existing = json.load(infile)
-            labels = merge(existing, labels, lambda x, y: (x, y))
-
-    with open("manual_labels.json", "w") as out:
-        json.dump(labels, out)
-    return h, w, total
-
-
-def check_fps(vid_path: str) -> bool:
-    """
-    problem only from opencv 3 ?
-    """
-    cap = cv2.VideoCapture(vid_path)
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    print(cap.set(cv2.CAP_PROP_POS_AVI_RATIO, 1))
-    print(cap.get(cv2.CAP_PROP_POS_MSEC))
-    print(cap.get(cv2.CAP_PROP_POS_FRAMES))
-    print(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    print(cap.set(cv2.CAP_PROP_POS_AVI_RATIO, 0))
-    print(cap.get(cv2.CAP_PROP_POS_FRAMES))
-    num_frames, ret = 0, True
-    while ret:
-        ret, frame = cap.read()
-        if ret:
-            num_frames += 1
-    duration = float(num_frames) / float(fps)  # in seconds
-    print(f"FPS - {fps}\nSeconds - {duration}\nNum_frames - {num_frames}\n\n")
-    cap.release()
-    return True
-
-
 def read_proto_string(infile: str = '0824.textproto', outfile: str = 'new_label.json') -> dict:
     with open(infile, 'r') as f:
         lines = f.readlines()
@@ -143,6 +74,54 @@ def read_proto_string(infile: str = '0824.textproto', outfile: str = 'new_label.
 
     json.dump(dic, open(outfile, "w"))
     return dic
+
+
+def multiclass_labels(
+    infile: str = '0824.textproto',
+    outfile: str = 'multi_label.json'
+) -> dict:
+    import ast
+    with open(infile, 'r') as f:
+        lines = f.readlines()
+    labels = {}
+    for i in range(0, len(lines), 5):
+        flicker = "".join(lines[i:i+5])\
+            .replace('\n', '')\
+            .replace(" ", "")\
+                    .split(":")
+        if len(flicker) < 4:
+            continue
+
+        vid_name = flicker[-2][1:-6]
+        flicker_idxs = ast.literal_eval(flicker[-1].replace("}", ""))
+
+        labels[f'{flicker_idxs[0]}_{vid_name}'] = 1
+        labels[f'{flicker_idxs[-1]}_{vid_name}'] = 1
+        if len(flicker_idxs) > 2:
+            labels[f'{flicker_idxs[0]}_{vid_name}'] = 2
+            labels[f'{flicker_idxs[-1]}_{vid_name}'] = 3
+            labels.update({
+                f"{i}_{vid_name}": 4
+                for i in flicker_idxs[1:-1]
+            })
+
+    json.dump(labels, open(outfile, "w"))
+    return labels
+
+
+def histogram(
+    labels: dict,
+    save_path: str
+) -> None:
+    res = Counter(labels.values())
+    print(res)
+    plt.bar(['isolated flicker', 'start flicker', 'end flicker',
+            'between flicker'], list(res.values()))
+    plt.xlabel("Class 1-4")
+    plt.ylabel("Instance")
+    plt.title("Multiclass Histogram")
+    plt.savefig(save_path)
+    plt.show()
 
 
 def add_normal_vid_labels(
@@ -229,5 +208,8 @@ if __name__ == "__main__":
     # check_fps('flicker-detection/0001.mp4')
     # read_proto_string()
     # add_normal_vid_labels()
-    videos_mapping()
-    label_aug()
+    # videos_mapping()
+    # label_aug()
+
+    multi_labels = multiclass_labels()
+    histogram(multi_labels, "../plots/label_classes.jpg")
