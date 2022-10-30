@@ -134,19 +134,20 @@ class MultiStreamer(object):
     """
     https://medium.com/speechmatics/how-to-build-a-streaming-dataloader-with-pytorch-a66dd891d9dd
     TO DO implement multiprocess labeling from the DataLoader class 
-    for imbalance class and for multiclass
     """
 
     def __init__(
         self,
-        non_flickers: IterableDataset,
-        flickers: IterableDataset,
-        batch_size: int
+        *args: Tuple[IterableDataset],
+        batch_size: int,
+        multiclass: bool,
     ) -> None:
-        self.non_flickers = non_flickers
-        self.flickers = flickers
+        self.multiclass = multiclass
         self.batch_size = batch_size
         self.batch_idx = list(range(batch_size))
+
+        self.no_streams = len(args)
+        self.streams = zip(*tuple(map(self._get_stream_loaders, args)))
 
     @staticmethod
     def _get_stream_loaders(vid_lst: list):
@@ -156,7 +157,7 @@ class MultiStreamer(object):
             for ds in vid_lst
         ])
 
-    def __iter__(self):
+    def _binary(self):
         f_stream, n_stream = self._get_stream_loaders(
             self.flickers), self._get_stream_loaders(self.non_flickers)
         for f, n in zip(f_stream, n_stream):
@@ -168,24 +169,56 @@ class MultiStreamer(object):
                 f_vid+n_vid), torch.cat([f_labels, n_labels])
             yield inputs[self.batch_idx].float(), labels[self.batch_idx].long()
 
+    def _multi(self):
+        for stream in self.streams:
+            random.shuffle(self.batch_idx)
+            stream = list(itertools.chain(
+                *tuple(map(lambda s: list(itertools.chain(*s)), stream))
+            ))
+            inputs = torch.stack(stream)
+            labels = torch.arange(self.batch_size)
+            yield inputs[self.batch_idx].float(), labels[self.batch_idx].long()
+
+    def __iter__(self):
+        if self.multiclass:
+            return self._multi()
+        return self._binary()
+
 
 if __name__ == '__main__':
     # work with shorter videos with smaller samples to debug
 
-    non_flicker_dir = "../data/meta-data"
-    flicker_dir = "../data/flicker-chunks"
+    non_flicker_dir = "../data/no_flicker"
+    flicker1_dir = "../data/flicker1"
+    flicker2_dir = "../data/flicker2"
+    flicker3_dir = "../data/flicker3"
+    flicker4_dir = "../data/flicker4"
+
     non_flicker_files = [os.path.join(non_flicker_dir, path)
                          for path in os.listdir(non_flicker_dir)]
-    flicker_files = [os.path.join(flicker_dir, path)
-                     for path in os.listdir(flicker_dir)]
+    flicker1_files = [os.path.join(flicker1_dir, path)
+                      for path in os.listdir(flicker1_dir)]
+    flicker2_files = [os.path.join(flicker2_dir, path)
+                      for path in os.listdir(flicker2_dir)]
+    flicker3_files = [os.path.join(flicker3_dir, path)
+                      for path in os.listdir(flicker3_dir)]
+    flicker4_files = [os.path.join(flicker4_dir, path)
+                      for path in os.listdir(flicker4_dir)]
 
-    batch_size = 4
+    batch_size = 5
     non_flickers = VideoDataSet.split_datasets(
-        non_flicker_files[:12], class_size=batch_size//2, max_workers=1, undersample=len(flicker_files[:4]))
-    flickers = VideoDataSet.split_datasets(
-        flicker_files[:4], class_size=batch_size//2, max_workers=1)  # oversample=True)
+        non_flicker_files[:8], class_size=1, max_workers=1)  # , undersample=len(flicker_files[:4]))
+    flicker1 = VideoDataSet.split_datasets(
+        flicker1_files[:8], class_size=1, max_workers=1)  # oversample=True)
+    flicker2 = VideoDataSet.split_datasets(
+        flicker2_files[:8], class_size=1, max_workers=1)
+    flicker3 = VideoDataSet.split_datasets(
+        flicker3_files[:8], class_size=1, max_workers=1)
+    flicker4 = VideoDataSet.split_datasets(
+        flicker4_files[:8], class_size=1, max_workers=1)
 
-    loader = MultiStreamer(non_flickers, flickers, batch_size)
+    loader = MultiStreamer(non_flickers,
+                           flicker1, flicker2, flicker3, flicker4, batch_size=batch_size,multiclass=True)
     for i in range(2):
         print(f"{i} WTF")
         for inputs, labels in loader:

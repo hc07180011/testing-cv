@@ -5,6 +5,7 @@ import json
 import logging
 import tqdm
 import cv2
+import random
 import numpy as np
 import pandas as pd
 import skvideo.io
@@ -66,6 +67,20 @@ def flicker_chunk(
             os.replace(os.path.join(src, chunk), os.path.join(dst, chunk))
 
 
+def multi_flicker_storage(
+    src: str,
+    dst: Tuple[str, str, str, str],
+    labels: dict
+) -> None:
+    for chunk in os.listdir(src):
+        vid_name = chunk.replace(".mp4", "")
+        if labels.get(vid_name):
+            logging.debug(
+                f"{os.path.join(src, chunk)} - {os.path.join(dst[labels[vid_name]-1], chunk)}")
+            os.replace(os.path.join(src, chunk), os.path.join(
+                dst[labels[vid_name]-1], chunk))
+
+
 def mov_dif_aug(
     src: str,
     dst: str,
@@ -75,8 +90,8 @@ def mov_dif_aug(
     """
     http://www.scikit-video.org/stable/io.html
     https://github.com/dmlc/decord
+    https://stackoverflow.com/questions/22994189/clean-way-to-fill-third-dimension-of-numpy-array
     https://ottverse.com/change-resolution-resize-scale-video-using-ffmpeg/
-    normalize frames later
     ffmpeg -i 0096.mp4 -vf scale=-1:512 frame_%d.jpg
     """
     dst_vid = [vid.split("_", 1)[1].replace(".mp4", "")
@@ -89,15 +104,11 @@ def mov_dif_aug(
         cur = 0
         vidcap = cv2.VideoCapture(os.path.join(src, vid))
         success, frame = vidcap.read()
+        w_chunk[:] = frame
         while success:
             w_chunk[cur % chunk_size] = frame
             cur += 1
             idx = [i % chunk_size for i in range(cur-chunk_size, cur)]
-            # if cur in labels[vid.replace("reduced_", "").replace(".mp4", "")]:
-            #     idx = [i % chunk_size for i in range(
-            #         cur-chunk_size//2,
-            #         cur+1+chunk_size//2
-            #     )]
 
             mov = np.apply_along_axis(
                 lambda f: (f*(255/f.max())).astype(np.uint8),
@@ -146,50 +157,36 @@ def preprocessing(
         x for x in os.listdir(non_flicker_dir)
         if x.replace(".mp4", "").split("_", 1)[-1] not in false_positives_vid
     ]
-    fp_test = list(set(os.listdir(non_flicker_dir)) - set(non_flicker_lst))
+    fp = list(set(os.listdir(non_flicker_dir)) - set(non_flicker_lst))
     # logging.debug(fp_Test)
-    flicker_train, flicker_test, _, _ = train_test_split(
-        flicker_lst,
-        # dummy buffer just to split embedding_path_list
-        list(range(len(flicker_lst))),
-        test_size=0.1,
-        random_state=42
-    )
-    non_flicker_train, non_flicker_test, _, _ = train_test_split(
-        non_flicker_lst,
-        # dummy buffer just to split embedding_path_list
-        list(range(len(non_flicker_lst))),
-        test_size=0.1,
-        random_state=42
-    )
+
+    random.seed(42)
+    random.shuffle(non_flicker_lst)
+    random.shuffle(flicker_lst)
+    random.shuffle(fp)
+    non_flicker_train = non_flicker_lst[:int(len(non_flicker_lst)*0.8)]
+    non_flicker_test = non_flicker_lst[int(len(non_flicker_lst)*0.8):]
+    flicker_train = flicker_lst[:int(len(flicker_lst)*0.8)]
+    flicker_test = flicker_lst[int(len(flicker_lst)*0.8):]
+    fp_train = fp[:int(len(fp)*0.8)]
+    fp_test = fp[int(len(fp)*0.8):]
 
     length = max([
         len(fp_test),
         len(flicker_train),
         len(flicker_test),
-        len(non_flicker_train),
-        len(non_flicker_test)
+        len(non_flicker_train+fp_train),
+        len(non_flicker_test+fp_test)
     ])
     pd.DataFrame({
         "flicker_train": tuple(flicker_train) + ("",) * (length - len(flicker_train)),
-        "non_flicker_train": tuple(non_flicker_train) + ("",) * (length - len(non_flicker_train)),
+        "non_flicker_train": tuple(non_flicker_train+fp_train) + ("",) * (length - len(non_flicker_train+fp_train)),
         "flicker_test": tuple(flicker_test) + ("",) * (length - len(flicker_test)),
-        "non_flicker_test": tuple(non_flicker_test) + ("",) * (length - len(non_flicker_test)),
-        "fp_test": tuple(fp_test) + ("",) * (length - len(fp_test)),
+        "non_flicker_test": tuple(non_flicker_test+fp_test) + ("",) * (length - len(non_flicker_test+fp_test)),
     }).to_csv("{}.csv".format(cache_path))
 
     np.savez(cache_path, flicker_train, non_flicker_train,
              fp_test, flicker_test, non_flicker_test)
-
-
-def histogram(
-    labels: dict,
-    save_path: str
-) -> None:
-    res = Counter(labels.values())
-    plt.hist(res)
-    plt.savefig(save_path)
-    plt.show()
 
 
 def command_arg() -> ArgumentParser:
@@ -200,7 +197,7 @@ def command_arg() -> ArgumentParser:
                         help='path of json that maps encrpypted video file name to simple naming')
     parser.add_argument('--flicker_dir', type=str, default="data/flicker-chunks",
                         help='directory of flicker videos')
-    parser.add_argument('--non_flicker_dir', type=str, default="data/20_frame_norm_chunks",
+    parser.add_argument('--non_flicker_dir', type=str, default="data/no_flicker",
                         help='directory of flicker videos')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
@@ -240,13 +237,22 @@ if __name__ == "__main__":
 
     find good reference novelty/outlier detection for video understanding, use it as reference
     https://towardsdatascience.com/how-to-make-a-pytorch-transformer-for-time-series-forecasting-69e073d4061e
+
+     for imbalance class and for multiclass
+    don't even load between flicker videos
+    use decord cycle flicker, only load non flicker once
+    get google resources, beause they complain about it
+    Google allow to publish dataset for paper? or perform on outlier detection data
+    cnn - sequence transformer
+    egocentric computer vision
+    independent study next semester
+     Seminar in Information Science and Technology
+      Predictive Modeling in Biomedicine
     """
     init_logger()
     args = command_arg()
     videos_path, label_path, mapping_path, flicker_path, non_flicker_path, cache_path = args.videos_path, args.label_path, args.mapping_path, args.flicker_dir, args.non_flicker_dir, args.cache_path
     labels = json.load(open(label_path, "r"))
-
-    # flicker_chunk(non_flicker_path, flicker_path, labels)
 
     if args.preprocess:
         mov_dif_aug(
@@ -262,3 +268,9 @@ if __name__ == "__main__":
             non_flicker_path,
             cache_path,
         )
+    # flicker_chunk(non_flicker_path, flicker_path, labels)
+    # multi_flicker_storage(
+    #     flicker_path,
+    #     ("data/flicker1", "data/flicker2", "data/flicker3", "data/flicker4"),
+    #     json.load(open("data/multi_label.json", "r"))
+    # )
