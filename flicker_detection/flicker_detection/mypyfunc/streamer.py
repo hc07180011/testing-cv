@@ -144,10 +144,11 @@ class MultiStreamer(object):
     ) -> None:
         self.multiclass = multiclass
         self.batch_size = batch_size
-        self.batch_idx = list(range(batch_size))
+        self.__batch_idx = list(range(batch_size))
 
+        self.__datasets = args
         self.no_streams = len(args)
-        self.streams = zip(*tuple(map(self._get_stream_loaders, args)))
+        self.__streams = None
 
     @staticmethod
     def _get_stream_loaders(vid_lst: list):
@@ -158,28 +159,56 @@ class MultiStreamer(object):
         ])
 
     def _binary(self):
-        f_stream, n_stream = self._get_stream_loaders(
-            self.flickers), self._get_stream_loaders(self.non_flickers)
-        for f, n in zip(f_stream, n_stream):
-            random.shuffle(self.batch_idx)
+        """
+        batch_size = 4
+        non_flicker_train = VideoDataSet.split_datasets(
+            non_flicker_train, class_size=batch_size//2, max_workers=1, undersample=len(flicker_train))
+        flicker_train = VideoDataSet.split_datasets(
+            flicker_train, class_size=batch_size//2, max_workers=1)
+
+        ds_train = MultiStreamer(non_flicker_train, flicker_train, batch_size)
+        """
+        for f, n in self.__streams:
+            random.shuffle(self.__batch_idx)
             f_vid, n_vid = list(itertools.chain(*f)), list(itertools.chain(*n))
             f_labels, n_labels = torch.ones(
                 len(f_vid)), torch.zeros(len(n_vid))
             inputs, labels = torch.stack(
                 f_vid+n_vid), torch.cat([f_labels, n_labels])
-            yield inputs[self.batch_idx].float(), labels[self.batch_idx].long()
+            yield inputs[self.__batch_idx].float(), labels[self.__batch_idx].long()
 
     def _multi(self):
-        for stream in self.streams:
-            random.shuffle(self.batch_idx)
+        """
+        batch_size = 5
+        non_flickers = VideoDataSet.split_datasets(
+            non_flicker_files[:8], class_size=1, max_workers=1)  # , undersample=len(flicker_files[:4]))
+        flicker1 = VideoDataSet.split_datasets(
+            flicker1_files[:8], class_size=1, max_workers=1)  # oversample=True)
+        flicker2 = VideoDataSet.split_datasets(
+            flicker2_files[:8], class_size=1, max_workers=1)
+        flicker3 = VideoDataSet.split_datasets(
+            flicker3_files[:8], class_size=1, max_workers=1)
+        flicker4 = VideoDataSet.split_datasets(
+            flicker4_files[:8], class_size=1, max_workers=1)
+
+        loader = MultiStreamer(non_flickers,
+                            flicker1, flicker2, flicker3, flicker4, batch_size=batch_size, multiclass=True)
+        """
+        for stream in self.__streams:
+            random.shuffle(self.__batch_idx)
             stream = list(itertools.chain(
                 *tuple(map(lambda s: list(itertools.chain(*s)), stream))
             ))
             inputs = torch.stack(stream)
             labels = torch.arange(self.batch_size)
-            yield inputs[self.batch_idx].float(), labels[self.batch_idx].long()
+            yield inputs[self.__batch_idx].float(), labels[self.__batch_idx].long()
+
+    def _imbalance(self):
+        pass
 
     def __iter__(self):
+        self.__streams = zip(
+            *tuple(map(self._get_stream_loaders, self.__datasets)))
         if self.multiclass:
             return self._multi()
         return self._binary()
@@ -218,9 +247,9 @@ if __name__ == '__main__':
         flicker4_files[:8], class_size=1, max_workers=1)
 
     loader = MultiStreamer(non_flickers,
-                           flicker1, flicker2, flicker3, flicker4, batch_size=batch_size,multiclass=True)
+                           flicker1, flicker2, flicker3, flicker4, batch_size=batch_size, multiclass=True)
+
     for i in range(2):
         print(f"{i} WTF")
         for inputs, labels in loader:
             print(inputs.shape, labels)
-            pass
