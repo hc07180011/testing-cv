@@ -6,6 +6,7 @@ import logging
 import tqdm
 import cv2
 import random
+import itertools
 import numpy as np
 import pandas as pd
 import skvideo.io
@@ -135,7 +136,7 @@ def mov_dif_aug(
 
 
 def preprocessing(
-    flicker_dir: str,
+    flicker_dir: Tuple[str, str, str, str],
     non_flicker_dir: str,
     cache_path: str,
 ) -> Tuple[np.ndarray, np.ndarray]:
@@ -152,13 +153,15 @@ def preprocessing(
         'video_0B061FQCB00136_barbet_07-21-2022_14-17-42-501',
         'video_03121JEC200057_sunfish_07-06-2022_23-18-35-286'
     ]
-    flicker_lst = os.listdir(flicker_dir)
+    flicker_lst = list(itertools.chain(
+        *list(map(lambda f: os.listdir(f), flicker_dir))))
+    # logging.debug(f"{flicker_lst}")
     non_flicker_lst = [
         x for x in os.listdir(non_flicker_dir)
         if x.replace(".mp4", "").split("_", 1)[-1] not in false_positives_vid
     ]
     fp = list(set(os.listdir(non_flicker_dir)) - set(non_flicker_lst))
-    # logging.debug(fp_Test)
+    # logging.debug(fp)
 
     random.seed(42)
     random.shuffle(non_flicker_lst)
@@ -185,18 +188,21 @@ def preprocessing(
         "non_flicker_test": tuple(non_flicker_test+fp_test) + ("",) * (length - len(non_flicker_test+fp_test)),
     }).to_csv("{}.csv".format(cache_path))
 
-    np.savez(cache_path, flicker_train, non_flicker_train,
-             fp_test, flicker_test, non_flicker_test)
+    logging.debug(non_flicker_test)
+    np.savez(cache_path, flicker_train, non_flicker_train +
+             fp_train, flicker_test, non_flicker_test+fp_test)
 
 
 def command_arg() -> ArgumentParser:
     parser = ArgumentParser()
-    parser.add_argument('--label_path', type=str, default="data/new_label.json",
-                        help='path of json that store the labeled frames')
-    parser.add_argument('--mapping_path', type=str, default="data/mapping.json",
-                        help='path of json that maps encrpypted video file name to simple naming')
-    parser.add_argument('--flicker_dir', type=str, default="data/flicker-chunks",
-                        help='directory of flicker videos')
+    parser.add_argument('--flicker1', type=str, default="data/flicker1",
+                        help='directory of flicker1')
+    parser.add_argument('--flicker2', type=str, default="data/flicker2",
+                        help='directory of flicker2')
+    parser.add_argument('--flicker3', type=str, default="data/flicker3",
+                        help='directory of flicker3')
+    parser.add_argument('--flicker4', type=str, default="data/flicker4",
+                        help='directory of flicker4')
     parser.add_argument('--non_flicker_dir', type=str, default="data/no_flicker",
                         help='directory of flicker videos')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
@@ -251,8 +257,8 @@ if __name__ == "__main__":
     """
     init_logger()
     args = command_arg()
-    videos_path, label_path, mapping_path, flicker_path, non_flicker_path, cache_path = args.videos_path, args.label_path, args.mapping_path, args.flicker_dir, args.non_flicker_dir, args.cache_path
-    labels = json.load(open(label_path, "r"))
+    videos_path, flicker1_path, flicker2_path, flicker3_path, flicker4_path, non_flicker_path, cache_path =\
+        args.videos_path, args.flicker1, args.flicker2, args.flicker3, args.flicker4, args.non_flicker_dir, args.cache_path
 
     if args.preprocess:
         mov_dif_aug(
@@ -264,7 +270,7 @@ if __name__ == "__main__":
 
     if args.split:
         preprocessing(
-            flicker_path,
+            (flicker1_path, flicker2_path, flicker3_path, flicker4_path),
             non_flicker_path,
             cache_path,
         )

@@ -1,5 +1,4 @@
 import os
-import json
 import gc
 import logging
 import tqdm
@@ -7,6 +6,7 @@ import torch
 import numpy as np
 import torchvision
 import torch.nn as nn
+# from vit_pytorch import ViT
 from typing import Callable, Tuple
 
 from argparse import ArgumentParser
@@ -29,7 +29,7 @@ def training(
     device: torch.device,
     save_path: str = 'model0',
 ) -> nn.Module:
-    val_max_f1 = 0
+    val_max_f1 = n_train = n_val = 0
     f1_callback, loss_callback, val_f1_callback, val_loss_callback = (), (), (), ()
     for epoch in range(epochs):
         if loss_callback and epoch > 10 and loss_callback[-1] < 0.005:
@@ -41,8 +41,8 @@ def training(
             inputs = inputs.permute(
                 0, 1, 4, 2, 3).float().to(device)
             labels = labels.long().to(device)
-            # logging.debug(f"{labels}")
-            outputs = model(inputs)
+
+            outputs = model(inputs.flatten(end_dim=1))
             loss = criterion(outputs, labels)
             optimizer.zero_grad()
             loss.backward()
@@ -67,7 +67,7 @@ def training(
                     0, 1, 4, 2, 3).float().to(device)
                 labels = labels.long().to(device)
 
-                outputs = model(inputs)
+                outputs = model(inputs.flatten(end_dim=1))
                 loss = criterion(outputs, labels)
                 val_f1 = f1_metric(
                     torch.topk(objective(outputs), k=1, dim=1).indices.flatten(), labels)
@@ -117,7 +117,7 @@ def testing(
             inputs = inputs.permute(
                 0, 1, 4, 2, 3).float().to(device)
             labels = labels.long().to(device)
-            outputs = model(inputs)
+            outputs = model(inputs)  # .flatten(end_dim=1))
             y_pred += (objective(outputs),)
             y_true += (labels,)
 
@@ -147,11 +147,15 @@ def testing(
 
 def command_arg() -> ArgumentParser:
     parser = ArgumentParser()
-    parser.add_argument('--label_path', type=str, default="data/new_label.json",
-                        help='path of json that store the labeled frames')
-    parser.add_argument('--flicker_dir', type=str, default="data/flicker-chunks",
-                        help='directory of processed flicker video chunks')
-    parser.add_argument('--non_flicker_dir', type=str, default="data/meta-data",
+    parser.add_argument('--flicker1', type=str, default="data/flicker1",
+                        help='directory of flicker1')
+    parser.add_argument('--flicker2', type=str, default="data/flicker2",
+                        help='directory of flicker2')
+    parser.add_argument('--flicker3', type=str, default="data/flicker3",
+                        help='directory of flicker3')
+    parser.add_argument('--flicker4', type=str, default="data/flicker4",
+                        help='directory of flicker4')
+    parser.add_argument('--non_flicker_dir', type=str, default="data/no_flicker",
                         help='directory of processed non flicker video chunks')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
@@ -168,7 +172,8 @@ def command_arg() -> ArgumentParser:
 
 def main() -> None:
     args = command_arg()
-    label_path, flicker_path, non_flicker_path, cache_path, model_path = args.label_path, args.flicker_dir, args.non_flicker_dir, args.cache_path, args.model_path
+    flicker1_path, flicker2_path, flicker3_path, flicker4_path, non_flicker_path, cache_path, model_path =\
+        args.flicker1, args.flicker2, args.flicker3, args.flicker4, args.non_flicker_dir, args.cache_path, args.model_path
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     init_logger()
@@ -176,15 +181,16 @@ def main() -> None:
 
     __cache__ = np.load(
         "{}.npz".format(cache_path), allow_pickle=True)
-    flicker_train, non_flicker_train, fp_test, flicker_test, non_flicker_test = tuple(
+    flicker_train, non_flicker_train, flicker_test, non_flicker_test = tuple(
         __cache__[lst] for lst in __cache__)
 
     input_dim = 61952
-    output_dim = 2
+    output_dim = 4
     hidden_dim = 64
     layer_dim = 1
     bidirectional = True
     batch_size = 4
+    max_workers = 1
 
     model = CNN_LSTM(
         cnn=torchvision.models.vgg16(pretrained=True),
@@ -194,6 +200,16 @@ def main() -> None:
         layer_dim=layer_dim,
         bidirectional=bidirectional,
     )
+
+    # model = ViT(
+    #     image_size=360,
+    #     patch_size=36,
+    #     num_classes=4,
+    #     dim=1024,
+    #     depth=6,
+    #     heads=16,
+    #     mlp_dim=2048
+    # )
 
     model = torch.nn.DataParallel(model)
     model.to(device)
@@ -208,27 +224,61 @@ def main() -> None:
         logging.info("Loading training set..")
         non_flicker_train = [os.path.join(non_flicker_path, f)
                              for f in non_flicker_train]
-        flicker_train = [os.path.join(flicker_path, f)
-                         for f in flicker_train]
+        flicker1_train = [os.path.join(flicker1_path, f)
+                          for f in flicker_train if f in os.listdir(flicker1_path)]
+        flicker2_train = [os.path.join(flicker2_path, f)
+                          for f in flicker_train if f in os.listdir(flicker2_path)]
+        flicker3_train = [os.path.join(flicker3_path, f)
+                          for f in flicker_train if f in os.listdir(flicker3_path)]
+        flicker4_train = [os.path.join(flicker4_path, f)
+                          for f in flicker_train if f in os.listdir(flicker4_path)]
         non_flicker_train = VideoDataSet.split_datasets(
-            non_flicker_train, class_size=batch_size//2, max_workers=1, undersample=len(flicker_train))
-        flicker_train = VideoDataSet.split_datasets(
-            flicker_train, class_size=batch_size//2, max_workers=1)
+            non_flicker_train, class_size=1, max_workers=max_workers, undersample=700)
+        flicker1_train = VideoDataSet.split_datasets(
+            flicker1_train, class_size=1, max_workers=max_workers, oversample=True)
+        flicker2_train = VideoDataSet.split_datasets(
+            flicker2_train, class_size=1, max_workers=max_workers, oversample=True)
+        flicker3_train = VideoDataSet.split_datasets(
+            flicker3_train, class_size=1, max_workers=max_workers, oversample=True)
 
-        ds_train = MultiStreamer(non_flicker_train, flicker_train, batch_size)
+        ds_train = MultiStreamer(
+            non_flicker_train,
+            flicker1_train,
+            flicker2_train,
+            flicker3_train,
+            batch_size=batch_size,
+            multiclass=True,
+            binary=False)
         logging.info("Done loading training set")
 
         logging.info("Loading validtaion set..")
         non_flicker_val = [os.path.join(non_flicker_path, f)
                            for f in non_flicker_test]
-        flicker_val = [os.path.join(flicker_path, f)
-                       for f in flicker_test]
+        flicker1_val = [os.path.join(flicker1_path, f)
+                        for f in flicker_test if f in os.listdir(flicker1_path)]
+        flicker2_val = [os.path.join(flicker2_path, f)
+                        for f in flicker_test if f in os.listdir(flicker2_path)]
+        flicker3_val = [os.path.join(flicker3_path, f)
+                        for f in flicker_test if f in os.listdir(flicker3_path)]
+        flicker4_val = [os.path.join(flicker4_path, f)
+                        for f in flicker_test if f in os.listdir(flicker4_path)]
         non_flicker_val = VideoDataSet.split_datasets(
-            non_flicker_val, class_size=batch_size//2, max_workers=1, undersample=len(flicker_val))
-        flicker_val = VideoDataSet.split_datasets(
-            flicker_val, class_size=batch_size//2, max_workers=1)
+            non_flicker_val, class_size=1, max_workers=max_workers, undersample=1000)
+        flicker1_val = VideoDataSet.split_datasets(
+            flicker1_val, class_size=1, max_workers=max_workers, oversample=True)
+        flicker2_val = VideoDataSet.split_datasets(
+            flicker2_val, class_size=1, max_workers=max_workers, oversample=True)
+        flicker3_val = VideoDataSet.split_datasets(
+            flicker3_val, class_size=1, max_workers=max_workers, oversample=True)
 
-        ds_val = MultiStreamer(non_flicker_val, flicker_val, batch_size)
+        ds_val = MultiStreamer(
+            non_flicker_val,
+            flicker1_val,
+            flicker2_val,
+            flicker3_val,
+            batch_size=batch_size,
+            multiclass=True,
+            binary=False)
         logging.info("Done loading validation set")
 
         logging.info(f"{model.train()}")
@@ -249,16 +299,33 @@ def main() -> None:
     if args.test:
         # TO DO make imbalance
         logging.info("Loading testing set..")
-        fp_test = [os.path.join(non_flicker_path, f)
-                   for f in fp_test]
-        flicker_test = [os.path.join(flicker_path, f)
-                        for f in flicker_test]
-        fp_test = VideoDataSet.split_datasets(
-            fp_test, class_size=batch_size//2, max_workers=1, undersample=len(flicker_test))
-        flicker_test = VideoDataSet.split_datasets(
-            flicker_test, class_size=batch_size//2, max_workers=1)
+        non_flicker_test = [os.path.join(non_flicker_path, f)
+                            for f in non_flicker_test]
+        flicker1_test = [os.path.join(flicker1_path, f)
+                         for f in flicker_test if f in os.listdir(flicker1_path)]
+        flicker2_test = [os.path.join(flicker2_path, f)
+                         for f in flicker_test if f in os.listdir(flicker2_path)]
+        flicker3_test = [os.path.join(flicker3_path, f)
+                         for f in flicker_test if f in os.listdir(flicker3_path)]
+        flicker4_test = [os.path.join(flicker4_path, f)
+                         for f in flicker_test if f in os.listdir(flicker4_path)]
+        non_flicker_test = VideoDataSet.split_datasets(
+            non_flicker_test, class_size=1, max_workers=max_workers, undersample=1000)
+        flicker1_test = VideoDataSet.split_datasets(
+            flicker1_test, class_size=1, max_workers=max_workers, oversample=True)
+        flicker2_test = VideoDataSet.split_datasets(
+            flicker2_test, class_size=1, max_workers=max_workers, oversample=True)
+        flicker3_test = VideoDataSet.split_datasets(
+            flicker3_test, class_size=1, max_workers=max_workers, oversample=True)
 
-        ds_test = MultiStreamer(fp_test, flicker_test, batch_size)
+        ds_test = MultiStreamer(
+            non_flicker_test,
+            flicker1_test,
+            flicker2_test,
+            flicker3_test,
+            batch_size=batch_size,
+            multiclass=True,
+            binary=False)
         logging.info("Done loading testing set")
 
         logging.info("Starting Evaluation")
@@ -269,7 +336,7 @@ def main() -> None:
             model,
             objective=objective,
             device=device,
-            classes=2,
+            classes=4,
             save_path=model_path
         )
         logging.info("Done Evaluation")
