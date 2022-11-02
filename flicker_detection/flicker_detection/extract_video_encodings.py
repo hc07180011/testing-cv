@@ -251,9 +251,18 @@ if __name__ == "__main__":
     Google allow to publish dataset for paper? or perform on outlier detection data
     cnn - sequence transformer
     egocentric computer vision
+
     independent study next semester
      Seminar in Information Science and Technology
       Predictive Modeling in Biomedicine
+
+    encoder decoder inputs same 11 frames
+    can try video swin transformer
+
+    said doesn't have to be flicker, but just general state of the art
+    said can consider data augmentation to generate flickers? then consider publish dataset
+    computation can be registered for google UR
+    reduce computation can also be research
     """
     init_logger()
     args = command_arg()

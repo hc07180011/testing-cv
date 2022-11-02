@@ -3,12 +3,13 @@ import gc
 import logging
 import tqdm
 import torch
-import numpy as np
 import torchvision
+import numpy as np
 import torch.nn as nn
 # from vit_pytorch import ViT
+from video_swin_transformer import SwinTransformer3D
 from typing import Callable, Tuple
-
+from collections import OrderedDict
 from argparse import ArgumentParser
 from mypyfunc.logger import init_logger
 from mypyfunc.torch_eval import F1Score, Evaluation
@@ -36,13 +37,13 @@ def training(
             break
 
         model.train()
-        minibatch_loss_train, minibatch_f1 = 0, 0
+        minibatch_loss_train = minibatch_f1 = 0
         for n_train, (inputs, labels) in enumerate(tqdm.tqdm(train_loader)):
             inputs = inputs.permute(
-                0, 1, 4, 2, 3).float().to(device)
+                0, 4, 1, 2, 3).float().to(device)
             labels = labels.long().to(device)
 
-            outputs = model(inputs.flatten(end_dim=1))
+            outputs = model(inputs)  # .flatten(end_dim=1))
             loss = criterion(outputs, labels)
             optimizer.zero_grad()
             loss.backward()
@@ -61,13 +62,13 @@ def training(
                         if n_train else minibatch_f1,)
 
         with torch.no_grad():
-            minibatch_loss_val, minibatch_f1_val = 0, 0
+            minibatch_loss_val = minibatch_f1_val = 0
             for n_val, (inputs, labels) in enumerate(tqdm.tqdm(val_loader)):
                 inputs = inputs.permute(
-                    0, 1, 4, 2, 3).float().to(device)
+                    0, 4, 1, 2, 3).float().to(device)
                 labels = labels.long().to(device)
 
-                outputs = model(inputs.flatten(end_dim=1))
+                outputs = model(inputs)  # .flatten(end_dim=1))
                 loss = criterion(outputs, labels)
                 val_f1 = f1_metric(
                     torch.topk(objective(outputs), k=1, dim=1).indices.flatten(), labels)
@@ -145,6 +146,29 @@ def testing(
     metrics.report(y_true, y_classes)
 
 
+def load_video_swin() -> torch.nn.Module:
+    model = SwinTransformer3D(embed_dim=128,
+                              depths=[2, 2, 18, 2],
+                              num_heads=[4, 8, 16, 32],
+                              patch_size=(2, 4, 4),
+                              window_size=(16, 7, 7),
+                              drop_path_rate=0.4,
+                              patch_norm=True)
+
+    # https://github.com/SwinTransformer/Video-Swin-Transformer/blob/master/configs/recognition/swin/swin_base_patch244_window1677_sthv2.py
+    checkpoint = torch.load(
+        './checkpoints/swin_base_patch244_window1677_sthv2.pth')
+
+    new_state_dict = OrderedDict()
+    for k, v in checkpoint['state_dict'].items():
+        if 'backbone' in k:
+            name = k[9:]
+            new_state_dict[name] = v
+
+    model.load_state_dict(new_state_dict)
+    return model
+
+
 def command_arg() -> ArgumentParser:
     parser = ArgumentParser()
     parser.add_argument('--flicker1', type=str, default="data/flicker1",
@@ -184,22 +208,22 @@ def main() -> None:
     flicker_train, non_flicker_train, flicker_test, non_flicker_test = tuple(
         __cache__[lst] for lst in __cache__)
 
-    input_dim = 61952
-    output_dim = 4
-    hidden_dim = 64
-    layer_dim = 1
-    bidirectional = True
+    # input_dim = 61952
+    # output_dim = 4
+    # hidden_dim = 64
+    # layer_dim = 1
+    # bidirectional = True
     batch_size = 4
     max_workers = 1
 
-    model = CNN_LSTM(
-        cnn=torchvision.models.vgg16(pretrained=True),
-        input_dim=input_dim,
-        output_dim=output_dim,
-        hidden_dim=hidden_dim,
-        layer_dim=layer_dim,
-        bidirectional=bidirectional,
-    )
+    # model = CNN_LSTM(
+    #     cnn=torchvision.models.vgg16(pretrained=True),
+    #     input_dim=input_dim,
+    #     output_dim=output_dim,
+    #     hidden_dim=hidden_dim,
+    #     layer_dim=layer_dim,
+    #     bidirectional=bidirectional,
+    # )
 
     # model = ViT(
     #     image_size=360,
@@ -210,6 +234,7 @@ def main() -> None:
     #     heads=16,
     #     mlp_dim=2048
     # )
+    model = load_video_swin()
 
     model = torch.nn.DataParallel(model)
     model.to(device)
