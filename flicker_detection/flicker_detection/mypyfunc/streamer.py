@@ -274,8 +274,7 @@ if __name__ == '__main__':
 
     # loader = MultiStreamer(non_flickers, batch_size=4,
     #                        multiclass=False, binary=False)
-
-    for i in range(20):
+    for i in range(2):
         print(f"{i} WTF")
         for inputs, labels in loader:
             print(inputs.shape, labels)

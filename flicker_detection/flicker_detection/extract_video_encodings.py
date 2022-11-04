@@ -263,6 +263,11 @@ if __name__ == "__main__":
     said can consider data augmentation to generate flickers? then consider publish dataset
     computation can be registered for google UR
     reduce computation can also be research
+    use TPUS
+
+    don't use vgg16 for better class balancing
+    Dense Vit
+    multiclass increase batch size
     """
     init_logger()
     args = command_arg()

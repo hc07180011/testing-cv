@@ -106,7 +106,7 @@ class CNN_LSTM(nn.Module):
 
         # Base cnn features layer
         self.extractor = cnn.features
-        # LSTM Layer
+        # LSTM1  Layer
         self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=layer_dim,
                             batch_first=True, bidirectional=bidirectional)
         # Linear Dense
@@ -145,6 +145,7 @@ class CNN_LSTM(nn.Module):
         out = self.fc1(out)
         # Dense for softmax
         out = self.fc2(out)
+        # print(out[:, -1].shape)
         return out[:, -1]
 
     def initialization(self) -> None:

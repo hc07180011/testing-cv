@@ -32,6 +32,7 @@ def training(
 ) -> nn.Module:
     val_max_f1 = n_train = n_val = 0
     f1_callback, loss_callback, val_f1_callback, val_loss_callback = (), (), (), ()
+    # outputs = torch.nn.Linear(,4)
     for epoch in range(epochs):
         if loss_callback and epoch > 10 and loss_callback[-1] < 0.005:
             break
@@ -40,10 +41,12 @@ def training(
         minibatch_loss_train = minibatch_f1 = 0
         for n_train, (inputs, labels) in enumerate(tqdm.tqdm(train_loader)):
             inputs = inputs.permute(
-                0, 4, 1, 2, 3).float().to(device)
+                0, 1, 4, 2, 3).float().to(device)
             labels = labels.long().to(device)
+            # logging.debug(f"{inputs.shape}")
 
             outputs = model(inputs)  # .flatten(end_dim=1))
+            # logging.debug(f"{outputs.shape} - {labels}")
             loss = criterion(outputs, labels)
             optimizer.zero_grad()
             loss.backward()
@@ -65,7 +68,7 @@ def training(
             minibatch_loss_val = minibatch_f1_val = 0
             for n_val, (inputs, labels) in enumerate(tqdm.tqdm(val_loader)):
                 inputs = inputs.permute(
-                    0, 4, 1, 2, 3).float().to(device)
+                    0, 1, 4, 2, 3).float().to(device)
                 labels = labels.long().to(device)
 
                 outputs = model(inputs)  # .flatten(end_dim=1))
@@ -208,22 +211,23 @@ def main() -> None:
     flicker_train, non_flicker_train, flicker_test, non_flicker_test = tuple(
         __cache__[lst] for lst in __cache__)
 
-    # input_dim = 61952
-    # output_dim = 4
-    # hidden_dim = 64
-    # layer_dim = 1
-    # bidirectional = True
-    batch_size = 4
+    input_dim = 61952
+    output_dim = 5
+    hidden_dim = 64
+    layer_dim = 3
+    bidirectional = True
+    batch_size = 5
+    class_size = batch_size//output_dim
     max_workers = 1
-
-    # model = CNN_LSTM(
-    #     cnn=torchvision.models.vgg16(pretrained=True),
-    #     input_dim=input_dim,
-    #     output_dim=output_dim,
-    #     hidden_dim=hidden_dim,
-    #     layer_dim=layer_dim,
-    #     bidirectional=bidirectional,
-    # )
+    # logging.debug(f"{class_size} - {batch_size}")
+    model = CNN_LSTM(
+        cnn=torchvision.models.vgg11(pretrained=True),  # 16
+        input_dim=input_dim,
+        output_dim=output_dim,
+        hidden_dim=hidden_dim,
+        layer_dim=layer_dim,
+        bidirectional=bidirectional,
+    )
 
     # model = ViT(
     #     image_size=360,
@@ -234,7 +238,7 @@ def main() -> None:
     #     heads=16,
     #     mlp_dim=2048
     # )
-    model = load_video_swin()
+    # model = load_video_swin()
 
     model = torch.nn.DataParallel(model)
     model.to(device)
@@ -258,19 +262,22 @@ def main() -> None:
         flicker4_train = [os.path.join(flicker4_path, f)
                           for f in flicker_train if f in os.listdir(flicker4_path)]
         non_flicker_train = VideoDataSet.split_datasets(
-            non_flicker_train, class_size=1, max_workers=max_workers, undersample=700)
+            non_flicker_train, class_size=class_size, max_workers=max_workers, undersample=1000)
         flicker1_train = VideoDataSet.split_datasets(
-            flicker1_train, class_size=1, max_workers=max_workers, oversample=True)
+            flicker1_train, class_size=class_size, max_workers=max_workers, oversample=True)
         flicker2_train = VideoDataSet.split_datasets(
-            flicker2_train, class_size=1, max_workers=max_workers, oversample=True)
+            flicker2_train, class_size=class_size, max_workers=max_workers, oversample=True)
         flicker3_train = VideoDataSet.split_datasets(
-            flicker3_train, class_size=1, max_workers=max_workers, oversample=True)
+            flicker3_train, class_size=class_size, max_workers=max_workers, oversample=True)
+        flicker4_train = VideoDataSet.split_datasets(
+            flicker4_train, class_size=class_size, max_workers=max_workers, oversample=True)
 
         ds_train = MultiStreamer(
             non_flicker_train,
             flicker1_train,
             flicker2_train,
             flicker3_train,
+            flicker4_train,
             batch_size=batch_size,
             multiclass=True,
             binary=False)
@@ -288,19 +295,22 @@ def main() -> None:
         flicker4_val = [os.path.join(flicker4_path, f)
                         for f in flicker_test if f in os.listdir(flicker4_path)]
         non_flicker_val = VideoDataSet.split_datasets(
-            non_flicker_val, class_size=1, max_workers=max_workers, undersample=1000)
+            non_flicker_val, class_size=class_size, max_workers=max_workers, undersample=100)
         flicker1_val = VideoDataSet.split_datasets(
-            flicker1_val, class_size=1, max_workers=max_workers, oversample=True)
+            flicker1_val, class_size=class_size, max_workers=max_workers, oversample=True)
         flicker2_val = VideoDataSet.split_datasets(
-            flicker2_val, class_size=1, max_workers=max_workers, oversample=True)
+            flicker2_val, class_size=class_size, max_workers=max_workers, oversample=True)
         flicker3_val = VideoDataSet.split_datasets(
-            flicker3_val, class_size=1, max_workers=max_workers, oversample=True)
+            flicker3_val, class_size=class_size, max_workers=max_workers, oversample=True)
+        flicker4_val = VideoDataSet.split_datasets(
+            flicker4_val, class_size=class_size, max_workers=max_workers, oversample=True)
 
         ds_val = MultiStreamer(
             non_flicker_val,
             flicker1_val,
             flicker2_val,
             flicker3_val,
+            flicker4_val,
             batch_size=batch_size,
             multiclass=True,
             binary=False)
@@ -335,19 +345,22 @@ def main() -> None:
         flicker4_test = [os.path.join(flicker4_path, f)
                          for f in flicker_test if f in os.listdir(flicker4_path)]
         non_flicker_test = VideoDataSet.split_datasets(
-            non_flicker_test, class_size=1, max_workers=max_workers, undersample=1000)
+            non_flicker_test, class_size=class_size, max_workers=max_workers, undersample=1000)
         flicker1_test = VideoDataSet.split_datasets(
-            flicker1_test, class_size=1, max_workers=max_workers, oversample=True)
+            flicker1_test, class_size=class_size, max_workers=max_workers, oversample=True)
         flicker2_test = VideoDataSet.split_datasets(
-            flicker2_test, class_size=1, max_workers=max_workers, oversample=True)
+            flicker2_test, class_size=class_size, max_workers=max_workers, oversample=True)
         flicker3_test = VideoDataSet.split_datasets(
-            flicker3_test, class_size=1, max_workers=max_workers, oversample=True)
+            flicker3_test, class_size=class_size, max_workers=max_workers, oversample=True)
+        flicker4_test = VideoDataSet.split_datasets(
+            flicker4_test, class_size=class_size, max_workers=max_workers, oversample=True)
 
         ds_test = MultiStreamer(
             non_flicker_test,
             flicker1_test,
             flicker2_test,
             flicker3_test,
+            flicker4_test,
             batch_size=batch_size,
             multiclass=True,
             binary=False)
@@ -361,7 +374,7 @@ def main() -> None:
             model,
             objective=objective,
             device=device,
-            classes=4,
+            classes=output_dim,
             save_path=model_path
         )
         logging.info("Done Evaluation")
