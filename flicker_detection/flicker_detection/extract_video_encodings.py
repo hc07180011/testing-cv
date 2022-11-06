@@ -224,29 +224,6 @@ def command_arg() -> ArgumentParser:
 
 if __name__ == "__main__":
     """
-    train end to end, integrate cnn with lstm, and do back prop for same loss function
-    smaller windows of variable frame rate should have few percent performance boost
-    sliding window each frame is a data point
-
-    divide by 255 to get range of 0,1 normalization(known cv preprocess, may not affect), multiply everything by 255 to rescale it and take floor/ ceeling
-    include flicker frames in non flicker video data ponts as well because testing data will not have data label
-    training should be as close as possible to testing(otherwise causes domain shifts network will not perform well)
-
-    just oversample by drawing to mini batch just make sure epochs dont have repeating minibatch
-    find state of art and compare for paper
-
-    25471 : 997
-
-    relabel classes to beginning of flicker, inside flicker and end flicker for multiclass 
-          - might improve flicker detection performance
-    run simple statistics of flicker duration using labels, learn how long the flicker, get histogram counting number of flicker sequence length 
-
-    find good reference novelty/outlier detection for video understanding, use it as reference
-    https://towardsdatascience.com/how-to-make-a-pytorch-transformer-for-time-series-forecasting-69e073d4061e
-
-     for imbalance class and for multiclass
-    don't even load between flicker videos
-    use decord cycle flicker, only load non flicker once
     get google resources, beause they complain about it
     Google allow to publish dataset for paper? or perform on outlier detection data
     cnn - sequence transformer
@@ -256,8 +233,6 @@ if __name__ == "__main__":
      Seminar in Information Science and Technology
       Predictive Modeling in Biomedicine
 
-    encoder decoder inputs same 11 frames
-    can try video swin transformer
 
     said doesn't have to be flicker, but just general state of the art
     said can consider data augmentation to generate flickers? then consider publish dataset
@@ -265,9 +240,12 @@ if __name__ == "__main__":
     reduce computation can also be research
     use TPUS
 
-    don't use vgg16 for better class balancing
-    Dense Vit
     multiclass increase batch size
+    do first binary because go best results for transformers
+    get rid of patch embedding, reduce NO classes of output
+    look for outlier detection datasets 
+    use cnn as patch embedding and replace lstm with transformer 
+    use (fully connected) MLP to reduce dimentionality if CNN 1 or 2
     """
     init_logger()
     args = command_arg()
