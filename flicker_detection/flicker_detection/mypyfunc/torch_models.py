@@ -1,8 +1,11 @@
+import os
 import logging
 import torch
 import torchvision
+import numpy as np
 import torch.nn as nn
 from torch import nn
+import skvideo.io
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 
@@ -186,7 +189,7 @@ class Transformer(nn.Module):
 
 
 # TODO edit this
-class ViT(nn.Module):
+class CNN_Transformers(nn.Module):
     def __init__(
         self, *,
         image_size: int,
@@ -198,8 +201,9 @@ class ViT(nn.Module):
         depth: int,
         heads: int,
         mlp_dim: int,
+        cnn: nn.Module,
         pool: str = 'cls',
-        channels: int = 3,
+        # channels: int = 3,
         dim_head: int = 64,
         dropout: int = 0.,
         emb_dropout: int = 0.
@@ -213,16 +217,17 @@ class ViT(nn.Module):
 
         num_patches = (image_height // patch_height) * \
             (image_width // patch_width) * (frames // frame_patch_size)
-        patch_dim = channels * patch_height * patch_width * frame_patch_size
-
+        # patch_dim = channels * patch_height * patch_width * frame_patch_size
+        # print(patch_dim, dim)
         assert pool in {
             'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
-        self.to_patch_embedding = nn.Sequential(
-            Rearrange('b c (f pf) (h p1) (w p2) -> b (f h w) (p1 p2 pf c)',
-                      p1=patch_height, p2=patch_width, pf=frame_patch_size),
-            nn.Linear(patch_dim, dim),
-        )
+        self.to_patch_embedding = cnn
+        # self.to_patch_embedding = nn.Sequential(
+        #     Rearrange('b c (f pf) (h p1) (w p2) -> b (f h w) (p1 p2 pf c)',
+        #               p1=patch_height, p2=patch_width, pf=frame_patch_size),
+        #     nn.Linear(patch_dim, dim),
+        # )
 
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
@@ -240,7 +245,9 @@ class ViT(nn.Module):
         )
 
     def forward(self, video):
-        x = self.to_patch_embedding(video)
+        batch_size, chunk_size = video.shape[:2]
+        x = self.to_patch_embedding(video.flatten(end_dim=1))
+        x = x.reshape((batch_size, chunk_size, x.shape[-1]))
         b, n, _ = x.shape
 
         cls_tokens = repeat(self.cls_token, '1 1 d -> b 1 d', b=b)
@@ -254,3 +261,31 @@ class ViT(nn.Module):
 
         x = self.to_latent(x)
         return self.mlp_head(x)
+
+
+if __name__ == '__main__':
+    """
+    torch.Size([4, 1000, 1024])
+    """
+    flicker_path = '../data/flicker1/'
+    model = CNN_Transformers(
+        image_size=360,          # image size
+        frames=10,               # number of frames
+        image_patch_size=36,     # image patch size
+        frame_patch_size=1,      # frame patch size
+        num_classes=2,
+        dim=1000,
+        depth=6,
+        heads=8,
+        mlp_dim=2048,
+        cnn=torchvision.models.vgg16(pretrained=True),
+        dropout=0.1,
+        emb_dropout=0.1
+    )
+    videos = os.listdir(flicker_path)
+    test_batch = np.zeros((4, 10, 360, 360, 3))
+    for i, video in enumerate(videos[:4]):
+        test_batch[i] = skvideo.io.vread(os.path.join(flicker_path, video))
+    test_batch = torch.from_numpy(test_batch).permute(0, 1, 4, 2, 3).float()
+    out = model(test_batch)
+    print(out.shape)

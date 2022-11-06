@@ -13,7 +13,7 @@ from collections import OrderedDict
 from argparse import ArgumentParser
 from mypyfunc.logger import init_logger
 from mypyfunc.torch_eval import F1Score, Evaluation
-from mypyfunc.torch_models import CNN_LSTM
+from mypyfunc.torch_models import CNN_LSTM, CNN_Transformers
 from mypyfunc.torch_utility import save_checkpoint, save_metrics, load_checkpoint, load_metrics, torch_seeding
 from mypyfunc.streamer import MultiStreamer, VideoDataSet
 
@@ -207,16 +207,30 @@ def main() -> None:
     #     layer_dim=layer_dim,
     #     bidirectional=bidirectional,
     # )
-    model = ViT(
+    # model = ViT( # permute  (0, 4, 1, 2, 3)
+    #     image_size=360,          # image size
+    #     frames=11,               # number of frames
+    #     image_patch_size=36,     # image patch size
+    #     frame_patch_size=1,      # frame patch size
+    #     num_classes=output_dim,
+    #     dim=1024,
+    #     depth=6,
+    #     heads=8,
+    #     mlp_dim=2048,
+    #     dropout=0.1,
+    #     emb_dropout=0.1
+    # )
+    model = CNN_Transformers(
         image_size=360,          # image size
-        frames=11,               # number of frames
+        frames=10,               # number of frames
         image_patch_size=36,     # image patch size
         frame_patch_size=1,      # frame patch size
-        num_classes=output_dim,
-        dim=1024,
+        num_classes=2,
+        dim=1000,
         depth=6,
         heads=8,
         mlp_dim=2048,
+        cnn=torchvision.models.vgg16(pretrained=True),
         dropout=0.1,
         emb_dropout=0.1
     )
@@ -276,7 +290,7 @@ def main() -> None:
         flicker4_val = [os.path.join(flicker4_path, f)
                         for f in flicker_test if f in os.listdir(flicker4_path)]
         non_flicker_val = VideoDataSet.split_datasets(
-            non_flicker_val, labels=labels, class_size=class_size, max_workers=max_workers, undersample=100)
+            non_flicker_val, labels=labels, class_size=class_size, max_workers=max_workers, undersample=500)
         flicker1_val = VideoDataSet.split_datasets(
             flicker1_val+flicker2_val+flicker3_val+flicker4_val, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)
         # flicker2_val = VideoDataSet.split_datasets(
