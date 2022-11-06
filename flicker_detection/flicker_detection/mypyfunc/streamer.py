@@ -94,19 +94,17 @@ class VideoDataSet(IterableDataset):
     @staticmethod
     def _load(vid: str, label: int = -1) -> np.ndarray:
         video = skvideo.io.vread(vid)
-        if label < 0:
+        if label is not None and label < 0:
             yield video
             return
         pad = np.zeros((video.shape[0]+1, *video.shape[1:]))
-        pad[-1].fill(label)
+        pad[-1].fill(label if label is not None else int(bool(label)))
         yield pad
 
     def _get_stream(self, vid_lst: list,) -> itertools.chain.from_iterable:
-        # print(not self.oversample and not self.undersample)
         if not self.oversample and not self.undersample:
-            # print("WTF")
             mapping = map(lambda f: self._load(
-                f, self.__labels[f.split("/", 3)[-1].replace(".mp4", "")]), vid_lst)
+                f, self.__labels.get(f.split("/", 3)[-1].replace(".mp4", ""))), vid_lst)
             return itertools.chain.from_iterable(mapping)
         if self.oversample:
             vid_lst = itertools.cycle(vid_lst)
@@ -198,7 +196,6 @@ class MultiStreamer(object):
                 len(f_vid)), torch.zeros(len(n_vid))
             inputs, labels = torch.stack(
                 f_vid+n_vid), torch.cat([f_labels, n_labels])
-            print(inputs.shape, labels.shape)
             yield inputs[idx].float(), labels[idx].long()
 
     @staticmethod
@@ -239,10 +236,10 @@ class MultiStreamer(object):
     ):
         for stream in streams:
             frames = [frame[:-1]
-                      for frame in list(itertools.chain(*stream))]
+                      for frame in list(itertools.chain(*stream[0]))]
             labels = [label[-1][0][0][0].item()
-                      for label in list(itertools.chain(*stream))]
-            yield torch.cat(frames).float(), torch.Tensor(labels).long()
+                      for label in list(itertools.chain(*stream[0]))]
+            yield torch.stack(frames).float(), torch.Tensor(labels).long()
 
     def __iter__(self):
         self.__streams = zip(
@@ -311,7 +308,7 @@ class TestMulti:
                      for frame in list(itertools.chain(*batch_parts))]
             labels = [label[-1][0][0][0].item()
                       for label in list(itertools.chain(*batch_parts))]
-            yield torch.cat(parts), labels
+            yield torch.stack(parts), labels
 
 
 def test_loader() -> None:
@@ -320,7 +317,7 @@ def test_loader() -> None:
     # ]
     data = [os.path.join("../data/flicker1", f)
             for f in os.listdir("../data/flicker1")][:20]
-    ds = TestDS.split_datasets(data_list=data, batch_size=2, max_workers=1)
+    ds = TestDS.split_datasets(data_list=data, batch_size=4, max_workers=1)
     loader = TestMulti(ds)
     for out in loader:
         print("WTF")
@@ -348,7 +345,7 @@ if __name__ == '__main__':
     labels = json.load(open("../data/multi_label.json", "r"))
     batch_size = 4
     non_flickers = VideoDataSet.split_datasets(
-        non_flicker_files[:8], labels=labels, class_size=2, max_workers=1, undersample=8)
+        non_flicker_files[:8]+flicker1_files[:4], labels=labels, class_size=4, max_workers=1, undersample=0)
     flicker1 = VideoDataSet.split_datasets(
         flicker1_files[:4]+flicker4_files[:4], labels=labels, class_size=2, max_workers=1, oversample=True)
     flicker2 = VideoDataSet.split_datasets(
@@ -356,8 +353,8 @@ if __name__ == '__main__':
     flicker3 = VideoDataSet.split_datasets(
         flicker3_files[:8], labels=labels, class_size=2, max_workers=1, oversample=True)
 
-    loader = MultiStreamer(non_flickers,
-                           flicker1, batch_size=batch_size, multiclass=False, binary=True)  # flicker2, flicker3
+    loader = MultiStreamer(non_flickers, batch_size=batch_size,
+                           multiclass=False, binary=False)  # flicker2, flicker3
 
     # non_flickers = VideoDataSet.split_datasets(
     #     non_flicker_files[:8]+flicker1_files[:8], class_size=4, max_workers=8)

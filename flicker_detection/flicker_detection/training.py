@@ -1,5 +1,6 @@
 import os
 import gc
+import json
 import logging
 import tqdm
 import torch
@@ -187,17 +188,19 @@ def main() -> None:
     flicker_train, non_flicker_train, flicker_test, non_flicker_test = tuple(
         __cache__[lst] for lst in __cache__)
 
+    labels = json.load(open("data/multi_label.json", 'r'))
+
     input_dim = 128  # (4,10,61952) (40,3,512,512)
-    output_dim = 5
+    output_dim = 2
     hidden_dim = 64
     layer_dim = 2
-    bidirectional = False
-    batch_size = 5
+    bidirectional = True
+    batch_size = 4
     class_size = batch_size//output_dim
     max_workers = 1
 
     # model = CNN_LSTM(
-    #     cnn=torchvision.models.vgg11(pretrained=True),
+    #     cnn=torchvision.models.vgg16(pretrained=True),
     #     input_dim=input_dim,
     #     output_dim=output_dim,
     #     hidden_dim=hidden_dim,
@@ -240,25 +243,25 @@ def main() -> None:
         flicker4_train = [os.path.join(flicker4_path, f)
                           for f in flicker_train if f in os.listdir(flicker4_path)]
         non_flicker_train = VideoDataSet.split_datasets(
-            non_flicker_train, class_size=class_size, max_workers=max_workers, undersample=1000)
+            non_flicker_train, labels=labels, class_size=class_size, max_workers=max_workers, undersample=1000)
         flicker1_train = VideoDataSet.split_datasets(
-            flicker1_train, class_size=class_size, max_workers=max_workers, oversample=True)
-        flicker2_train = VideoDataSet.split_datasets(
-            flicker2_train, class_size=class_size, max_workers=max_workers, oversample=True)
-        flicker3_train = VideoDataSet.split_datasets(
-            flicker3_train, class_size=class_size, max_workers=max_workers, oversample=True)
-        flicker4_train = VideoDataSet.split_datasets(
-            flicker4_train, class_size=class_size, max_workers=max_workers, oversample=True)
+            flicker1_train+flicker2_train+flicker3_train+flicker4_train, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)
+        # flicker2_train = VideoDataSet.split_datasets(
+        #     flicker2_train, class_size=class_size, max_workers=max_workers, oversample=True)
+        # flicker3_train = VideoDataSet.split_datasets(
+        #     flicker3_train, class_size=class_size, max_workers=max_workers, oversample=True)
+        # flicker4_train = VideoDataSet.split_datasets(
+        #     flicker4_train, class_size=class_size, max_workers=max_workers, oversample=True)
 
         ds_train = MultiStreamer(
             non_flicker_train,
             flicker1_train,
-            flicker2_train,
-            flicker3_train,
-            flicker4_train,
+            # flicker2_train,
+            # flicker3_train,
+            # flicker4_train,
             batch_size=batch_size,
-            multiclass=True,
-            binary=False)
+            multiclass=False,
+            binary=True)
         logging.info("Done loading training set")
 
         logging.info("Loading validtaion set..")
@@ -273,25 +276,25 @@ def main() -> None:
         flicker4_val = [os.path.join(flicker4_path, f)
                         for f in flicker_test if f in os.listdir(flicker4_path)]
         non_flicker_val = VideoDataSet.split_datasets(
-            non_flicker_val, class_size=class_size, max_workers=max_workers, undersample=100)
+            non_flicker_val, labels=labels, class_size=class_size, max_workers=max_workers, undersample=100)
         flicker1_val = VideoDataSet.split_datasets(
-            flicker1_val, class_size=class_size, max_workers=max_workers, oversample=True)
-        flicker2_val = VideoDataSet.split_datasets(
-            flicker2_val, class_size=class_size, max_workers=max_workers, oversample=True)
-        flicker3_val = VideoDataSet.split_datasets(
-            flicker3_val, class_size=class_size, max_workers=max_workers, oversample=True)
-        flicker4_val = VideoDataSet.split_datasets(
-            flicker4_val, class_size=class_size, max_workers=max_workers, oversample=True)
+            flicker1_val+flicker2_val+flicker3_val+flicker4_val, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)
+        # flicker2_val = VideoDataSet.split_datasets(
+        #     flicker2_val, class_size=class_size, max_workers=max_workers, oversample=True)
+        # flicker3_val = VideoDataSet.split_datasets(
+        #     flicker3_val, class_size=class_size, max_workers=max_workers, oversample=True)
+        # flicker4_val = VideoDataSet.split_datasets(
+        #     flicker4_val, class_size=class_size, max_workers=max_workers, oversample=True)
 
         ds_val = MultiStreamer(
             non_flicker_val,
             flicker1_val,
-            flicker2_val,
-            flicker3_val,
-            flicker4_val,
+            # flicker2_val,
+            # flicker3_val,
+            # flicker4_val,
             batch_size=batch_size,
-            multiclass=True,
-            binary=False)
+            multiclass=False,
+            binary=True)
         logging.info("Done loading validation set")
 
         logging.info(f"{model.train()}")
@@ -323,25 +326,25 @@ def main() -> None:
         flicker4_test = [os.path.join(flicker4_path, f)
                          for f in flicker_test if f in os.listdir(flicker4_path)]
         non_flicker_test = VideoDataSet.split_datasets(
-            non_flicker_test, class_size=class_size, max_workers=max_workers, undersample=1000)
+            non_flicker_test, labels=labels, class_size=class_size, max_workers=max_workers, undersample=1000)
         flicker1_test = VideoDataSet.split_datasets(
-            flicker1_test, class_size=class_size, max_workers=max_workers, oversample=True)
-        flicker2_test = VideoDataSet.split_datasets(
-            flicker2_test, class_size=class_size, max_workers=max_workers, oversample=True)
-        flicker3_test = VideoDataSet.split_datasets(
-            flicker3_test, class_size=class_size, max_workers=max_workers, oversample=True)
-        flicker4_test = VideoDataSet.split_datasets(
-            flicker4_test, class_size=class_size, max_workers=max_workers, oversample=True)
+            flicker1_test+flicker2_test+flicker3_test+flicker4_test, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)
+        # flicker2_test = VideoDataSet.split_datasets(
+        #     flicker2_test, class_size=class_size, max_workers=max_workers, oversample=True)
+        # flicker3_test = VideoDataSet.split_datasets(
+        #     flicker3_test, class_size=class_size, max_workers=max_workers, oversample=True)
+        # flicker4_test = VideoDataSet.split_datasets(
+        #     flicker4_test, class_size=class_size, max_workers=max_workers, oversample=True)
 
         ds_test = MultiStreamer(
             non_flicker_test,
             flicker1_test,
-            flicker2_test,
-            flicker3_test,
-            flicker4_test,
+            # flicker2_test,
+            # flicker3_test,
+            # flicker4_test,
             batch_size=batch_size,
-            multiclass=True,
-            binary=False)
+            multiclass=False,
+            binary=True)
         logging.info("Done loading testing set")
 
         logging.info("Starting Evaluation")
