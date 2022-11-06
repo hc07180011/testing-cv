@@ -6,8 +6,7 @@ import torch
 import torchvision
 import numpy as np
 import torch.nn as nn
-# from vit_pytorch import ViT
-from video_swin_transformer import SwinTransformer3D
+from vit_pytorch.vit_3d import ViT
 from typing import Callable, Tuple
 from collections import OrderedDict
 from argparse import ArgumentParser
@@ -41,7 +40,7 @@ def training(
         minibatch_loss_train = minibatch_f1 = 0
         for n_train, (inputs, labels) in enumerate(tqdm.tqdm(train_loader)):
             inputs = inputs.permute(
-                0, 1, 4, 2, 3).float().to(device)
+                0, 4, 1, 2, 3).float().to(device)
             labels = labels.long().to(device)
             # logging.debug(f"{inputs.shape}")
 
@@ -68,7 +67,7 @@ def training(
             minibatch_loss_val = minibatch_f1_val = 0
             for n_val, (inputs, labels) in enumerate(tqdm.tqdm(val_loader)):
                 inputs = inputs.permute(
-                    0, 1, 4, 2, 3).float().to(device)
+                    0, 4, 1, 2, 3).float().to(device)
                 labels = labels.long().to(device)
 
                 outputs = model(inputs)  # .flatten(end_dim=1))
@@ -119,7 +118,7 @@ def testing(
     with torch.no_grad():
         for (inputs, labels) in tqdm.tqdm(test_loader):
             inputs = inputs.permute(
-                0, 1, 4, 2, 3).float().to(device)
+                0, 4, 1, 2, 3).float().to(device)
             labels = labels.long().to(device)
             outputs = model(inputs)  # .flatten(end_dim=1))
             y_pred += (objective(outputs),)
@@ -147,29 +146,6 @@ def testing(
     metrics.plot_callback(loss, val_loss, "loss", num=43)
     metrics.plot_callback(f1, val_f1, "f1", num=42)
     metrics.report(y_true, y_classes)
-
-
-def load_video_swin() -> torch.nn.Module:
-    model = SwinTransformer3D(embed_dim=128,
-                              depths=[2, 2, 18, 2],
-                              num_heads=[4, 8, 16, 32],
-                              patch_size=(2, 4, 4),
-                              window_size=(16, 7, 7),
-                              drop_path_rate=0.4,
-                              patch_norm=True)
-
-    # https://github.com/SwinTransformer/Video-Swin-Transformer/blob/master/configs/recognition/swin/swin_base_patch244_window1677_sthv2.py
-    checkpoint = torch.load(
-        './checkpoints/swin_base_patch244_window1677_sthv2.pth')
-
-    new_state_dict = OrderedDict()
-    for k, v in checkpoint['state_dict'].items():
-        if 'backbone' in k:
-            name = k[9:]
-            new_state_dict[name] = v
-
-    model.load_state_dict(new_state_dict)
-    return model
 
 
 def command_arg() -> ArgumentParser:
@@ -211,34 +187,36 @@ def main() -> None:
     flicker_train, non_flicker_train, flicker_test, non_flicker_test = tuple(
         __cache__[lst] for lst in __cache__)
 
-    input_dim = 61952
+    input_dim = 128  # (4,10,61952) (40,3,512,512)
     output_dim = 5
     hidden_dim = 64
-    layer_dim = 3
-    bidirectional = True
+    layer_dim = 2
+    bidirectional = False
     batch_size = 5
     class_size = batch_size//output_dim
     max_workers = 1
-    # logging.debug(f"{class_size} - {batch_size}")
-    model = CNN_LSTM(
-        cnn=torchvision.models.vgg11(pretrained=True),  # 16
-        input_dim=input_dim,
-        output_dim=output_dim,
-        hidden_dim=hidden_dim,
-        layer_dim=layer_dim,
-        bidirectional=bidirectional,
-    )
 
-    # model = ViT(
-    #     image_size=360,
-    #     patch_size=36,
-    #     num_classes=4,
-    #     dim=1024,
-    #     depth=6,
-    #     heads=16,
-    #     mlp_dim=2048
+    # model = CNN_LSTM(
+    #     cnn=torchvision.models.vgg11(pretrained=True),
+    #     input_dim=input_dim,
+    #     output_dim=output_dim,
+    #     hidden_dim=hidden_dim,
+    #     layer_dim=layer_dim,
+    #     bidirectional=bidirectional,
     # )
-    # model = load_video_swin()
+    model = ViT(
+        image_size=360,          # image size
+        frames=11,               # number of frames
+        image_patch_size=36,     # image patch size
+        frame_patch_size=1,      # frame patch size
+        num_classes=output_dim,
+        dim=1024,
+        depth=6,
+        heads=8,
+        mlp_dim=2048,
+        dropout=0.1,
+        emb_dropout=0.1
+    )
 
     model = torch.nn.DataParallel(model)
     model.to(device)
