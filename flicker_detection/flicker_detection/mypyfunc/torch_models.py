@@ -31,12 +31,12 @@ class CNN_LSTM(nn.Module):
         self.layer_dim = layer_dim
         # Output dim classes
         self.output_dim = output_dim
+        # NO of hidden layers for lstm
         self.n_directions = 2 if bidirectional else 1
-
         # Base cnn
         self.cnn = cnn
-        self.fc0 = nn.Linear(
-            in_features=self.cnn.classifier[-1].out_features,
+        self.cnn.classifier[-1] = nn.Linear(
+            in_features=self.cnn.classifier[-4].out_features,
             out_features=input_dim
         )
         # LSTM1  Layer
@@ -53,7 +53,7 @@ class CNN_LSTM(nn.Module):
             self.layer_dim*self.n_directions,
             x.size(0),
             self.hidden_dim,
-            device="cuda"
+            device="cuda"  # cuda
         ).requires_grad_()
 
         # Initialize cell state
@@ -69,7 +69,6 @@ class CNN_LSTM(nn.Module):
         batch_size, chunk_size = x.shape[:2]
         # Get features (4,10,3,360,360) -> (40,3,360,360)
         out = self.cnn(x.flatten(end_dim=1))
-        out = self.fc0(out)
         # Shape back to batch x chunk
         out = out.reshape((batch_size, chunk_size, out.shape[-1]))
         # One time step
@@ -188,7 +187,6 @@ class Transformer(nn.Module):
         return x
 
 
-# TODO edit this
 class CNN_Transformers(nn.Module):
     def __init__(
         self, *,
@@ -218,11 +216,15 @@ class CNN_Transformers(nn.Module):
         num_patches = (image_height // patch_height) * \
             (image_width // patch_width) * (frames // frame_patch_size)
         # patch_dim = channels * patch_height * patch_width * frame_patch_size
-        # print(patch_dim, dim)
+
         assert pool in {
             'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
-        self.to_patch_embedding = cnn
+        self.cnn = cnn
+        self.cnn.classifier[-1] = nn.Linear(
+            in_features=self.cnn.classifier[-4].out_features,
+            out_features=dim
+        )
         # self.to_patch_embedding = nn.Sequential(
         #     Rearrange('b c (f pf) (h p1) (w p2) -> b (f h w) (p1 p2 pf c)',
         #               p1=patch_height, p2=patch_width, pf=frame_patch_size),
@@ -243,10 +245,11 @@ class CNN_Transformers(nn.Module):
             nn.LayerNorm(dim),
             nn.Linear(dim, num_classes)
         )
+        self._initialization()
 
     def forward(self, video):
         batch_size, chunk_size = video.shape[:2]
-        x = self.to_patch_embedding(video.flatten(end_dim=1))
+        x = self.cnn(video.flatten(end_dim=1))
         x = x.reshape((batch_size, chunk_size, x.shape[-1]))
         b, n, _ = x.shape
 
@@ -262,6 +265,24 @@ class CNN_Transformers(nn.Module):
         x = self.to_latent(x)
         return self.mlp_head(x)
 
+    def _initialization(self) -> None:
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                for name, param in m.named_parameters():
+                    nn.init.normal_(param, std=0.05)
+            elif isinstance(m, nn.LSTM):
+                for name, param in m.named_parameters():
+                    if 'weight_ih' in name:
+                        for i in range(4):
+                            mul = param.shape[0]//4
+                            nn.init.xavier_uniform_(param[i*mul:(i+1)*mul])
+                    elif 'weight_hh' in name:
+                        for i in range(4):
+                            mul = param.shape[0]//4
+                            nn.init.xavier_uniform_(param[i*mul:(i+1)*mul])
+                    elif 'bias' in name:
+                        nn.init.zeros_(param.data)
+
 
 if __name__ == '__main__':
     """
@@ -274,7 +295,7 @@ if __name__ == '__main__':
         image_patch_size=36,     # image patch size
         frame_patch_size=1,      # frame patch size
         num_classes=2,
-        dim=1000,
+        dim=256,
         depth=6,
         heads=8,
         mlp_dim=2048,
@@ -282,6 +303,19 @@ if __name__ == '__main__':
         dropout=0.1,
         emb_dropout=0.1
     )
+    # input_dim = 256  # (4,10,61952) (40,3,512,512)
+    # output_dim = 2
+    # hidden_dim = 64
+    # layer_dim = 2
+    # bidirectional = True
+    # model = CNN_LSTM(
+    #     cnn=torchvision.models.vgg16(pretrained=True),
+    #     input_dim=input_dim,
+    #     output_dim=output_dim,
+    #     hidden_dim=hidden_dim,
+    #     layer_dim=layer_dim,
+    #     bidirectional=bidirectional,
+    # )
     videos = os.listdir(flicker_path)
     test_batch = np.zeros((4, 10, 360, 360, 3))
     for i, video in enumerate(videos[:4]):
