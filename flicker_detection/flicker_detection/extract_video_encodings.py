@@ -175,7 +175,6 @@ def preprocessing(
     fp_test = fp[int(len(fp)*0.8):]
 
     length = max([
-        len(fp_test),
         len(flicker_train),
         len(flicker_test),
         len(non_flicker_train+fp_train),
@@ -226,10 +225,8 @@ if __name__ == "__main__":
     """
     get google resources, beause they complain about it
     Google allow to publish dataset for paper? or perform on outlier detection data
-    cnn - sequence transformer
     egocentric computer vision
 
-    independent study next semester
      Seminar in Information Science and Technology
       Predictive Modeling in Biomedicine
 
@@ -241,11 +238,10 @@ if __name__ == "__main__":
     use TPUS
 
     multiclass increase batch size
-    do first binary because go best results for transformers
-    get rid of patch embedding, reduce NO classes of output
-    look for outlier detection datasets 
-    use cnn as patch embedding and replace lstm with transformer 
-    use (fully connected) MLP to reduce dimentionality if CNN 1 or 2
+    can improve gpu memory usage
+
+    https://github.com/fjchange/awesome-video-anomaly-detection
+    http://odds.cs.stonybrook.edu/
     """
     init_logger()
     args = command_arg()

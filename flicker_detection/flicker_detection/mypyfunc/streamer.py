@@ -134,7 +134,7 @@ class MultiStreamer(object):
             flicker4_files[:8], class_size=1, max_workers=1)
 
         loader = MultiStreamer(non_flickers,
-                            flicker1, flicker2, flicker3, flicker4, batch_size=batch_size, multiclass=True)
+                            flicker1, flicker2, flicker3, flicker4, batch_size=batch_size)
 
 
         USAGE: BINARY

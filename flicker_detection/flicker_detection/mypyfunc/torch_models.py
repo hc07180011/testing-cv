@@ -9,6 +9,7 @@ import skvideo.io
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 
+from collections import OrderedDict
 from typing import Callable
 import warnings
 warnings.filterwarnings('ignore')
@@ -34,11 +35,13 @@ class CNN_LSTM(nn.Module):
         # NO of hidden layers for lstm
         self.n_directions = 2 if bidirectional else 1
         # Base cnn
-        self.cnn = cnn
-        self.cnn.classifier[-1] = nn.Linear(
-            in_features=self.cnn.classifier[-4].out_features,
-            out_features=input_dim
-        )
+        self.extractor = cnn.features
+        self.avgpool = cnn.avgpool
+        self.fc = nn.Sequential(OrderedDict([
+            ('linear', nn.Linear(in_features=25088, out_features=input_dim)),
+            ('relu', nn.ReLU()),
+            ('dropout', nn.Dropout(p=0.5, inplace=False)),
+        ]))
         # LSTM1  Layer
         self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=layer_dim,
                             batch_first=True, bidirectional=bidirectional)
@@ -66,9 +69,12 @@ class CNN_LSTM(nn.Module):
         return h0, c0
 
     def forward(self, x) -> torch.Tensor:
-        batch_size, chunk_size = x.shape[:2]
         # Get features (4,10,3,360,360) -> (40,3,360,360)
-        out = self.cnn(x.flatten(end_dim=1))
+        batch_size, chunk_size = x.shape[:2]
+        out = self.extractor(x.flatten(end_dim=1))
+        out = self.avgpool(out).flatten(start_dim=1)
+        out = self.fc(out)
+        out = out.reshape((batch_size, chunk_size, out.shape[-1]))
         # Shape back to batch x chunk
         out = out.reshape((batch_size, chunk_size, out.shape[-1]))
         # One time step
@@ -201,7 +207,6 @@ class CNN_Transformers(nn.Module):
         mlp_dim: int,
         cnn: nn.Module,
         pool: str = 'cls',
-        # channels: int = 3,
         dim_head: int = 64,
         dropout: int = 0.,
         emb_dropout: int = 0.
@@ -215,21 +220,17 @@ class CNN_Transformers(nn.Module):
 
         num_patches = (image_height // patch_height) * \
             (image_width // patch_width) * (frames // frame_patch_size)
-        # patch_dim = channels * patch_height * patch_width * frame_patch_size
 
         assert pool in {
             'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
-        self.cnn = cnn
-        self.cnn.classifier[-1] = nn.Linear(
-            in_features=self.cnn.classifier[-4].out_features,
-            out_features=dim
-        )
-        # self.to_patch_embedding = nn.Sequential(
-        #     Rearrange('b c (f pf) (h p1) (w p2) -> b (f h w) (p1 p2 pf c)',
-        #               p1=patch_height, p2=patch_width, pf=frame_patch_size),
-        #     nn.Linear(patch_dim, dim),
-        # )
+        self.extractor = cnn.features
+        self.avgpool = cnn.avgpool
+        self.fc = nn.Sequential(OrderedDict([
+            ('linear', nn.Linear(in_features=25088, out_features=dim)),
+            ('relu', nn.ReLU()),
+            ('dropout', nn.Dropout(p=0.5, inplace=False)),
+        ]))
 
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
@@ -249,7 +250,9 @@ class CNN_Transformers(nn.Module):
 
     def forward(self, video):
         batch_size, chunk_size = video.shape[:2]
-        x = self.cnn(video.flatten(end_dim=1))
+        x = self.extractor(video.flatten(end_dim=1))
+        x = self.avgpool(x).flatten(start_dim=1)
+        x = self.fc(x)
         x = x.reshape((batch_size, chunk_size, x.shape[-1]))
         b, n, _ = x.shape
 
@@ -289,33 +292,33 @@ if __name__ == '__main__':
     torch.Size([4, 1000, 1024])
     """
     flicker_path = '../data/flicker1/'
-    model = CNN_Transformers(
-        image_size=360,          # image size
-        frames=10,               # number of frames
-        image_patch_size=36,     # image patch size
-        frame_patch_size=1,      # frame patch size
-        num_classes=2,
-        dim=256,
-        depth=6,
-        heads=8,
-        mlp_dim=2048,
-        cnn=torchvision.models.vgg16(pretrained=True),
-        dropout=0.1,
-        emb_dropout=0.1
-    )
-    # input_dim = 256  # (4,10,61952) (40,3,512,512)
-    # output_dim = 2
-    # hidden_dim = 64
-    # layer_dim = 2
-    # bidirectional = True
-    # model = CNN_LSTM(
+    # model = CNN_Transformers(
+    #     image_size=360,          # image size
+    #     frames=10,               # number of frames
+    #     image_patch_size=36,     # image patch size
+    #     frame_patch_size=1,      # frame patch size
+    #     num_classes=2,
+    #     dim=256,
+    #     depth=6,
+    #     heads=8,
+    #     mlp_dim=2048,
     #     cnn=torchvision.models.vgg16(pretrained=True),
-    #     input_dim=input_dim,
-    #     output_dim=output_dim,
-    #     hidden_dim=hidden_dim,
-    #     layer_dim=layer_dim,
-    #     bidirectional=bidirectional,
+    #     dropout=0.1,
+    #     emb_dropout=0.1
     # )
+    input_dim = 256  # (4,10,61952)
+    output_dim = 2
+    hidden_dim = 64
+    layer_dim = 2
+    bidirectional = True
+    model = CNN_LSTM(
+        cnn=torchvision.models.vgg16(pretrained=True),
+        input_dim=input_dim,
+        output_dim=output_dim,
+        hidden_dim=hidden_dim,
+        layer_dim=layer_dim,
+        bidirectional=bidirectional,
+    )
     videos = os.listdir(flicker_path)
     test_batch = np.zeros((4, 10, 360, 360, 3))
     for i, video in enumerate(videos[:4]):
