@@ -187,22 +187,22 @@ def main() -> None:
     labels = json.load(open("data/multi_label.json", 'r'))
 
     input_dim = 256  # (4,10,61952) (40,3,512,512)
-    output_dim = 4
-    hidden_dim = 32
+    output_dim = 5
+    hidden_dim = 64
     layer_dim = 2
-    bidirectional = True
-    batch_size = 4
+    bidirectional = False
+    batch_size = 5
     class_size = batch_size//output_dim
     max_workers = 1
 
-    # model = CNN_LSTM(
-    #     cnn=torchvision.models.vgg16(pretrained=True),
-    #     input_dim=input_dim,
-    #     output_dim=output_dim,
-    #     hidden_dim=hidden_dim,
-    #     layer_dim=layer_dim,
-    #     bidirectional=bidirectional,
-    # )
+    model = CNN_LSTM(
+        cnn=torchvision.models.vgg13(pretrained=True),
+        input_dim=input_dim,
+        output_dim=output_dim,
+        hidden_dim=hidden_dim,
+        layer_dim=layer_dim,
+        bidirectional=bidirectional,
+    )
     # model = ViT(  # permute  (0, 4, 1, 2, 3)
     #     image_size=360,          # image size
     #     frames=10,               # number of frames
@@ -216,20 +216,20 @@ def main() -> None:
     #     dropout=0.1,
     #     emb_dropout=0.1
     # )
-    model = CNN_Transformers(
-        image_size=360,          # image size
-        frames=10,               # number of frames
-        image_patch_size=36,     # image patch size
-        frame_patch_size=1,      # frame patch size
-        num_classes=4,
-        dim=256,
-        depth=6,
-        heads=8,
-        mlp_dim=2048,
-        cnn=torchvision.models.vgg16(pretrained=True),
-        dropout=0.1,
-        emb_dropout=0.1
-    )  # 16784 of 19456 gpu mb
+    # model = CNN_Transformers(
+    #     image_size=360,          # image size
+    #     frames=10,               # number of frames
+    #     image_patch_size=36,     # image patch size
+    #     frame_patch_size=1,      # frame patch size
+    #     num_classes=4,
+    #     dim=256,
+    #     depth=6,
+    #     heads=8,
+    #     mlp_dim=2048,
+    #     cnn=torchvision.models.vgg16(pretrained=True),
+    #     dropout=0.1,
+    #     emb_dropout=0.1
+    # )  # 16784 of 19456 gpu mb 0.6094
 
     model = torch.nn.DataParallel(model)
     model.to(device)
@@ -260,15 +260,15 @@ def main() -> None:
             flicker2_train, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)
         flicker3_train = VideoDataSet.split_datasets(
             flicker3_train, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)
-        # flicker4_train = VideoDataSet.split_datasets(
-        #     flicker4_train, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)
+        flicker4_train = VideoDataSet.split_datasets(
+            flicker4_train, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)
 
         ds_train = MultiStreamer(
             non_flicker_train,
             flicker1_train,
             flicker2_train,
             flicker3_train,
-            # flicker4_train,
+            flicker4_train,
             batch_size=batch_size,
         )
         logging.info("Done loading training set")
@@ -292,15 +292,15 @@ def main() -> None:
             flicker2_val, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)
         flicker3_val = VideoDataSet.split_datasets(
             flicker3_val, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)
-        # flicker4_val = VideoDataSet.split_datasets(
-        #     flicker4_val, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)
+        flicker4_val = VideoDataSet.split_datasets(
+            flicker4_val, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)
 
         ds_val = MultiStreamer(
             non_flicker_val,
             flicker1_val,
             flicker2_val,
             flicker3_val,
-            # flicker4_val,
+            flicker4_val,
             batch_size=batch_size,
         )
         logging.info("Done loading validation set")
@@ -340,15 +340,15 @@ def main() -> None:
             flicker2_test, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)
         flicker3_test = VideoDataSet.split_datasets(
             flicker3_test, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)
-        # flicker4_test = VideoDataSet.split_datasets(
-        #     flicker4_test, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)
+        flicker4_test = VideoDataSet.split_datasets(
+            flicker4_test, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)
 
         ds_test = MultiStreamer(
             non_flicker_test,
             flicker1_test,
             flicker2_test,
             flicker3_test,
-            # flicker4_test,
+            flicker4_test,
             batch_size=batch_size,
         )
         logging.info("Done loading testing set")

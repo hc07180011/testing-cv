@@ -242,6 +242,11 @@ if __name__ == "__main__":
 
     https://github.com/fjchange/awesome-video-anomaly-detection
     http://odds.cs.stonybrook.edu/
+
+    hard example mining
+    testing on imbalance stream with batch size 1
+    big changes but rare occurance outlier dataset
+    test pytorch on TPU
     """
     init_logger()
     args = command_arg()

@@ -290,28 +290,29 @@ class CNN_Transformers(nn.Module):
 if __name__ == '__main__':
     """
     torch.Size([4, 1000, 1024])
+    https://discuss.pytorch.org/t/finding-model-size/130275
     """
     flicker_path = '../data/flicker1/'
-    # model = CNN_Transformers(
-    #     image_size=360,          # image size
-    #     frames=10,               # number of frames
-    #     image_patch_size=36,     # image patch size
-    #     frame_patch_size=1,      # frame patch size
-    #     num_classes=2,
-    #     dim=256,
-    #     depth=6,
-    #     heads=8,
-    #     mlp_dim=2048,
-    #     cnn=torchvision.models.vgg16(pretrained=True),
-    #     dropout=0.1,
-    #     emb_dropout=0.1
-    # )
+    model = CNN_Transformers(# model size: 117.698MB
+        image_size=360,          # image size
+        frames=10,               # number of frames
+        image_patch_size=36,     # image patch size
+        frame_patch_size=1,      # frame patch size
+        num_classes=2,
+        dim=256,
+        depth=6,
+        heads=8,
+        mlp_dim=2048,
+        cnn=torchvision.models.vgg16(pretrained=True),
+        dropout=0.1,
+        emb_dropout=0.1
+    )
     input_dim = 256  # (4,10,61952)
     output_dim = 2
     hidden_dim = 64
     layer_dim = 2
     bidirectional = True
-    model = CNN_LSTM(
+    model = CNN_LSTM(  # model size: 81.642MB
         cnn=torchvision.models.vgg16(pretrained=True),
         input_dim=input_dim,
         output_dim=output_dim,
