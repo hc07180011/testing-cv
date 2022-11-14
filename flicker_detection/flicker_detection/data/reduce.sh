@@ -20,3 +20,6 @@ du -sh .
 
 # get free GB
 free -g -h -t
+
+# copy every 4th video
+cp $(printf '%s\n' 1*.mp4 | awk 'NR%4 == 1') ../flicker-chunks/

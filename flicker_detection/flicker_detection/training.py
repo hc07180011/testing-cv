@@ -45,8 +45,8 @@ def training(
             outputs = model(inputs)
             loss = criterion(outputs, labels)
             optimizer.zero_grad()
-            loss.backward()
             torch.nn.utils.clip_grad_norm(model.parameters(), 1.0)
+            loss.backward()
             optimizer.step()
 
             f1 = f1_metric(torch.topk(objective(outputs),
@@ -234,7 +234,8 @@ def main() -> None:
     model = torch.nn.DataParallel(model)
     model.to(device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
+    optimizer = torch.optim.Adam(
+        model.parameters(), lr=1e-4, weight_decay=1e-5)
     metric = F1Score(average='macro')
     criterion = nn.CrossEntropyLoss()
     objective = nn.Softmax()
