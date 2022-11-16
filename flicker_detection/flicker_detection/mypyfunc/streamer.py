@@ -104,6 +104,12 @@ class MultiStreamer(object):
         self.__datasets = args
         self.__streams = None
 
+    def get_datasets(self)->list:
+        return self.__datasets
+
+    def __len__(self)->int:
+        return self.__datasets[0][0].undersample
+
     @staticmethod
     def _get_stream_loaders(vid_lst: list):
         random.shuffle(vid_lst)
@@ -218,10 +224,10 @@ if __name__ == '__main__':
 
     loader = MultiStreamer(
         non_flickers, batch_size=batch_size)  # , flicker1, flicker2, flicker3,
-
-    for i in range(2):
-        print(f"{i} WTF")
-        for inputs, labels in loader:
-            print(inputs.shape, labels)
+    print(loader.__len__())
+    # for i in range(2):
+    #     print(f"{i} WTF")
+    #     for inputs, labels in tqdm.tqdm(loader):
+    #         print(inputs.shape, labels)
 
     # test_loader()

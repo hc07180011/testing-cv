@@ -2,10 +2,11 @@ import os
 import logging
 import torch
 import torchvision
+import skvideo.io
 import numpy as np
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import nn
-import skvideo.io
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 
@@ -273,18 +274,6 @@ class CNN_Transformers(nn.Module):
             if isinstance(m, nn.Linear):
                 for name, param in m.named_parameters():
                     nn.init.normal_(param, std=0.05)
-            elif isinstance(m, nn.LSTM):
-                for name, param in m.named_parameters():
-                    if 'weight_ih' in name:
-                        for i in range(4):
-                            mul = param.shape[0]//4
-                            nn.init.xavier_uniform_(param[i*mul:(i+1)*mul])
-                    elif 'weight_hh' in name:
-                        for i in range(4):
-                            mul = param.shape[0]//4
-                            nn.init.xavier_uniform_(param[i*mul:(i+1)*mul])
-                    elif 'bias' in name:
-                        nn.init.zeros_(param.data)
 
 
 class L1(torch.nn.Module):
@@ -321,11 +310,45 @@ class L1(torch.nn.Module):
         return self.module(*args, **kwargs)
 
 
+class OHEMLoss(nn.Module):
+    def __init__(
+        self,
+        batch_size:int,
+    ) -> None:
+        super(OHEMLoss, self).__init__()
+        self.batch_size = batch_size
+
+    def forward(
+        self,
+        pred: torch.Tensor,
+        target: torch.Tensor,
+    ) -> torch.Tensor:
+        ohem_loss = F.cross_entropy(
+            pred, target, reduction='none', ignore_index=-1)
+        sorted_ohem_loss, idx = torch.sort(ohem_loss, descending=True)
+        keep_num = min(sorted_ohem_loss.size()[0], self.batch_size)
+
+        if keep_num < sorted_ohem_loss.size()[0]:
+            keep_idx_cuda = idx[:keep_num]
+            ohem_loss = ohem_loss[keep_idx_cuda]
+
+        return ohem_loss.sum() / keep_num
+
+
+def test_OHEM() -> None:
+    C = 6
+    cls_pred = torch.randn(8, C)
+    cls_target = torch.Tensor([1, 1, 2, 3, 5, 3, 2, 1]).type(torch.long)
+    criterion = OHEMLoss()
+    print(criterion(cls_pred, cls_target))
+
+
 if __name__ == '__main__':
     """
     torch.Size([4, 1000, 1024])
     https://discuss.pytorch.org/t/finding-model-size/130275
     """
+    # test_OHEM()
     flicker_path = '../data/flicker1/'
     model = CNN_Transformers(  # model size: 117.698MB
         image_size=360,          # image size
