@@ -314,19 +314,28 @@ class OHEMLoss(nn.Module):
     def __init__(
         self,
         batch_size:int,
+        init_epoch:int,
+        criterion:nn.Module,
     ) -> None:
         super(OHEMLoss, self).__init__()
-        self.batch_size = batch_size
+        self.__batch_size = batch_size
+        self.init_epoch = init_epoch
+        self.criterion = criterion
+
 
     def forward(
         self,
         pred: torch.Tensor,
         target: torch.Tensor,
+        epoch:int,
     ) -> torch.Tensor:
+        if epoch < self.init_epoch:
+            return self.criterion(pred,target)
+            
         ohem_loss = F.cross_entropy(
             pred, target, reduction='none', ignore_index=-1)
         sorted_ohem_loss, idx = torch.sort(ohem_loss, descending=True)
-        keep_num = min(sorted_ohem_loss.size()[0], self.batch_size)
+        keep_num = min(sorted_ohem_loss.size()[0], self.__batch_size)
 
         if keep_num < sorted_ohem_loss.size()[0]:
             keep_idx_cuda = idx[:keep_num]

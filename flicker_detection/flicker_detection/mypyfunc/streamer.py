@@ -28,12 +28,15 @@ class VideoDataSet(IterableDataset):
         self.oversample = oversample
         self.undersample = undersample
 
+    def len_videos(self)->int:
+        return len(self.__vid_lst)
+
     @property
     def shuffled_data_list(self):
         return random.sample(self.__vid_lst, len(self.__vid_lst))
 
     @staticmethod
-    def _load(vid: str, label: int = -1) -> np.ndarray:
+    def __load(vid: str, label: int = -1) -> np.ndarray:
         video = skvideo.io.vread(vid)
         if label is not None and label < 0:
             yield video
@@ -42,20 +45,20 @@ class VideoDataSet(IterableDataset):
         pad[-1].fill(label if label is not None else int(bool(label)))
         yield pad
 
-    def _get_stream(self, vid_lst: list,) -> itertools.chain.from_iterable:
+    def __get_stream(self, vid_lst: list,) -> itertools.chain.from_iterable:
         if not self.oversample and not self.undersample:
-            mapping = map(lambda f: self._load(
+            mapping = map(lambda f: self.__load(
                 f, self.__labels.get(f.split("/", 3)[-1].replace(".mp4", ""))), vid_lst)
             return itertools.chain.from_iterable(mapping)
         if self.oversample:
             vid_lst = itertools.cycle(vid_lst)
         elif self.undersample:
             vid_lst = random.sample(vid_lst, self.undersample)
-        return itertools.chain.from_iterable(map(self._load, vid_lst))
+        return itertools.chain.from_iterable(map(self.__load, vid_lst))
 
-    def _get_streams(self) -> zip:
+    def __get_streams(self) -> zip:
         return zip(*[
-            self._get_stream(self.shuffled_data_list)
+            self.__get_stream(self.shuffled_data_list)
             for _ in range(self.batch_size)
         ])
 
@@ -83,7 +86,7 @@ class VideoDataSet(IterableDataset):
             for lst in split_lst]
 
     def __iter__(self) -> itertools.chain.from_iterable:
-        return self._get_streams()
+        return self.__get_streams()
 
 
 class MultiStreamer(object):
@@ -96,9 +99,11 @@ class MultiStreamer(object):
         self,
         *args: Tuple[IterableDataset],
         batch_size: int,
+        binary:bool=False,
     ) -> None:
         self.balanced = len(args) > 1
         self.batch_size = batch_size
+        self.__binary = binary
         self.__batch_idx = list(range(batch_size))
 
         self.__datasets = args
@@ -108,10 +113,10 @@ class MultiStreamer(object):
         return self.__datasets
 
     def __len__(self)->int:
-        return self.__datasets[0][0].undersample
+        return self.__datasets[0][0].undersample if self.balanced else self.__datasets[0][0].len_videos()
 
     @staticmethod
-    def _get_stream_loaders(vid_lst: list):
+    def __get_stream_loaders(vid_lst: list):
         random.shuffle(vid_lst)
         return zip(*[
             DataLoader(ds, num_workers=1, batch_size=None, pin_memory=True)
@@ -119,7 +124,7 @@ class MultiStreamer(object):
         ])
 
     @staticmethod
-    def _balanced(
+    def __balanced(
         streams: zip,
         idx: list,
         multiclass: bool = False,
@@ -175,22 +180,23 @@ class MultiStreamer(object):
             yield inputs[idx].float(), labels[idx].long()
 
     @staticmethod
-    def _imbalance(
+    def __imbalance(
         streams: zip,
+        binary:bool
     ):
         for stream in streams:
             frames = [frame[:-1]
                       for frame in list(itertools.chain(*stream[0]))]
-            labels = [label[-1][0][0][0].item()
+            labels = [label[-1][0][0][0].item() if not binary else int(bool(label[-1][0][0][0].item()))
                       for label in list(itertools.chain(*stream[0]))]
             yield torch.stack(frames).float(), torch.Tensor(labels).long()
 
     def __iter__(self):
         self.__streams = zip(
-            *tuple(map(self._get_stream_loaders, self.__datasets)))
+            *tuple(map(self.__get_stream_loaders, self.__datasets)))
         if self.balanced:
-            return self._balanced(self.__streams, self.__batch_idx, len(self.__datasets) > 2)
-        return self._imbalance(self.__streams)
+            return self.__balanced(self.__streams, self.__batch_idx, len(self.__datasets) > 2)
+        return self.__imbalance(self.__streams,self.__binary)
 
 
 if __name__ == '__main__':
@@ -214,7 +220,7 @@ if __name__ == '__main__':
     labels = json.load(open("../data/multi_label.json", "r"))
     batch_size = 4
     non_flickers = VideoDataSet.split_datasets(
-        non_flicker_files[:12], labels=labels, class_size=1, max_workers=8, undersample=0)
+        non_flicker_files[:12]+flicker1_files[:4]+flicker4_files[:4], labels=labels, class_size=1, max_workers=8, undersample=0)
     flicker1 = VideoDataSet.split_datasets(
         flicker1_files[:4]+flicker4_files[:4], labels=labels, class_size=1, max_workers=1, oversample=True)
     flicker2 = VideoDataSet.split_datasets(
@@ -223,11 +229,10 @@ if __name__ == '__main__':
         flicker3_files[:8], labels=labels, class_size=1, max_workers=1, oversample=True)
 
     loader = MultiStreamer(
-        non_flickers, batch_size=batch_size)  # , flicker1, flicker2, flicker3,
-    print(loader.__len__())
-    # for i in range(2):
-    #     print(f"{i} WTF")
-    #     for inputs, labels in tqdm.tqdm(loader):
-    #         print(inputs.shape, labels)
+        non_flickers, batch_size=batch_size,binary=True)  # , flicker1, flicker2, flicker3,
+    for i in range(2):
+        print(f"{i} WTF")
+        for inputs, labels in tqdm.tqdm(loader):
+            print(inputs.shape, labels)
 
     # test_loader()

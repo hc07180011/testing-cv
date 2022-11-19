@@ -43,7 +43,7 @@ def training(
             labels = labels.long().to(device)
 
             outputs = model(inputs)
-            loss = criterion(outputs, labels)
+            loss = criterion(outputs, labels,epoch)
             optimizer.zero_grad()
             torch.nn.utils.clip_grad_norm(model.parameters(), 1.0)
             loss.backward()
@@ -68,7 +68,7 @@ def training(
                 labels = labels.long().to(device)
 
                 outputs = model(inputs)
-                loss = criterion(outputs, labels)
+                loss = criterion(outputs, labels,0)
                 val_f1 = f1_metric(
                     torch.topk(objective(outputs), k=1, dim=1).indices.flatten(), labels)
                 minibatch_loss_val += loss.item()
@@ -109,7 +109,8 @@ def testing(
 ) -> None:
     logging.getLogger('matplotlib').setLevel(logging.WARNING)
     metrics = Evaluation(plots_folder="plots/", classes=classes)
-
+    model.load_state_dict(torch.load(os.path.join(
+        save_path, 'model.pth'))['model_state_dict'])
     model.eval()
     y_pred, y_true = (), ()
     with torch.no_grad():
@@ -160,7 +161,7 @@ def command_arg() -> ArgumentParser:
                         help='directory of labels json')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
-    parser.add_argument('--model_path', type=str, default="cnn_lstm_model",
+    parser.add_argument('--model_path', type=str, default="cnn_transformers_model",# TO DO fix me
                         help='directory to store model weights and bias')
     parser.add_argument(
         "-train", "--train", action="store_true",
@@ -239,7 +240,7 @@ def main() -> None:
     optimizer = torch.optim.Adam(
         model.parameters(), lr=1e-4, weight_decay=1e-5)
     metric = F1Score(average='macro')
-    criterion = OHEMLoss(batch_size=batch_size//2)  # nn.CrossEntropyLoss()
+    criterion = OHEMLoss(batch_size=batch_size//2,init_epoch=20,criterion=nn.CrossEntropyLoss())  
     objective = nn.Softmax()
     epochs = 1000
 
@@ -319,7 +320,8 @@ def main() -> None:
             criterion=criterion,
             objective=objective,
             epochs=epochs,
-            device=device
+            device=device,
+            save_path=model_path
         )
         logging.info("Done Training Video Model...")
 
@@ -336,9 +338,9 @@ def main() -> None:
         flicker4_test = [os.path.join(flicker4_path, f)
                          for f in flicker_test if f in os.listdir(flicker4_path)]
         non_flicker_test = VideoDataSet.split_datasets(
-            non_flicker_test, labels=labels, class_size=class_size, max_workers=max_workers, undersample=1000)
-        flicker1_test = VideoDataSet.split_datasets(
-            flicker1_test+flicker2_train+flicker3_train+flicker4_train, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)  # +flicker2_test+flicker3_test+flicker4_test
+            non_flicker_test+flicker1_test+flicker2_test+flicker3_test+flicker4_test, labels=labels, class_size=batch_size, max_workers=max_workers, undersample=0)
+        # flicker1_test = VideoDataSet.split_datasets(
+        #     flicker1_test+flicker2_test+flicker3_test+flicker4_test, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)  # +flicker2_test+flicker3_test+flicker4_test
         # flicker2_test = VideoDataSet.split_datasets(
         #     flicker2_test, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)
         # flicker3_test = VideoDataSet.split_datasets(
@@ -348,17 +350,16 @@ def main() -> None:
 
         ds_test = MultiStreamer(
             non_flicker_test,
-            flicker1_test,
+            # flicker1_test,
             # flicker2_test,
             # flicker3_test,
             # flicker4_test,
             batch_size=batch_size,
+            binary=output_dim < 3
         )
         logging.info("Done loading testing set")
 
         logging.info("Starting Evaluation")
-        model.load_state_dict(torch.load(os.path.join(
-            model_path, 'model.pth'))['model_state_dict'])
         testing(
             ds_test,
             model,

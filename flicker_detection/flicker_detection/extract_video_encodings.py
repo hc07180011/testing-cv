@@ -247,6 +247,8 @@ if __name__ == "__main__":
     testing on imbalance stream with batch size 1
     big changes but rare occurance outlier dataset
     test pytorch on TPU
+    use logging time stamps match with video time stamps?
+    optimizer scheduling affects gradient explosion or vanisshing??
     """
     init_logger()
     args = command_arg()
