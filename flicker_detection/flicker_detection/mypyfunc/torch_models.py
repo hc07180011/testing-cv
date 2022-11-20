@@ -37,12 +37,12 @@ class CNN_LSTM(nn.Module):
         self.n_directions = 2 if bidirectional else 1
         # Base cnn
         self.extractor = cnn.features
-        self.avgpool = cnn.avgpool
-        self.fc = nn.Sequential(OrderedDict([
-            ('linear', nn.Linear(in_features=25088, out_features=input_dim)),
-            ('relu', nn.ReLU()),
-            ('dropout', nn.Dropout(p=0.5, inplace=False)),
-        ]))
+        # self.avgpool = cnn.avgpool
+        # self.fc = nn.Sequential(OrderedDict([
+        #     ('linear', nn.Linear(in_features=25088, out_features=input_dim)),
+        #     ('relu', nn.ReLU()),
+        #     ('dropout', nn.Dropout(p=0.5, inplace=False)),
+        # ]))
         # LSTM1  Layer
         self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=layer_dim,
                             batch_first=True, bidirectional=bidirectional)
@@ -50,7 +50,7 @@ class CNN_LSTM(nn.Module):
         self.fc1 = nn.Linear(hidden_dim*self.n_directions, self.output_dim)
         # Linear Dense
         # initialize weights & bias with stdv -> 0.05
-        self._initialization()
+        self.__initialization()
 
     def init_hidden(self, x: torch.Tensor) -> torch.FloatTensor:
         h0 = torch.zeros(
@@ -72,10 +72,9 @@ class CNN_LSTM(nn.Module):
     def forward(self, x) -> torch.Tensor:
         # Get features (4,10,3,360,360) -> (40,3,360,360)
         batch_size, chunk_size = x.shape[:2]
-        out = self.extractor(x.flatten(end_dim=1))
-        out = self.avgpool(out).flatten(start_dim=1)
-        out = self.fc(out)
-        out = out.reshape((batch_size, chunk_size, out.shape[-1]))
+        out = self.extractor(x.flatten(end_dim=1)).flatten(start_dim=1)
+        # out = self.avgpool(out).flatten(start_dim=1)
+        # out = self.fc(out)
         # Shape back to batch x chunk
         out = out.reshape((batch_size, chunk_size, out.shape[-1]))
         # One time step
@@ -84,7 +83,7 @@ class CNN_LSTM(nn.Module):
         out = self.fc1(out)
         return out[:, -1]
 
-    def _initialization(self) -> None:
+    def __initialization(self) -> None:
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 for name, param in m.named_parameters():
@@ -226,12 +225,12 @@ class CNN_Transformers(nn.Module):
             'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
         self.extractor = cnn.features
-        self.avgpool = cnn.avgpool
-        self.fc = nn.Sequential(OrderedDict([
-            ('linear', nn.Linear(in_features=25088, out_features=dim)),
-            ('relu', nn.ReLU()),
-            ('dropout', nn.Dropout(p=0.5, inplace=False)),
-        ]))
+        # self.avgpool = cnn.avgpool
+        # self.fc = nn.Sequential(OrderedDict([
+        #     ('linear', nn.Linear(in_features=25088, out_features=dim)),
+        #     ('relu', nn.ReLU()),
+        #     ('dropout', nn.Dropout(p=0.5, inplace=False)),
+        # ]))
 
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
@@ -247,13 +246,13 @@ class CNN_Transformers(nn.Module):
             nn.LayerNorm(dim),
             nn.Linear(dim, num_classes)
         )
-        self._initialization()
+        self.__initialization()
 
-    def forward(self, video):
-        batch_size, chunk_size = video.shape[:2]
-        x = self.extractor(video.flatten(end_dim=1))
-        x = self.avgpool(x).flatten(start_dim=1)
-        x = self.fc(x)
+    def forward(self, x):
+        batch_size, chunk_size = x.shape[:2]
+        x = self.extractor(x.flatten(end_dim=1)).flatten(start_dim=1)
+        # x = self.avgpool(x).flatten(start_dim=1)
+        # x = self.fc(x)
         x = x.reshape((batch_size, chunk_size, x.shape[-1]))
         b, n, _ = x.shape
 
@@ -263,13 +262,11 @@ class CNN_Transformers(nn.Module):
         x = self.dropout(x)
 
         x = self.transformer(x)
-
         x = x.mean(dim=1) if self.pool == 'mean' else x[:, 0]
-
         x = self.to_latent(x)
         return self.mlp_head(x)
 
-    def _initialization(self) -> None:
+    def __initialization(self) -> None:
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 for name, param in m.named_parameters():

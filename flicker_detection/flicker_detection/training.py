@@ -112,13 +112,14 @@ def testing(
     model.load_state_dict(torch.load(os.path.join(
         save_path, 'model.pth'))['model_state_dict'])
     model.eval()
-    y_pred, y_true = (), ()
+    y_pred, y_true = (), () 
     with torch.no_grad():
         for (inputs, labels) in tqdm.tqdm(test_loader):
             inputs = inputs.permute(
                 0, 1, 4, 2, 3).float().to(device)
             labels = labels.long().to(device)
             outputs = model(inputs)
+              
             y_pred += (objective(outputs),)
             y_true += (labels,)
 
@@ -161,7 +162,7 @@ def command_arg() -> ArgumentParser:
                         help='directory of labels json')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
-    parser.add_argument('--model_path', type=str, default="cnn_transformers_model",# TO DO fix me
+    parser.add_argument('--model_path', type=str, default="cnn_lstm_model",# TO DO fix me
                         help='directory to store model weights and bias')
     parser.add_argument(
         "-train", "--train", action="store_true",
@@ -188,51 +189,38 @@ def main() -> None:
 
     labels = json.load(open(label_path, 'r'))
 
-    input_dim = 256  # (4,10,61952) (40,3,512,512)
+    input_dim = 61952  # (4,10,61952) (40,3,512,512)
     output_dim = 2
     hidden_dim = 64
     layer_dim = 1
-    bidirectional = True
+    bidirectional = False
     batch_size = 4
     class_size = batch_size//output_dim
     max_workers = 1
 
-    # model = CNN_LSTM(
-    #     cnn=torchvision.models.vgg16(pretrained=True),
-    #     input_dim=input_dim,
-    #     output_dim=output_dim,
-    #     hidden_dim=hidden_dim,
-    #     layer_dim=layer_dim,
-    #     bidirectional=bidirectional,
-    # )
-    # model = ViT(  # permute  (0, 4, 1, 2, 3)
+    model = CNN_LSTM(
+        cnn=torchvision.models.vgg16(pretrained=True),
+        input_dim=input_dim,
+        output_dim=output_dim,
+        hidden_dim=hidden_dim,
+        layer_dim=layer_dim,
+        bidirectional=bidirectional,
+    )
+    # model = CNN_Transformers(
     #     image_size=360,          # image size
     #     frames=10,               # number of frames
     #     image_patch_size=36,     # image patch size
-    #     frame_patch_size=1,      # frame patch size
-    #     num_classes=output_dim,
-    #     dim=1024,
+    #     frame_patch_size=10,      # frame patch size
+    #     num_classes=2,
+    #     dim=256,
     #     depth=6,
     #     heads=8,
     #     mlp_dim=2048,
+    #     cnn=torchvision.models.vgg16(pretrained=True),
     #     dropout=0.1,
-    #     emb_dropout=0.1
-    # )
-    model = CNN_Transformers(
-        image_size=360,          # image size
-        frames=10,               # number of frames
-        image_patch_size=36,     # image patch size
-        frame_patch_size=10,      # frame patch size
-        num_classes=2,
-        dim=256,
-        depth=6,
-        heads=8,
-        mlp_dim=2048,
-        cnn=torchvision.models.vgg16(pretrained=True),
-        dropout=0.1,
-        emb_dropout=0.1,
-        pool='mean'
-    )  # 16784 of 19456 gpu mb 0.6094
+    #     emb_dropout=0.1,
+    #     pool='mean'
+    # )  # 16784 of 19456 gpu mb 0.6094
 
     model = torch.nn.DataParallel(model)
     model.to(device)
@@ -240,7 +228,7 @@ def main() -> None:
     optimizer = torch.optim.Adam(
         model.parameters(), lr=1e-4, weight_decay=1e-5)
     metric = F1Score(average='macro')
-    criterion = OHEMLoss(batch_size=batch_size//2,init_epoch=20,criterion=nn.CrossEntropyLoss())  
+    criterion = OHEMLoss(batch_size=batch_size//2,init_epoch=40,criterion=nn.CrossEntropyLoss())  
     objective = nn.Softmax()
     epochs = 1000
 
@@ -338,9 +326,9 @@ def main() -> None:
         flicker4_test = [os.path.join(flicker4_path, f)
                          for f in flicker_test if f in os.listdir(flicker4_path)]
         non_flicker_test = VideoDataSet.split_datasets(
-            non_flicker_test+flicker1_test+flicker2_test+flicker3_test+flicker4_test, labels=labels, class_size=batch_size, max_workers=max_workers, undersample=0)
+            non_flicker_test+flicker1_test+flicker2_test+flicker3_test+flicker4_test, labels=labels, class_size=1, max_workers=1, undersample=0)
         # flicker1_test = VideoDataSet.split_datasets(
-        #     flicker1_test+flicker2_test+flicker3_test+flicker4_test, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)  # +flicker2_test+flicker3_test+flicker4_test
+        #     flicker1_test+flicker2_test+flicker3_test+flicker4_test, labels=labels, class_size=1, max_workers=max_workers, oversample=True)  # +flicker2_test+flicker3_test+flicker4_test
         # flicker2_test = VideoDataSet.split_datasets(
         #     flicker2_test, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)
         # flicker3_test = VideoDataSet.split_datasets(

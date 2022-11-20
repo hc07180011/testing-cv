@@ -243,12 +243,10 @@ if __name__ == "__main__":
     https://github.com/fjchange/awesome-video-anomaly-detection
     http://odds.cs.stonybrook.edu/
 
-    hard example mining
-    testing on imbalance stream with batch size 1
     big changes but rare occurance outlier dataset
-    test pytorch on TPU
     use logging time stamps match with video time stamps?
-    optimizer scheduling affects gradient explosion or vanisshing??
+    
+    if use transformers, take the largest frame rate as default tensor size , problem lower rates need to pad them
     """
     init_logger()
     args = command_arg()
