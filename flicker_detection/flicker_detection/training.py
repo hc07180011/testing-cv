@@ -12,7 +12,7 @@ from typing import Callable, Tuple
 from argparse import ArgumentParser
 from mypyfunc.logger import init_logger
 from mypyfunc.torch_eval import F1Score, Evaluation
-from mypyfunc.torch_models import CNN_LSTM
+from mypyfunc.torch_models import CNN_LSTM,OHEMLoss
 from mypyfunc.torch_utility import save_checkpoint, save_metrics, load_checkpoint, load_metrics, torch_seeding
 from mypyfunc.streamer import MultiStreamer, VideoDataSet
 
@@ -43,7 +43,7 @@ def training(
             labels = labels.long().to(device)
             # logging.debug(f"{labels}")
             outputs = model(inputs)
-            loss = criterion(outputs, labels)
+            loss = criterion(outputs, labels,epoch)
             optimizer.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm(model.parameters(), 1.0)
@@ -68,7 +68,7 @@ def training(
                 labels = labels.long().to(device)
 
                 outputs = model(inputs)
-                loss = criterion(outputs, labels)
+                loss = criterion(outputs, labels,epoch)
                 val_f1 = f1_metric(
                     torch.topk(objective(outputs), k=1, dim=1).indices.flatten(), labels)
                 minibatch_loss_val += loss.item()
@@ -151,11 +151,11 @@ def command_arg() -> ArgumentParser:
                         help='path of json that store the labeled frames')
     parser.add_argument('--flicker_dir', type=str, default="data/flicker-chunks",
                         help='directory of processed flicker video chunks')
-    parser.add_argument('--non_flicker_dir', type=str, default="data/meta-data",
+    parser.add_argument('--non_flicker_dir', type=str, default="data/no_flicker",
                         help='directory of processed non flicker video chunks')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
-    parser.add_argument('--model_path', type=str, default="model0",
+    parser.add_argument('--model_path', type=str, default="cnn_lstm_model",
                         help='directory to store model weights and bias')
     parser.add_argument(
         "-train", "--train", action="store_true",
@@ -176,9 +176,10 @@ def main() -> None:
 
     __cache__ = np.load(
         "{}.npz".format(cache_path), allow_pickle=True)
-    flicker_train, non_flicker_train, fp_test, flicker_test, non_flicker_test = tuple(
+    flicker_train, non_flicker_train, flicker_test, non_flicker_test = tuple(
         __cache__[lst] for lst in __cache__)
-
+    labels = json.load(open(label_path, 'r'))
+    
     input_dim = 61952
     output_dim = 2
     hidden_dim = 64
@@ -187,7 +188,7 @@ def main() -> None:
     batch_size = 4
 
     model = CNN_LSTM(
-        cnn=torchvision.models.vgg16(pretrained=True),
+        cnn=torchvision.models.vgg19(pretrained=True),
         input_dim=input_dim,
         output_dim=output_dim,
         hidden_dim=hidden_dim,
@@ -198,9 +199,10 @@ def main() -> None:
     model = torch.nn.DataParallel(model)
     model.to(device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
+    optimizer = torch.optim.Adam(
+        model.parameters(),lr=1e-5, weight_decay=1e-6)
     metric = F1Score(average='macro')
-    criterion = nn.CrossEntropyLoss()
+    criterion = OHEMLoss(batch_size=batch_size//2,init_epoch=100,criterion=nn.CrossEntropyLoss())  
     objective = nn.Softmax()
     epochs = 1000
 
@@ -211,11 +213,11 @@ def main() -> None:
         flicker_train = [os.path.join(flicker_path, f)
                          for f in flicker_train]
         non_flicker_train = VideoDataSet.split_datasets(
-            non_flicker_train, class_size=batch_size//2, max_workers=1, undersample=len(flicker_train))
+            non_flicker_train, labels=labels, class_size=batch_size//2, max_workers=1, undersample=1000)
         flicker_train = VideoDataSet.split_datasets(
-            flicker_train, class_size=batch_size//2, max_workers=1)
+            flicker_train,  labels=labels,class_size=batch_size//2, max_workers=1,oversample=True)
 
-        ds_train = MultiStreamer(non_flicker_train, flicker_train, batch_size)
+        ds_train = MultiStreamer(non_flicker_train, flicker_train, batch_size=batch_size)
         logging.info("Done loading training set")
 
         logging.info("Loading validtaion set..")
@@ -224,11 +226,11 @@ def main() -> None:
         flicker_val = [os.path.join(flicker_path, f)
                        for f in flicker_test]
         non_flicker_val = VideoDataSet.split_datasets(
-            non_flicker_val, class_size=batch_size//2, max_workers=1, undersample=len(flicker_val))
+            non_flicker_val, labels=labels, class_size=batch_size//2, max_workers=1, undersample=200)
         flicker_val = VideoDataSet.split_datasets(
-            flicker_val, class_size=batch_size//2, max_workers=1)
+            flicker_val, labels=labels, class_size=batch_size//2, max_workers=1,oversample=True)
 
-        ds_val = MultiStreamer(non_flicker_val, flicker_val, batch_size)
+        ds_val = MultiStreamer(non_flicker_val, flicker_val, batch_size=batch_size)
         logging.info("Done loading validation set")
 
         logging.info(f"{model.train()}")

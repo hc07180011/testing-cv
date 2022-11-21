@@ -116,16 +116,6 @@ class CNN_LSTM(nn.Module):
         # initialize weights & bias with stdv -> 0.05
         self.initialization()
 
-        # self.classifier = nn.Sequential(OrderedDict([
-        #     # LSTM Layer
-        #     ('lstm', nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=layer_dim,
-        #                      batch_first=True, bidirectional=bidirectional)),
-        #     # Linear Dense
-        #     ('fc1', nn.Linear(hidden_dim*self.n_directions, hidden_dim//2)),
-        #     # Linear Dense
-        #     ('fc2', nn.Linear(hidden_dim//2, self.output_dim)),
-        # ]))
-
     def init_hidden(self, x: torch.Tensor) -> torch.FloatTensor:
         h0 = torch.zeros(
             self.layer_dim*self.n_directions,
@@ -175,23 +165,38 @@ class CNN_LSTM(nn.Module):
                         nn.init.zeros_(param.data)
 
 
-class ExtractorCNN(nn.Module):
+class OHEMLoss(nn.Module):
     def __init__(
         self,
-        cnn: torchvision.models,
+        batch_size:int,
+        init_epoch:int,
+        criterion:nn.Module,
     ) -> None:
-        super(ExtractorCNN, self).__init__()
-        self.cnn = cnn
+        super(OHEMLoss, self).__init__()
+        self.__batch_size = batch_size
+        self.init_epoch = init_epoch
+        self.criterion = criterion
 
-    def remove_header(self) -> None:
-        self.cnn.classifier = nn.Sequential(
-            *list(self.cnn.classifier.children())[:-3])
 
     def forward(
         self,
-        x: torch.Tensor
+        pred: torch.Tensor,
+        target: torch.Tensor,
+        epoch:int,
     ) -> torch.Tensor:
-        return self.cnn.features(x)
+        if epoch < self.init_epoch:
+            return self.criterion(pred,target)
+            
+        ohem_loss = F.cross_entropy(
+            pred, target, reduction='none', ignore_index=-1)
+        sorted_ohem_loss, idx = torch.sort(ohem_loss, descending=True)
+        keep_num = min(sorted_ohem_loss.size()[0], self.__batch_size)
+
+        if keep_num < sorted_ohem_loss.size()[0]:
+            keep_idx_cuda = idx[:keep_num]
+            ohem_loss = ohem_loss[keep_idx_cuda]
+
+        return ohem_loss.sum() / keep_num
 
 
 """
