@@ -45,8 +45,8 @@ def training(
             outputs = model(inputs)
             loss = criterion(outputs, labels,epoch)
             optimizer.zero_grad()
-            torch.nn.utils.clip_grad_norm(model.parameters(), 1.0)
             loss.backward()
+            torch.nn.utils.clip_grad_norm(model.parameters(), 1.0)
             optimizer.step()
 
         f1 = f1_metric(torch.topk(objective(outputs),
@@ -162,7 +162,7 @@ def command_arg() -> ArgumentParser:
                         help='directory of labels json')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
-    parser.add_argument('--model_path', type=str, default="cnn_transformers_model",# TO DO fix me
+    parser.add_argument('--model_path', type=str, default="cnn_lstm_model",
                         help='directory to store model weights and bias')
     parser.add_argument(
         "-train", "--train", action="store_true",

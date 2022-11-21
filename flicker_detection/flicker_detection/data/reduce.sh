@@ -6,11 +6,14 @@ for f in *.mp4; do
 done;
 
 # count frames
-ffprobe \
--v error \
--select_streams v:0 -count_frames \
--show_entries stream=nb_read_frames \
--print_format csv reduced_04161FQCB00182_video_0_a6b13d7f-4e05-4824-8d32-4eadc3274a2e.mp4
+for f in *.mp4; do
+    echo $f &&
+    ffprobe \
+    -v error \
+    -select_streams v:0 -count_frames \
+    -show_entries stream=nb_read_frames \
+    -print_format csv $f 
+done > ../log.txt;
 
 # count file in directory
 ls -f | wc -l
@@ -20,6 +23,3 @@ du -sh .
 
 # get free GB
 free -g -h -t
-
-# copy every 4th video
-cp $(printf '%s\n' 1*.mp4 | awk 'NR%4 == 1') ../flicker-chunks/

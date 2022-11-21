@@ -187,7 +187,7 @@ def preprocessing(
         "non_flicker_test": tuple(non_flicker_test+fp_test) + ("",) * (length - len(non_flicker_test+fp_test)),
     }).to_csv("{}.csv".format(cache_path))
 
-    logging.debug(non_flicker_test)
+    # logging.debug(non_flicker_test)
     np.savez(cache_path, flicker_train, non_flicker_train +
              fp_train, flicker_test, non_flicker_test+fp_test)
 
@@ -202,7 +202,7 @@ def command_arg() -> ArgumentParser:
                         help='directory of flicker3')
     parser.add_argument('--flicker4', type=str, default="data/flicker4",
                         help='directory of flicker4')
-    parser.add_argument('--meta_data_dir', type=str, default="data/meta-data",
+    parser.add_argument('--meta_data_dir', type=str, default="data/no_flicker",
                         help='directory of flicker videos')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
@@ -261,7 +261,7 @@ if __name__ == "__main__":
     if args.split:
         preprocessing(
             (flicker1_path, flicker2_path, flicker3_path, flicker4_path),
-            non_flicker_path,
+            meta_data_path,
             cache_path,
         )
     # flicker_chunk(non_flicker_path, flicker_path, labels)

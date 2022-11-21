@@ -12,6 +12,7 @@
 *.h264
 *.gz
 *.csv
+*.txt
 model.pth
 metrics.pth
 data/embedding/
