@@ -99,7 +99,7 @@ def mov_dif_aug(
                for vid in os.listdir(dst)]
     w_chunk = np.zeros((chunk_size,)+shape, dtype=np.uint8)
     for vid in tqdm.tqdm(os.listdir(src)):
-        if vid.replace(".mp4", "").replace("reduced_", "") in dst_vid:
+        if  vid.replace(".mp4", "").replace("reduced_", "") in dst_vid:
             continue
 
         cur = 0
@@ -119,7 +119,7 @@ def mov_dif_aug(
                 w_chunk[idx],
                 None,
                 alpha=0,
-                beta=1,
+                beta=255,
                 norm_type=cv2.NORM_MINMAX,
                 dtype=cv2.CV_32F
             )
@@ -202,7 +202,7 @@ def command_arg() -> ArgumentParser:
                         help='directory of flicker3')
     parser.add_argument('--flicker4', type=str, default="data/flicker4",
                         help='directory of flicker4')
-    parser.add_argument('--non_flicker_dir', type=str, default="data/no_flicker",
+    parser.add_argument('--meta_data_dir', type=str, default="data/meta-data",
                         help='directory of flicker videos')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
@@ -240,9 +240,6 @@ if __name__ == "__main__":
     multiclass increase batch size
     can improve gpu memory usage
 
-    https://github.com/fjchange/awesome-video-anomaly-detection
-    http://odds.cs.stonybrook.edu/
-
     big changes but rare occurance outlier dataset
     use logging time stamps match with video time stamps?
     
@@ -250,14 +247,14 @@ if __name__ == "__main__":
     """
     init_logger()
     args = command_arg()
-    videos_path, flicker1_path, flicker2_path, flicker3_path, flicker4_path, non_flicker_path, cache_path =\
-        args.videos_path, args.flicker1, args.flicker2, args.flicker3, args.flicker4, args.non_flicker_dir, args.cache_path
+    videos_path, flicker1_path, flicker2_path, flicker3_path, flicker4_path, meta_data_path, cache_path =\
+        args.videos_path, args.flicker1, args.flicker2, args.flicker3, args.flicker4, args.meta_data_dir, args.cache_path
 
     if args.preprocess:
         mov_dif_aug(
             videos_path,
-            non_flicker_path,
-            chunk_size=21,
+            meta_data_path,
+            chunk_size=12,
             shape=(360, 180, 3)
         )
 

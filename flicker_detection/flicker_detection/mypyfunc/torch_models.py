@@ -37,17 +37,13 @@ class CNN_LSTM(nn.Module):
         self.n_directions = 2 if bidirectional else 1
         # Base cnn
         self.extractor = cnn.features
-        # self.avgpool = cnn.avgpool
-        # self.fc = nn.Sequential(OrderedDict([
-        #     ('linear', nn.Linear(in_features=25088, out_features=input_dim)),
-        #     ('relu', nn.ReLU()),
-        #     ('dropout', nn.Dropout(p=0.5, inplace=False)),
-        # ]))
+        self.avgpool = cnn.avgpool
         # LSTM1  Layer
         self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=layer_dim,
                             batch_first=True, bidirectional=bidirectional)
         # Linear Dense
-        self.fc1 = nn.Linear(hidden_dim*self.n_directions, self.output_dim)
+        self.fc1 = nn.Linear(hidden_dim*self.n_directions, hidden_dim//2)
+        self.fc2 = nn.Linear(hidden_dim//2, self.output_dim)
         # Linear Dense
         # initialize weights & bias with stdv -> 0.05
         self.__initialization()
@@ -72,15 +68,15 @@ class CNN_LSTM(nn.Module):
     def forward(self, x) -> torch.Tensor:
         # Get features (4,10,3,360,360) -> (40,3,360,360)
         batch_size, chunk_size = x.shape[:2]
-        out = self.extractor(x.flatten(end_dim=1)).flatten(start_dim=1)
-        # out = self.avgpool(out).flatten(start_dim=1)
-        # out = self.fc(out)
+        out = self.extractor(x.flatten(end_dim=1))#.flatten(start_dim=1)
+        out = self.avgpool(out).flatten(start_dim=1)
         # Shape back to batch x chunk
         out = out.reshape((batch_size, chunk_size, out.shape[-1]))
         # One time step
         out, self.hidden_state = self.lstm(out, self.init_hidden(x))
         # Dense lstm
         out = self.fc1(out)
+        out = self.fc2(out)
         return out[:, -1]
 
     def __initialization(self) -> None:
@@ -225,12 +221,12 @@ class CNN_Transformers(nn.Module):
             'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
         self.extractor = cnn.features
-        # self.avgpool = cnn.avgpool
-        # self.fc = nn.Sequential(OrderedDict([
-        #     ('linear', nn.Linear(in_features=25088, out_features=dim)),
-        #     ('relu', nn.ReLU()),
-        #     ('dropout', nn.Dropout(p=0.5, inplace=False)),
-        # ]))
+        self.avgpool = cnn.avgpool
+        self.fc = nn.Sequential(OrderedDict([
+            ('linear', nn.Linear(in_features=25088, out_features=dim)),
+            ('relu', nn.ReLU()),
+            ('dropout', nn.Dropout(p=0.5, inplace=False)),
+        ]))
 
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
@@ -250,9 +246,9 @@ class CNN_Transformers(nn.Module):
 
     def forward(self, x):
         batch_size, chunk_size = x.shape[:2]
-        x = self.extractor(x.flatten(end_dim=1)).flatten(start_dim=1)
-        # x = self.avgpool(x).flatten(start_dim=1)
-        # x = self.fc(x)
+        x = self.extractor(x.flatten(end_dim=1))#.flatten(start_dim=1)
+        x = self.avgpool(x).flatten(start_dim=1)
+        x = self.fc(x)
         x = x.reshape((batch_size, chunk_size, x.shape[-1]))
         b, n, _ = x.shape
 

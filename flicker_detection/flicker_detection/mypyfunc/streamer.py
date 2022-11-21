@@ -220,19 +220,23 @@ if __name__ == '__main__':
     labels = json.load(open("../data/multi_label.json", "r"))
     batch_size = 4
     non_flickers = VideoDataSet.split_datasets(
-        non_flicker_files[:12]+flicker1_files[:4]+flicker4_files[:4], labels=labels, class_size=1, max_workers=8, undersample=0)
+        non_flicker_files[:12], labels=labels, class_size=2, max_workers=1, undersample=12)
     flicker1 = VideoDataSet.split_datasets(
-        flicker1_files[:4]+flicker4_files[:4], labels=labels, class_size=1, max_workers=1, oversample=True)
+        flicker1_files[:4]+flicker4_files[:4], labels=labels, class_size=2, max_workers=1, oversample=True)
     flicker2 = VideoDataSet.split_datasets(
         flicker2_files[:8], labels=labels, class_size=1, max_workers=1, oversample=True)
     flicker3 = VideoDataSet.split_datasets(
         flicker3_files[:8], labels=labels, class_size=1, max_workers=1, oversample=True)
 
     loader = MultiStreamer(
-        non_flickers, batch_size=batch_size,binary=True)  # , flicker1, flicker2, flicker3,
+        non_flickers, 
+        flicker1,
+        batch_size=batch_size,binary=True)  # , flicker1, flicker2, flicker3,
     for i in range(2):
         print(f"{i} WTF")
+        temp = torch.zeros((10))
         for inputs, labels in tqdm.tqdm(loader):
-            print(inputs.shape, labels)
+            print(torch.equal(inputs,temp), labels)
+            temp = inputs
 
     # test_loader()
