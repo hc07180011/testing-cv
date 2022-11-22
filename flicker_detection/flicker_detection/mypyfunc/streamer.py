@@ -131,7 +131,10 @@ class MultiStreamer(object):
     ):
         """
         USAGE: MULTICLASS
+<<<<<<< HEAD
 
+=======
+>>>>>>> working
         batch_size = 5
         non_flickers = VideoDataSet.split_datasets(
             non_flicker_files[:8], class_size=1, max_workers=1)  # , undersample=len(flicker_files[:4]))
@@ -143,6 +146,7 @@ class MultiStreamer(object):
             flicker3_files[:8], class_size=1, max_workers=1)
         flicker4 = VideoDataSet.split_datasets(
             flicker4_files[:8], class_size=1, max_workers=1)
+<<<<<<< HEAD
 
         loader = MultiStreamer(non_flickers,
                             flicker1, flicker2, flicker3, flicker4, batch_size=batch_size)
@@ -150,17 +154,27 @@ class MultiStreamer(object):
 
         USAGE: BINARY
 
+=======
+        loader = MultiStreamer(non_flickers,
+                            flicker1, flicker2, flicker3, flicker4, batch_size=batch_size)
+        USAGE: BINARY
+>>>>>>> working
         batch_size = 4
         non_flicker_train = VideoDataSet.split_datasets(
             non_flicker_train, class_size=batch_size//2, max_workers=1, undersample=len(flicker_train))
         flicker_train = VideoDataSet.split_datasets(
             flicker_train, class_size=batch_size//2, max_workers=1)
+<<<<<<< HEAD
 
         ds_train = MultiStreamer(non_flicker_train, flicker_train, batch_size)
 
 
         USAGE: IMBALANCED
 
+=======
+        ds_train = MultiStreamer(non_flicker_train, flicker_train, batch_size)
+        USAGE: IMBALANCED
+>>>>>>> working
         non_flickers = VideoDataSet.split_datasets(
             non_flicker_files[:12], labels=labels, class_size=1, max_workers=8, undersample=0)
         loader = MultiStreamer(
@@ -239,4 +253,8 @@ if __name__ == '__main__':
             print(torch.equal(inputs,temp), labels)
             temp = inputs
 
+<<<<<<< HEAD
     # test_loader()
+=======
+    # test_loader()
+>>>>>>> working

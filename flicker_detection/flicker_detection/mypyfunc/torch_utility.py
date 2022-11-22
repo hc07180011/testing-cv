@@ -83,7 +83,11 @@ def torch_seeding(seed=12345):
     torch.backends.cudnn.benchmark = False
 
     # CUDA algorithmic randomness
+<<<<<<< HEAD
     torch.use_deterministic_algorithms(True, warn_only=True)
+=======
+    torch.use_deterministic_algorithms(True,warn_only=True)
+>>>>>>> working
 
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
