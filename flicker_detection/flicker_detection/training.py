@@ -12,11 +12,7 @@ from typing import Callable, Tuple
 from argparse import ArgumentParser
 from mypyfunc.logger import init_logger
 from mypyfunc.torch_eval import F1Score, Evaluation
-<<<<<<< HEAD
-from mypyfunc.torch_models import CNN_LSTM, CNN_Transformers, OHEMLoss
-=======
 from mypyfunc.torch_models import CNN_LSTM,CNN_Transformers,OHEMLoss
->>>>>>> working
 from mypyfunc.torch_utility import save_checkpoint, save_metrics, load_checkpoint, load_metrics, torch_seeding
 from mypyfunc.streamer import MultiStreamer, VideoDataSet
 
@@ -33,10 +29,6 @@ def training(
     epochs: int,
     device: torch.device,
     save_path: str,
-<<<<<<< HEAD
-    scheduler: optim=None,
-=======
->>>>>>> working
 ) -> nn.Module:
     val_max_f1 = n_train = n_val = 0
     f1_callback, loss_callback, val_f1_callback, val_loss_callback = (), (), (), ()
@@ -77,11 +69,7 @@ def training(
                     0, 1, 4, 2, 3).float().to(device)
                 labels = labels.long().to(device)
                 outputs = model(inputs)
-<<<<<<< HEAD
                 loss = criterion(outputs, labels,0)
-=======
-                loss = criterion(outputs, labels,epoch)
->>>>>>> working
                 val_f1 = f1_metric(
                     torch.topk(objective(outputs), k=1, dim=1).indices.flatten(), labels)
                 minibatch_loss_val += loss.item()
@@ -176,11 +164,7 @@ def command_arg() -> ArgumentParser:
                         help='directory of labels json')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
-<<<<<<< HEAD
-    parser.add_argument('--model_path', type=str, default="cnn_lstm_model",
-=======
     parser.add_argument('--model_path', type=str, default="cnn_transformers_model",
->>>>>>> working
                         help='directory to store model weights and bias')
     parser.add_argument(
         "-train", "--train", action="store_true",
@@ -206,13 +190,8 @@ def main() -> None:
         __cache__[lst] for lst in __cache__)
 
     labels = json.load(open(label_path, 'r'))
-<<<<<<< HEAD
 
     input_dim = 25088  # (4,10,61952) (40,3,512,512)
-=======
-    
-    input_dim = 25088# 61952
->>>>>>> working
     output_dim = 2
     hidden_dim = 128
     layer_dim = 2
@@ -220,41 +199,6 @@ def main() -> None:
     batch_size = 4
     class_size = batch_size//output_dim
     max_workers = 1
-<<<<<<< HEAD
-
-    model = CNN_LSTM(
-        cnn=torchvision.models.vgg19(pretrained=True),
-        input_dim=input_dim,
-        output_dim=output_dim,
-        hidden_dim=hidden_dim,
-        layer_dim=layer_dim,
-        bidirectional=bidirectional,
-    )
-    # model = CNN_Transformers(
-    #     image_size=360,          # image size
-    #     frames=10,               # number of frames
-    #     image_patch_size=36,     # image patch size
-    #     frame_patch_size=10,      # frame patch size
-    #     num_classes=2,
-    #     dim=1024,
-    #     depth=6,
-    #     heads=8,
-    #     mlp_dim=1024,
-    #     cnn=torchvision.models.vgg19(pretrained=True),
-    #     dropout=0.1,
-    #     emb_dropout=0.1,
-    #     pool='cls'
-    # )  # 16784 of 19456 gpu mb 0.6094
-
-    model = torch.nn.DataParallel(model)
-    model.to(device)
-
-    optimizer = torch.optim.SGD(
-        model.parameters(),lr=1e-5, weight_decay=1e-6)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.1,patience=5,verbose=True)
-    metric = F1Score(average='macro')
-    criterion = OHEMLoss(batch_size=batch_size//2,init_epoch=100,criterion=nn.CrossEntropyLoss())  
-=======
     
     # model = CNN_LSTM(
     #     cnn=torchvision.models.vgg19(pretrained=True),
@@ -289,7 +233,6 @@ def main() -> None:
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.1,patience=5,verbose=True) # maybe source of bug
     metric = F1Score(average='macro')
     criterion = OHEMLoss(batch_size=batch_size//2,init_epoch=25,criterion=nn.CrossEntropyLoss())  
->>>>>>> working
     objective = nn.Softmax()
     epochs = 1000
 
@@ -306,11 +249,7 @@ def main() -> None:
         flicker4_train = [os.path.join(flicker4_path, f)
                           for f in flicker_train if f in os.listdir(flicker4_path)]
         non_flicker_train = VideoDataSet.split_datasets(
-<<<<<<< HEAD
-            non_flicker_train, labels=labels, class_size=class_size, max_workers=max_workers, undersample=100)
-=======
-            non_flicker_train, labels=labels, class_size=class_size, max_workers=max_workers, undersample=len(non_flicker_train))
->>>>>>> working
+            non_flicker_train, labels=labels, class_size=class_size, max_workers=max_workers, undersample=1000)
         flicker1_train = VideoDataSet.split_datasets(
             flicker1_train+flicker2_train+flicker3_train+flicker4_train, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)  # +flicker2_train+flicker3_train+flicker4_train
         # flicker2_train = VideoDataSet.split_datasets(
@@ -342,11 +281,7 @@ def main() -> None:
         flicker4_val = [os.path.join(flicker4_path, f)
                         for f in flicker_test if f in os.listdir(flicker4_path)]
         non_flicker_val = VideoDataSet.split_datasets(
-<<<<<<< HEAD
-            non_flicker_val, labels=labels, class_size=class_size, max_workers=max_workers, undersample=10)
-=======
-            non_flicker_val, labels=labels, class_size=class_size, max_workers=max_workers, undersample=len(non_flicker_test))
->>>>>>> working
+            non_flicker_val, labels=labels, class_size=class_size, max_workers=max_workers, undersample=300)
         flicker1_val = VideoDataSet.split_datasets(
             flicker1_val+flicker2_val+flicker3_val+flicker4_val, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)  # +flicker2_val+flicker3_val+flicker4_val
         # flicker2_val = VideoDataSet.split_datasets(
@@ -380,10 +315,6 @@ def main() -> None:
             epochs=epochs,
             device=device,
             save_path=model_path,
-<<<<<<< HEAD
-            scheduler=scheduler
-=======
->>>>>>> working
         )
         logging.info("Done Training Video Model...")
 
@@ -400,15 +331,14 @@ def main() -> None:
         flicker4_test = [os.path.join(flicker4_path, f)
                          for f in flicker_test if f in os.listdir(flicker4_path)]
         non_flicker_test = VideoDataSet.split_datasets(
-<<<<<<< HEAD
-            non_flicker_test+flicker1_test+flicker2_test+flicker3_test+flicker4_test, labels=labels, class_size=batch_size, max_workers=max_workers, undersample=0)
-        # flicker1_test = VideoDataSet.split_datasets(
-        #     flicker1_test+flicker2_test+flicker3_test+flicker4_test, labels=labels, class_size=1, max_workers=max_workers, oversample=True)  # +flicker2_test+flicker3_test+flicker4_test
-=======
-            non_flicker_test+flicker1_test+flicker2_test+flicker3_test+flicker4_test, labels=labels, class_size=1, max_workers=max_workers, undersample=0)#[:100]+flicker1_test+flicker2_test+flicker3_test+flicker4_test
+            non_flicker_test+flicker1_test+flicker2_test+flicker3_test+flicker4_test, 
+            labels=labels, 
+            class_size=1,
+            max_workers=max_workers,
+            undersample=0,
+            )#[:100]+flicker1_test+flicker2_test+flicker3_test+flicker4_test
         # flicker1_test = VideoDataSet.split_datasets(
         #     flicker1_test+flicker2_test+flicker3_test+flicker4_test, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True) 
->>>>>>> working
         # flicker2_test = VideoDataSet.split_datasets(
         #     flicker2_test, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)
         # flicker3_test = VideoDataSet.split_datasets(

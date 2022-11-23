@@ -252,10 +252,6 @@ class Evaluation(object):
         sns.heatmap(cm, annot=True, fmt='g', ax=ax)
         ax.set_xlabel('Predicted')
         ax.set_ylabel('Actual')
-<<<<<<< HEAD
-
-=======
->>>>>>> working
         ax.set_title("{} F1 Harmonization: {:.4f}".format('Multiclass' if y_true.unique()[0] > 2 else 'Binary',f1_score))
         fig.savefig(os.path.join(self.plots_folder, "confusion_matrix.png"))
 

@@ -42,6 +42,7 @@ class VideoDataSet(IterableDataset):
             yield video
             return
         pad = np.zeros((video.shape[0]+1, *video.shape[1:]))
+        pad[:-1] = video
         pad[-1].fill(label if label is not None else int(bool(label)))
         yield pad
 
@@ -92,7 +93,7 @@ class VideoDataSet(IterableDataset):
 class MultiStreamer(object):
     """
     https://medium.com/speechmatics/how-to-build-a-streaming-dataloader-with-pytorch-a66dd891d9dd
-    TODO merge multiclass binary method
+    TODO FIX imbalanced streaming
     """
 
     def __init__(
@@ -131,10 +132,6 @@ class MultiStreamer(object):
     ):
         """
         USAGE: MULTICLASS
-<<<<<<< HEAD
-
-=======
->>>>>>> working
         batch_size = 5
         non_flickers = VideoDataSet.split_datasets(
             non_flicker_files[:8], class_size=1, max_workers=1)  # , undersample=len(flicker_files[:4]))
@@ -146,35 +143,16 @@ class MultiStreamer(object):
             flicker3_files[:8], class_size=1, max_workers=1)
         flicker4 = VideoDataSet.split_datasets(
             flicker4_files[:8], class_size=1, max_workers=1)
-<<<<<<< HEAD
-
-        loader = MultiStreamer(non_flickers,
-                            flicker1, flicker2, flicker3, flicker4, batch_size=batch_size)
-
-
-        USAGE: BINARY
-
-=======
         loader = MultiStreamer(non_flickers,
                             flicker1, flicker2, flicker3, flicker4, batch_size=batch_size)
         USAGE: BINARY
->>>>>>> working
         batch_size = 4
         non_flicker_train = VideoDataSet.split_datasets(
             non_flicker_train, class_size=batch_size//2, max_workers=1, undersample=len(flicker_train))
         flicker_train = VideoDataSet.split_datasets(
             flicker_train, class_size=batch_size//2, max_workers=1)
-<<<<<<< HEAD
-
-        ds_train = MultiStreamer(non_flicker_train, flicker_train, batch_size)
-
-
-        USAGE: IMBALANCED
-
-=======
         ds_train = MultiStreamer(non_flicker_train, flicker_train, batch_size)
         USAGE: IMBALANCED
->>>>>>> working
         non_flickers = VideoDataSet.split_datasets(
             non_flicker_files[:12], labels=labels, class_size=1, max_workers=8, undersample=0)
         loader = MultiStreamer(
@@ -234,9 +212,9 @@ if __name__ == '__main__':
     labels = json.load(open("../data/multi_label.json", "r"))
     batch_size = 4
     non_flickers = VideoDataSet.split_datasets(
-        non_flicker_files[:12], labels=labels, class_size=2, max_workers=1, undersample=12)
+        non_flicker_files[:12]+flicker1_files[:4]+flicker4_files[:4], labels=labels, class_size=4, max_workers=1, undersample=0)
     flicker1 = VideoDataSet.split_datasets(
-        flicker1_files[:4]+flicker4_files[:4], labels=labels, class_size=2, max_workers=1, oversample=True)
+        flicker1_files[:4]+flicker4_files[:4], labels=labels, class_size=1, max_workers=1, undersample=0)#oversample=True)
     flicker2 = VideoDataSet.split_datasets(
         flicker2_files[:8], labels=labels, class_size=1, max_workers=1, oversample=True)
     flicker3 = VideoDataSet.split_datasets(
@@ -244,17 +222,19 @@ if __name__ == '__main__':
 
     loader = MultiStreamer(
         non_flickers, 
-        flicker1,
-        batch_size=batch_size,binary=True)  # , flicker1, flicker2, flicker3,
-    for i in range(2):
+        # flicker1,
+        batch_size=batch_size,
+        binary=True)  # , flicker1, flicker2, flicker3,
+    for i in range(1):
         print(f"{i} WTF")
         temp = torch.zeros((10))
         for inputs, labels in tqdm.tqdm(loader):
-            print(torch.equal(inputs,temp), labels)
+            print(torch.equal(inputs,temp), inputs.shape,labels)
             temp = inputs
+            
+            print(inputs[0].shape,torch.equal(inputs[0],inputs[1]))
+            print(inputs[1].shape,torch.equal(inputs[1],inputs[2]))
+            print(inputs[2].shape,torch.equal(inputs[2],inputs[3]))
+    
 
-<<<<<<< HEAD
     # test_loader()
-=======
-    # test_loader()
->>>>>>> working

@@ -177,21 +177,6 @@ def preprocessing(
     length = max([
         len(flicker_train),
         len(flicker_test),
-<<<<<<< HEAD
-        len(non_flicker_train+fp_train),
-        len(non_flicker_test+fp_test)
-    ])
-    pd.DataFrame({
-        "flicker_train": tuple(flicker_train) + ("",) * (length - len(flicker_train)),
-        "non_flicker_train": tuple(non_flicker_train+fp_train) + ("",) * (length - len(non_flicker_train+fp_train)),
-        "flicker_test": tuple(flicker_test) + ("",) * (length - len(flicker_test)),
-        "non_flicker_test": tuple(non_flicker_test+fp_test) + ("",) * (length - len(non_flicker_test+fp_test)),
-    }).to_csv("{}.csv".format(cache_path))
-
-    # logging.debug(non_flicker_test)
-    np.savez(cache_path, flicker_train, non_flicker_train +
-             fp_train, flicker_test, non_flicker_test+fp_test)
-=======
         len(fp_train),
         len(fp_test)
     ])
@@ -205,7 +190,6 @@ def preprocessing(
     # logging.debug(f"{len(fp_train)} - {len(fp_test)}") #non_flicker_train +non_flicker_test+ <- bring back
     
     np.savez(cache_path, flicker_train, fp_train, flicker_test, fp_test)
->>>>>>> working
 
 
 def command_arg() -> ArgumentParser:
@@ -242,30 +226,15 @@ if __name__ == "__main__":
     get google resources, beause they complain about it
     Google allow to publish dataset for paper? or perform on outlier detection data
     egocentric computer vision
-<<<<<<< HEAD
-
      Seminar in Information Science and Technology
       Predictive Modeling in Biomedicine
-
-
-=======
-     Seminar in Information Science and Technology
-      Predictive Modeling in Biomedicine
->>>>>>> working
     said doesn't have to be flicker, but just general state of the art
     said can consider data augmentation to generate flickers? then consider publish dataset
     computation can be registered for google UR
     reduce computation can also be research
     use TPUS
-<<<<<<< HEAD
-
     multiclass increase batch size
     can improve gpu memory usage
-
-=======
-    multiclass increase batch size
-    can improve gpu memory usage
->>>>>>> working
     big changes but rare occurance outlier dataset
     use logging time stamps match with video time stamps?
     
