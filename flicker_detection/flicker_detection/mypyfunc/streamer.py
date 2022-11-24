@@ -42,6 +42,7 @@ class VideoDataSet(IterableDataset):
             yield video
             return
         pad = np.zeros((video.shape[0]+1, *video.shape[1:]))
+        pad[:-1] = video
         pad[-1].fill(label if label is not None else int(bool(label)))
         yield pad
 

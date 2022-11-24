@@ -33,7 +33,7 @@ def training(
     val_max_f1 = 0
     f1_callback, loss_callback, val_f1_callback, val_loss_callback = (), (), (), ()
     for epoch in range(epochs):
-        if loss_callback and epoch > 10 and loss_callback[-1] < 0.005:
+        if loss_callback and epoch > 10 and loss_callback[-1] < 0.05:
             break
 
         model.train()
@@ -249,7 +249,7 @@ def main() -> None:
         flicker4_train = [os.path.join(flicker4_path, f)
                           for f in flicker_train if f in os.listdir(flicker4_path)]
         non_flicker_train = VideoDataSet.split_datasets(
-            non_flicker_train, labels=labels, class_size=class_size, max_workers=max_workers, undersample=len(non_flicker_train))
+            non_flicker_train, labels=labels, class_size=class_size, max_workers=max_workers, undersample=1000)
         flicker1_train = VideoDataSet.split_datasets(
             flicker1_train+flicker2_train+flicker3_train+flicker4_train, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)  # +flicker2_train+flicker3_train+flicker4_train
         # flicker2_train = VideoDataSet.split_datasets(
@@ -281,7 +281,7 @@ def main() -> None:
         flicker4_val = [os.path.join(flicker4_path, f)
                         for f in flicker_test if f in os.listdir(flicker4_path)]
         non_flicker_val = VideoDataSet.split_datasets(
-            non_flicker_val, labels=labels, class_size=class_size, max_workers=max_workers, undersample=len(non_flicker_test))
+            non_flicker_val, labels=labels, class_size=class_size, max_workers=max_workers, undersample=300)
         flicker1_val = VideoDataSet.split_datasets(
             flicker1_val+flicker2_val+flicker3_val+flicker4_val, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)  # +flicker2_val+flicker3_val+flicker4_val
         # flicker2_val = VideoDataSet.split_datasets(
