@@ -214,7 +214,7 @@ def main() -> None:
         frames=10,               # number of frames
         image_patch_size=36,     # image patch size
         frame_patch_size=10,      # frame patch size
-        num_classes=2,
+        num_classes=output_dim,
         dim=512,
         depth=6,
         heads=8,
@@ -331,22 +331,11 @@ def main() -> None:
         flicker4_test = [os.path.join(flicker4_path, f)
                          for f in flicker_test if f in os.listdir(flicker4_path)]
         non_flicker_test = VideoDataSet.split_datasets(
-            non_flicker_test+flicker1_test+flicker2_test+flicker3_test+flicker4_test, labels=labels, class_size=1, max_workers=max_workers, undersample=0)#[:100]+flicker1_test+flicker2_test+flicker3_test+flicker4_test
-        # flicker1_test = VideoDataSet.split_datasets(
-        #     flicker1_test+flicker2_test+flicker3_test+flicker4_test, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True) 
-        # flicker2_test = VideoDataSet.split_datasets(
-        #     flicker2_test, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)
-        # flicker3_test = VideoDataSet.split_datasets(
-        #     flicker3_test, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)
-        # flicker4_test = VideoDataSet.split_datasets(
-        #     flicker4_test, labels=labels, class_size=class_size, max_workers=max_workers, oversample=True)
+            non_flicker_test+flicker1_test+flicker2_test+flicker3_test+flicker4_test, labels=labels, class_size=1, max_workers=max_workers, undersample=0)#+flicker4_test
+
 
         ds_test = MultiStreamer(
             non_flicker_test,
-            # flicker1_test,
-            # flicker2_test,
-            # flicker3_test,
-            # flicker4_test,
             batch_size=batch_size,
             binary=output_dim < 3
         )
@@ -371,5 +360,6 @@ def main() -> None:
 if __name__ == "__main__":
     """
     CUBLAS_WORKSPACE_CONFIG=:4096:8 python3 training.py --train
+    https://stackoverflow.com/questions/2763006/make-the-current-git-branch-a-master-branch
     """
     main()

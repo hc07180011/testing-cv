@@ -2,11 +2,14 @@ import os
 import logging
 import torch
 import torchvision
+import vzlogger 
+import vzpytorch
 import skvideo.io
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import nn
+from torchviz import make_dot
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 
@@ -336,6 +339,14 @@ class OHEMLoss(nn.Module):
 
         return ohem_loss.sum() / keep_num
 
+def visualize_model(
+    model:nn.Module,
+    batch:torch.Tensor,
+    file_name:str='../cnn_transformers'
+)->None:
+    yhat = model(batch)
+    make_dot(yhat, params=dict(list(model.named_parameters()))).render(file_name, format="png")
+    
 
 def test_OHEM() -> None:
     C = 6
@@ -352,39 +363,41 @@ if __name__ == '__main__':
     """
     # test_OHEM()
     flicker_path = '../data/flicker1/'
-    model = CNN_Transformers(  # model size: 117.698MB
+    model = CNN_Transformers(
         image_size=360,          # image size
         frames=10,               # number of frames
         image_patch_size=36,     # image patch size
-        frame_patch_size=1,      # frame patch size
+        frame_patch_size=10,      # frame patch size
         num_classes=2,
-        dim=256,
+        dim=512,
         depth=6,
         heads=8,
-        mlp_dim=2048,
-        cnn=torchvision.models.vgg16(pretrained=True),
+        mlp_dim=512,
+        cnn=torchvision.models.vgg19(pretrained=True),
         dropout=0.1,
-        emb_dropout=0.1
-    )
-    input_dim = 256  # (4,10,61952)
-    output_dim = 2
-    hidden_dim = 64
-    layer_dim = 2
-    bidirectional = True
-    model = CNN_LSTM(  # model size: 81.642MB
-        cnn=torchvision.models.vgg16(pretrained=True),
-        input_dim=input_dim,
-        output_dim=output_dim,
-        hidden_dim=hidden_dim,
-        layer_dim=layer_dim,
-        bidirectional=bidirectional,
-    )
+        emb_dropout=0.1,
+        pool='cls' 
+    )  # 16784 of 19456 gpu mb 0.6094
+    
+    # input_dim = 256  # (4,10,61952)
+    # output_dim = 2
+    # hidden_dim = 64
+    # layer_dim = 2
+    # bidirectional = True
+    # model = CNN_LSTM(  # model size: 81.642MB
+    #     cnn=torchvision.models.vgg16(pretrained=True),
+    #     input_dim=input_dim,
+    #     output_dim=output_dim,
+    #     hidden_dim=hidden_dim,
+    #     layer_dim=layer_dim,
+    #     bidirectional=bidirectional,
+    # )
     videos = os.listdir(flicker_path)
     test_batch = np.zeros((4, 10, 360, 360, 3))
     for i, video in enumerate(videos[:4]):
         test_batch[i] = skvideo.io.vread(os.path.join(flicker_path, video))
     test_batch = torch.from_numpy(test_batch).permute(0, 1, 4, 2, 3).float()
-    out = model(test_batch)
-    print(out.shape)
+    visualize_model(model,test_batch)
+  
 
 

@@ -175,21 +175,21 @@ def preprocessing(
     fp_test = fp[int(len(fp)*0.8):]
 
     length = max([
-        len(flicker_train),
+        len(flicker_train+non_flicker_train),
         len(flicker_test),
         len(fp_train),
-        len(fp_test)
+        len(fp_test+non_flicker_test)
     ])
-    pd.DataFrame({
-        "flicker_train": tuple(flicker_train) + ("",) * (length - len(flicker_train)),
-        "non_flicker_train": tuple(fp_train) + ("",) * (length - len(fp_train)),
-        "flicker_test": tuple(flicker_test) + ("",) * (length - len(flicker_test)),
-        "non_flicker_test": tuple(fp_test) + ("",) * (length - len(fp_test)),
-    }).to_csv("{}.csv".format(cache_path))
+    # pd.DataFrame({
+    #     "flicker_train": tuple(flicker_train) + ("",) * (length - len(flicker_train)),
+    #     "non_flicker_train": tuple(fp_train+non_flicker_train) + ("",) * (length - len(fp_train+non_flicker_train)),
+    #     "flicker_test": tuple(flicker_test) + ("",) * (length - len(flicker_test)),
+    #     "non_flicker_test": tuple(fp_test+non_flicker_test) + ("",) * (length - len(fp_test+non_flicker_test)),
+    # }).to_csv("{}.csv".format(cache_path))
 
     # logging.debug(f"{len(fp_train)} - {len(fp_test)}") #non_flicker_train +non_flicker_test+ <- bring back
     
-    np.savez(cache_path, flicker_train, fp_train, flicker_test, fp_test)
+    np.savez(cache_path, flicker_train, fp_train+non_flicker_train, flicker_test, fp_test+non_flicker_test)
 
 
 def command_arg() -> ArgumentParser:
@@ -223,22 +223,22 @@ def command_arg() -> ArgumentParser:
 
 if __name__ == "__main__":
     """
-    get google resources, beause they complain about it
-    Google allow to publish dataset for paper? or perform on outlier detection data
-    egocentric computer vision
-     Seminar in Information Science and Technology
+
       Predictive Modeling in Biomedicine
     said doesn't have to be flicker, but just general state of the art
     said can consider data augmentation to generate flickers? then consider publish dataset
     computation can be registered for google UR
     reduce computation can also be research
     use TPUS
+    
     multiclass increase batch size
     can improve gpu memory usage
     big changes but rare occurance outlier dataset
     use logging time stamps match with video time stamps?
     
     if use transformers, take the largest frame rate as default tensor size , problem lower rates need to pad them
+    resnet50
+    
     """
     init_logger()
     args = command_arg()
