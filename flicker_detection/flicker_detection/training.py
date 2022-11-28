@@ -46,7 +46,7 @@ def training(
             loss = criterion(outputs, labels,epoch)
             optimizer.zero_grad()
             loss.backward()
-            # torch.nn.utils.clip_grad_norm(model.parameters(), 1.0)
+            torch.nn.utils.clip_grad_norm(model.parameters(), 1.0)
             optimizer.step()
 
             f1 = f1_metric(torch.topk(objective(outputs),
@@ -164,7 +164,7 @@ def command_arg() -> ArgumentParser:
                         help='directory of labels json')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
-    parser.add_argument('--model_path', type=str, default="cnn_transformers_model",
+    parser.add_argument('--model_path', type=str, default="cnn_lstm_model",
                         help='directory to store model weights and bias')
     parser.add_argument(
         "-train", "--train", action="store_true",
@@ -200,30 +200,30 @@ def main() -> None:
     class_size = batch_size//output_dim
     max_workers = 1
     
-    # model = CNN_LSTM(
-    #     cnn=torchvision.models.vgg19(pretrained=True),
-    #     input_dim=input_dim,
-    #     output_dim=output_dim,
-    #     hidden_dim=hidden_dim,
-    #     layer_dim=layer_dim,
-    #     bidirectional=bidirectional,
-    # )
-
-    model = CNN_Transformers(
-        image_size=360,          # image size
-        frames=10,               # number of frames
-        image_patch_size=36,     # image patch size
-        frame_patch_size=10,      # frame patch size
-        num_classes=output_dim,
-        dim=512,
-        depth=6,
-        heads=8,
-        mlp_dim=512,
+    model = CNN_LSTM(
         cnn=torchvision.models.vgg19(pretrained=True),
-        dropout=0.1,
-        emb_dropout=0.1,
-        pool='cls' 
-    )  # 16784 of 19456 gpu mb 0.6094
+        input_dim=input_dim,
+        output_dim=output_dim,
+        hidden_dim=hidden_dim,
+        layer_dim=layer_dim,
+        bidirectional=bidirectional,
+    )
+
+    # model = CNN_Transformers(
+    #     image_size=360,          # image size
+    #     frames=10,               # number of frames
+    #     image_patch_size=36,     # image patch size
+    #     frame_patch_size=10,      # frame patch size
+    #     num_classes=output_dim,
+    #     dim=512,
+    #     depth=6,
+    #     heads=8,
+    #     mlp_dim=512,
+    #     cnn=torchvision.models.vgg19(pretrained=True),
+    #     dropout=0.1,
+    #     emb_dropout=0.1,
+    #     pool='cls' 
+    # )  # 16784 of 19456 gpu mb 0.6094
     
     model = torch.nn.DataParallel(model)
     model.to(device)

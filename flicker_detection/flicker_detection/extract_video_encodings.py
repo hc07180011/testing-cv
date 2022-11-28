@@ -153,15 +153,14 @@ def preprocessing(
         'video_0B061FQCB00136_barbet_07-21-2022_14-17-42-501',
         'video_03121JEC200057_sunfish_07-06-2022_23-18-35-286'
     ]
+    # logging.debug(set(false_positives_vid)-set([f.split('_',1)[-1].replace('.mp4','') for f in os.listdir('data/no_flicker')]))
     flicker_lst = list(itertools.chain(
         *list(map(lambda f: os.listdir(f), flicker_dir))))
-    # logging.debug(f"{flicker_lst}")
     non_flicker_lst = [
         x for x in os.listdir(non_flicker_dir)
         if x.replace(".mp4", "").split("_", 1)[-1] not in false_positives_vid
     ]
     fp = list(set(os.listdir(non_flicker_dir)) - set(non_flicker_lst))
-    # logging.debug(fp)
 
     random.seed(42)
     random.shuffle(non_flicker_lst)
@@ -175,19 +174,19 @@ def preprocessing(
     fp_test = fp[int(len(fp)*0.8):]
 
     length = max([
-        len(flicker_train+non_flicker_train),
+        len(flicker_train),
         len(flicker_test),
-        len(fp_train),
+        len(fp_train+non_flicker_train),
         len(fp_test+non_flicker_test)
     ])
-    # pd.DataFrame({
-    #     "flicker_train": tuple(flicker_train) + ("",) * (length - len(flicker_train)),
-    #     "non_flicker_train": tuple(fp_train+non_flicker_train) + ("",) * (length - len(fp_train+non_flicker_train)),
-    #     "flicker_test": tuple(flicker_test) + ("",) * (length - len(flicker_test)),
-    #     "non_flicker_test": tuple(fp_test+non_flicker_test) + ("",) * (length - len(fp_test+non_flicker_test)),
-    # }).to_csv("{}.csv".format(cache_path))
+    pd.DataFrame({
+        "flicker_train": tuple(flicker_train) + ("",) * (length - len(flicker_train)),
+        "non_flicker_train": tuple(fp_train+non_flicker_train) + ("",) * (length - len(fp_train+non_flicker_train)),
+        "flicker_test": tuple(flicker_test) + ("",) * (length - len(flicker_test)),
+        "non_flicker_test": tuple(fp_test+non_flicker_test) + ("",) * (length - len(fp_test+non_flicker_test)),
+    }).to_csv("{}.csv".format(cache_path))
 
-    # logging.debug(f"{len(fp_train)} - {len(fp_test)}") #non_flicker_train +non_flicker_test+ <- bring back
+    logging.debug(f"{len(fp_train)} - {len(fp_test)}") #non_flicker_train +non_flicker_test+ <- bring back
     
     np.savez(cache_path, flicker_train, fp_train+non_flicker_train, flicker_test, fp_test+non_flicker_test)
 

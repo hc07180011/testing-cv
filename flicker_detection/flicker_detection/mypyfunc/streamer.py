@@ -93,7 +93,6 @@ class VideoDataSet(IterableDataset):
 class MultiStreamer(object):
     """
     https://medium.com/speechmatics/how-to-build-a-streaming-dataloader-with-pytorch-a66dd891d9dd
-    TODO merge multiclass binary method
     """
 
     def __init__(
