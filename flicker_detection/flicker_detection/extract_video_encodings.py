@@ -176,19 +176,19 @@ def preprocessing(
     length = max([
         len(flicker_train),
         len(flicker_test),
-        len(fp_train+non_flicker_train),
-        len(fp_test+non_flicker_test)
+        len(fp_train),#+non_flicker_train
+        len(fp_test)#+non_flicker_test
     ])
     pd.DataFrame({
         "flicker_train": tuple(flicker_train) + ("",) * (length - len(flicker_train)),
-        "non_flicker_train": tuple(fp_train+non_flicker_train) + ("",) * (length - len(fp_train+non_flicker_train)),
+        "non_flicker_train": tuple(fp_train) + ("",) * (length - len(fp_train)),#+non_flicker_train
         "flicker_test": tuple(flicker_test) + ("",) * (length - len(flicker_test)),
-        "non_flicker_test": tuple(fp_test+non_flicker_test) + ("",) * (length - len(fp_test+non_flicker_test)),
+        "non_flicker_test": tuple(fp_test) + ("",) * (length - len(fp_test)),#+non_flicker_test
     }).to_csv("{}.csv".format(cache_path))
 
     logging.debug(f"{len(fp_train)} - {len(fp_test)}") #non_flicker_train +non_flicker_test+ <- bring back
     
-    np.savez(cache_path, flicker_train, fp_train+non_flicker_train, flicker_test, fp_test+non_flicker_test)
+    np.savez(cache_path, flicker_train, fp_train, flicker_test, fp_test)#+non_flicker_train+non_flicker_test
 
 
 def command_arg() -> ArgumentParser:

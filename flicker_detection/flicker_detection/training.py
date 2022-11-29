@@ -33,7 +33,7 @@ def training(
     val_max_f1 = 0
     f1_callback, loss_callback, val_f1_callback, val_loss_callback = (), (), (), ()
     for epoch in range(epochs):
-        if loss_callback and epoch > 10 and loss_callback[-1] < 0.05:
+        if loss_callback and epoch > 11 and loss_callback[-1] < 0.05:
             break
 
         model.train()
@@ -230,9 +230,9 @@ def main() -> None:
 
     optimizer = torch.optim.SGD(# try SGD
         model.parameters(),lr=1e-3, weight_decay=1e-4,momentum=0.9)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.1,patience=5,verbose=True) # maybe source of bug
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.1,patience=5,verbose=True) 
     metric = F1Score(average='macro')
-    criterion = OHEMLoss(batch_size=batch_size//2,init_epoch=25,criterion=nn.CrossEntropyLoss())  
+    criterion = OHEMLoss(batch_size=batch_size//2,init_epoch=40,criterion=nn.CrossEntropyLoss())  
     objective = nn.Softmax()
     epochs = 1000
 
