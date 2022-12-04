@@ -105,7 +105,8 @@ def mov_dif_aug(
         cur = 0
         vidcap = cv2.VideoCapture(os.path.join(src, vid))
         success, frame = vidcap.read()
-        w_chunk[:] = frame
+        ms = vidcap.get(cv2.CAP_PROP_POS_MSEC)
+        w_chunk = np.full_like(w_chunk,frame)
         while success:
             w_chunk[cur % chunk_size] = frame
             cur += 1
@@ -128,10 +129,11 @@ def mov_dif_aug(
                 for norm, mov in zip(w_chunk[idx], mov)
             ])
             skvideo.io.vwrite(
-                os.path.join(dst, f"{cur}_"+vid.replace("reduced_", "")),
+                os.path.join(dst, f"{cur}_frame_{int(ms)}_sec_"+vid.replace("reduced_", "")),
                 stacked
             )
             success, frame = vidcap.read()
+            ms = vidcap.get(cv2.CAP_PROP_POS_MSEC)
         gc.collect()
 
 
@@ -201,11 +203,11 @@ def command_arg() -> ArgumentParser:
                         help='directory of flicker3')
     parser.add_argument('--flicker4', type=str, default="data/flicker4",
                         help='directory of flicker4')
-    parser.add_argument('--meta_data_dir', type=str, default="data/no_flicker",
+    parser.add_argument('--meta_data_dir', type=str, default="data/new-meta-data",
                         help='directory of flicker videos')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
-    parser.add_argument('--videos_path', type=str, default="data/lower_res",
+    parser.add_argument('--videos_path', type=str, default="data/reduced-data",
                         help='src directory to extract embeddings from')
     parser.add_argument(
         "-preprocess", "--preprocess", action="store_true",
@@ -248,7 +250,7 @@ if __name__ == "__main__":
         mov_dif_aug(
             videos_path,
             meta_data_path,
-            chunk_size=12,
+            chunk_size=11,
             shape=(360, 180, 3)
         )
 

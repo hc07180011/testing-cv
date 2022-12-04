@@ -2,8 +2,6 @@ import os
 import logging
 import torch
 import torchvision
-import vzlogger 
-import vzpytorch
 import skvideo.io
 import numpy as np
 import torch.nn as nn

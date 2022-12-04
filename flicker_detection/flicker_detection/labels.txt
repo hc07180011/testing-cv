@@ -1,0 +1,6 @@
+[12/04/22 09:40:52] INFO     root[341960] MainProcess(MainThread) logger:29     logger.py:29
+                             Initializing ok.                                               
+[12/04/22 09:40:55] INFO     root[341960] MainProcess(MainThread) demo:61         demo.py:61
+                             streaming...                                                   
+[12/04/22 09:41:27] DEBUG    root[341960] MainProcess(MainThread) demo:69  INDEX  demo.py:69
+                             - 0                                                            
