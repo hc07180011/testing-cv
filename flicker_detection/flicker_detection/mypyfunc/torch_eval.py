@@ -278,7 +278,7 @@ class Evaluation(object):
                                                     "avg/total").replace("\n ", "\n")
         report_df = pd.read_csv(StringIO("Classes" + report),
                                 sep=' ', index_col=0, on_bad_lines='skip')
-        report_df.to_csv("plots/report.csv")
+        report_df.to_csv("plots/model_report.csv")
         return report_df
 
     def report(

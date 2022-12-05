@@ -16,7 +16,13 @@ from argparse import ArgumentParser
 from collections import Counter
 from typing import Tuple
 from mypyfunc.logger import init_logger
+from PyInstaller.utils.hooks import copy_metadata
 
+datas = copy_metadata('google-cloud-core')
+
+datas += copy_metadata('google-cloud-translate')
+
+datas += copy_metadata('google-api-core')
 
 def get_pts(
     src: str,
@@ -105,7 +111,7 @@ def mov_dif_aug(
         cur = 0
         vidcap = cv2.VideoCapture(os.path.join(src, vid))
         success, frame = vidcap.read()
-        ms = vidcap.get(cv2.CAP_PROP_POS_MSEC)
+        ms = vidcap.get(cv2.CAP_PROP_POS_MSEC)/1000
         w_chunk = np.full_like(w_chunk,frame)
         while success:
             w_chunk[cur % chunk_size] = frame
@@ -133,7 +139,8 @@ def mov_dif_aug(
                 stacked
             )
             success, frame = vidcap.read()
-            ms = vidcap.get(cv2.CAP_PROP_POS_MSEC)
+            ms = vidcap.get(cv2.CAP_PROP_POS_MSEC)/1000
+        
         gc.collect()
 
 
@@ -203,7 +210,7 @@ def command_arg() -> ArgumentParser:
                         help='directory of flicker3')
     parser.add_argument('--flicker4', type=str, default="data/flicker4",
                         help='directory of flicker4')
-    parser.add_argument('--meta_data_dir', type=str, default="data/new-meta-data",
+    parser.add_argument('--meta_data_dir', type=str, default="data/show-data",
                         help='directory of flicker videos')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')

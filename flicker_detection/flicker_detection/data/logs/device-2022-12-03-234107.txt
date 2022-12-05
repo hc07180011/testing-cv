@@ -1,0 +1,50 @@
+---------------------------- PROCESS STARTED (12416) for package com.example.diceroller ----------------------------
+2022-12-03 23:40:33.920 12416-12416 mple.diceroller         com.example.diceroller               W  Redefining intrinsic method java.lang.Thread java.lang.Thread.currentThread(). This may cause the unexpected use of the original definition of java.lang.Thread java.lang.Thread.currentThread()in methods that have already been compiled.
+2022-12-03 23:40:33.920 12416-12416 mple.diceroller         com.example.diceroller               W  Redefining intrinsic method boolean java.lang.Thread.interrupted(). This may cause the unexpected use of the original definition of boolean java.lang.Thread.interrupted()in methods that have already been compiled.
+2022-12-03 23:40:33.922 12416-12416 ActivityThread          com.example.diceroller               I  Relaunch all activities: onCoreSettingsChange
+2022-12-03 23:40:33.923 12416-12416 Compatibil...geReporter com.example.diceroller               D  Compat change id reported: 171979766; UID 10236; state: ENABLED
+2022-12-03 23:40:33.937 12416-12416 ziparchive              com.example.diceroller               W  Unable to open '/data/app/~~JK-bCzCthRWumtFxVmTvaw==/com.example.diceroller-7VIN5feJ3sjUNNRSY5rHkQ==/base.dm': No such file or directory
+2022-12-03 23:40:33.938 12416-12416 ziparchive              com.example.diceroller               W  Unable to open '/data/app/~~JK-bCzCthRWumtFxVmTvaw==/com.example.diceroller-7VIN5feJ3sjUNNRSY5rHkQ==/base.dm': No such file or directory
+2022-12-03 23:40:34.066 12416-12416 GraphicsEnvironment     com.example.diceroller               V  ANGLE Developer option for 'com.example.diceroller' set to: 'default'
+2022-12-03 23:40:34.066 12416-12416 GraphicsEnvironment     com.example.diceroller               V  ANGLE GameManagerService for com.example.diceroller: false
+2022-12-03 23:40:34.066 12416-12416 GraphicsEnvironment     com.example.diceroller               V  Updatable production driver is not supported on the device.
+2022-12-03 23:40:34.070 12416-12416 NetworkSecurityConfig   com.example.diceroller               D  No Network Security Config specified, using platform default
+2022-12-03 23:40:34.071 12416-12416 NetworkSecurityConfig   com.example.diceroller               D  No Network Security Config specified, using platform default
+2022-12-03 23:40:34.095 12416-12416 PreviewActivity         com.example.diceroller               D  PreviewActivity has composable com.example.diceroller.MainActivityKt.DiceRollerApp
+2022-12-03 23:40:34.101 12416-12416 PreviewActivity         com.example.diceroller               D  Previewing 'DiceRollerApp' without a parameter provider.
+2022-12-03 23:40:34.105 12416-12416 mple.diceroller         com.example.diceroller               E  Invalid ID 0x00000000.
+2022-12-03 23:40:34.269 12416-12416 mple.diceroller         com.example.diceroller               W  Method boolean androidx.compose.runtime.snapshots.SnapshotStateList.conditionalUpdate(kotlin.jvm.functions.Function1) failed lock verification and will run slower.
+                                                                                                    Common causes for lock verification issues are non-optimized dex code
+                                                                                                    and incorrect proguard optimizations.
+2022-12-03 23:40:34.269 12416-12416 mple.diceroller         com.example.diceroller               W  Method java.lang.Object androidx.compose.runtime.snapshots.SnapshotStateList.mutate(kotlin.jvm.functions.Function1) failed lock verification and will run slower.
+2022-12-03 23:40:34.269 12416-12416 mple.diceroller         com.example.diceroller               W  Method void androidx.compose.runtime.snapshots.SnapshotStateList.update(kotlin.jvm.functions.Function1) failed lock verification and will run slower.
+2022-12-03 23:40:34.330 12416-12439 AdrenoGLES-0            com.example.diceroller               I  QUALCOMM build                   : 85da404, I46ff5fc46f
+                                                                                                    Build Date                       : 11/30/20
+                                                                                                    OpenGL ES Shader Compiler Version: EV031.31.04.01
+                                                                                                    Local Branch                     : promo490_3_Google
+                                                                                                    Remote Branch                    : 
+                                                                                                    Remote Branch                    : 
+                                                                                                    Reconstruct Branch               : 
+2022-12-03 23:40:34.331 12416-12439 AdrenoGLES-0            com.example.diceroller               I  Build Config                     : S P 10.0.4 AArch64
+2022-12-03 23:40:34.331 12416-12439 AdrenoGLES-0            com.example.diceroller               I  Driver Path                      : /vendor/lib64/egl/libGLESv2_adreno.so
+2022-12-03 23:40:34.335 12416-12439 AdrenoGLES-0            com.example.diceroller               I  PFP: 0x016ee190, ME: 0x00000000
+2022-12-03 23:40:34.336 12416-12439 AdrenoUtils             com.example.diceroller               W  <ReadGpuID_from_sysfs:197>: Failed to open /sys/class/kgsl/kgsl-3d0/gpu_model
+2022-12-03 23:40:34.336 12416-12439 AdrenoUtils             com.example.diceroller               W  <ReadGpuID:221>: Failed to read chip ID from gpu_model. Fallback to use the GSL path
+2022-12-03 23:40:34.370 12416-12439 Parcel                  com.example.diceroller               W  Expecting binder but got null!
+2022-12-03 23:40:36.260 12416-12416 AutofillManager         com.example.diceroller               V  requestHideFillUi(null): anchor = null
+2022-12-03 23:40:36.477 12416-12416 AutofillManager         com.example.diceroller               V  requestHideFillUi(null): anchor = null
+2022-12-03 23:40:36.639 12416-12416 AutofillManager         com.example.diceroller               V  requestHideFillUi(null): anchor = null
+2022-12-03 23:40:36.829 12416-12416 AutofillManager         com.example.diceroller               V  requestHideFillUi(null): anchor = null
+2022-12-03 23:40:37.011 12416-12416 AutofillManager         com.example.diceroller               V  requestHideFillUi(null): anchor = null
+2022-12-03 23:40:37.402 12416-12416 AutofillManager         com.example.diceroller               V  requestHideFillUi(null): anchor = null
+2022-12-03 23:40:37.442 12416-12416 AutofillManager         com.example.diceroller               V  requestHideFillUi(null): anchor = null
+2022-12-03 23:40:37.541 12416-12416 AutofillManager         com.example.diceroller               V  requestHideFillUi(null): anchor = null
+2022-12-03 23:40:37.654 12416-12416 AutofillManager         com.example.diceroller               V  requestHideFillUi(null): anchor = null
+2022-12-03 23:40:37.713 12416-12416 AutofillManager         com.example.diceroller               V  requestHideFillUi(null): anchor = null
+2022-12-03 23:40:37.791 12416-12416 AutofillManager         com.example.diceroller               V  requestHideFillUi(null): anchor = null
+2022-12-03 23:40:37.878 12416-12416 AutofillManager         com.example.diceroller               V  requestHideFillUi(null): anchor = null
+2022-12-03 23:40:37.936 12416-12416 AutofillManager         com.example.diceroller               V  requestHideFillUi(null): anchor = null
+2022-12-03 23:40:38.484 12416-12416 AutofillManager         com.example.diceroller               V  requestHideFillUi(null): anchor = null
+2022-12-03 23:40:38.685 12416-12416 AutofillManager         com.example.diceroller               V  requestHideFillUi(null): anchor = null
+2022-12-03 23:40:50.260 12416-12428 System                  com.example.diceroller               W  A resource failed to call close. 
+---------------------------- PROCESS ENDED (12416) for package com.example.diceroller ----------------------------
