@@ -1,4 +1,4 @@
-*.jpeg
+# *.jpeg
 # *.png
 *.zip
 *.npy
