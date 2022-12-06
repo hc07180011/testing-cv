@@ -40,8 +40,8 @@ def training(
         minibatch_loss_train, minibatch_f1 = 0, 0
         for n_train, (inputs, labels) in enumerate(tqdm.tqdm(train_loader)):
             inputs = inputs.permute(
-                0, 1, 4, 2, 3).float().to(device)
-            labels = labels.long().to(device)
+                0, 1, 4, 2, 3).float().to(f'cuda:{model.device_ids[0]}')
+            labels = labels.long().to(f'cuda:{model.device_ids[0]}')
             outputs = model(inputs)
             loss = criterion(outputs, labels,epoch)
             optimizer.zero_grad()
@@ -65,8 +65,8 @@ def training(
             minibatch_loss_val, minibatch_f1_val = 0, 0
             for n_val, (inputs, labels) in enumerate(tqdm.tqdm(val_loader)):
                 inputs = inputs.permute(
-                    0, 1, 4, 2, 3).float().to(device)
-                labels = labels.long().to(device)
+                    0, 1, 4, 2, 3).float().to(f'cuda:{model.device_ids[0]}')
+                labels = labels.long().to(f'cuda:{model.device_ids[0]}')
 
                 outputs = model(inputs)
                 loss = criterion(outputs, labels,epoch)
@@ -118,8 +118,8 @@ def testing(
     with torch.no_grad():
         for (inputs, labels) in tqdm.tqdm(test_loader):
             inputs = inputs.permute(
-                0, 1, 4, 2, 3).float().to(device)
-            labels = labels.long().to(device)
+                0, 1, 4, 2, 3).float().to(f'cuda:{model.device_ids[0]}')
+            labels = labels.long().to(f'cuda:{model.device_ids[0]}')
             outputs = model(inputs)
               
             y_pred += (objective(outputs),)
@@ -224,9 +224,11 @@ def main() -> None:
     #     emb_dropout=0.1,
     #     pool='cls' 
     # )  # 16784 of 19456 gpu mb 0.6094
-    
-    model = torch.nn.DataParallel(model)
-    model.to(device)
+    """
+    https://stackoverflow.com/questions/59249563/runtimeerror-module-must-have-its-parameters-and-buffers-on-device-cuda1-devi
+    """
+    model = torch.nn.DataParallel(model,device_ids=[1,0])
+    model.to(f'cuda:{model.device_ids[0]}')
 
     optimizer = torch.optim.SGD(# try SGD
         model.parameters(),lr=1e-3, weight_decay=1e-4,momentum=0.9)

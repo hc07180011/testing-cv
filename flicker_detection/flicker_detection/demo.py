@@ -11,6 +11,7 @@ from mypyfunc.torch_models import CNN_Transformers
 from mypyfunc.streamer import MultiStreamer, VideoDataSet
 from mypyfunc.logger import init_logger
 
+
 def run(
     model:torch.nn.Module,
     stream:MultiStreamer,
@@ -87,8 +88,8 @@ def main()->None:
         f.split("/",3)[-1].replace(".mp4",""):i 
         for i,f in enumerate(test_files)
     }
-    
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device =torch.device('cpu')
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = CNN_Transformers(
         image_size=360,          # image size
         frames=10,               # number of frames
@@ -105,9 +106,10 @@ def main()->None:
         pool='cls' 
     )  # 16784 of 19456 gpu mb 0.6094
     model = torch.nn.DataParallel(model)
-    model.to(device)
     model.load_state_dict(torch.load(os.path.join(
-        model_dir, 'model.pth'))['model_state_dict'])
+        model_dir, 'model.pth'),map_location=device)['model_state_dict'])
+    model = model.module.to(device)
+    # model.to(device)
     model.eval()
     objective = torch.nn.Softmax()
     
@@ -154,7 +156,10 @@ def test_load_cpu():
     logging.debug(model.train())
     
 if __name__ == "__main__":
+    """
+    https://discuss.pytorch.org/t/create-exe-file/56626/4
+    """
     main()
     # test_load_cpu()
     # log = read_log("data/logs/device-2022-12-03-234516.txt")
-    # log.to_csv("wtf.csv")
+    # log.to_csv("test_log.csv")

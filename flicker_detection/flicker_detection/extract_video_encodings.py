@@ -16,13 +16,7 @@ from argparse import ArgumentParser
 from collections import Counter
 from typing import Tuple
 from mypyfunc.logger import init_logger
-from PyInstaller.utils.hooks import copy_metadata
 
-datas = copy_metadata('google-cloud-core')
-
-datas += copy_metadata('google-cloud-translate')
-
-datas += copy_metadata('google-api-core')
 
 def get_pts(
     src: str,

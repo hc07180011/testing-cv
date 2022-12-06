@@ -14,10 +14,8 @@
 *.csv
 model.pth
 metrics.pth
-data/embedding/
 data/embedding/*
 venv/*
-TFRecords/
 TFRecords/*
 MNIST/raw/*
 
