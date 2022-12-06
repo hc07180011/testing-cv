@@ -1,5 +1,5 @@
 *.jpeg
-*.png
+# *.png
 *.zip
 *.npy
 *.gif
@@ -8,7 +8,7 @@
 *.npz
 *.tfrecords
 *.pth
-*.jpg
+# *.jpg
 *.h264
 *.gz
 *.csv
