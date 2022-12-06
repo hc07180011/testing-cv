@@ -42,7 +42,7 @@ def run(
             if os.path.exists(os.path.join(log_dir,info[-1]+".txt")):
                 log = read_log(os.path.join(log_dir,info[-1]+".txt"))
                 logging.debug(log[int(info[1]),:])
-                message = log[int(info[1]),:]
+                message = " ".join(log.iloc[int(info[2]),:].tolist())
                 
             logs['issue'].append(info[-1])
             logs['occur_frame'].append(int(info[0]))
@@ -88,8 +88,8 @@ def main()->None:
         f.split("/",3)[-1].replace(".mp4",""):i 
         for i,f in enumerate(test_files)
     }
-    device =torch.device('cpu')
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device =torch.device('cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = CNN_Transformers(
         image_size=360,          # image size
         frames=10,               # number of frames
@@ -108,8 +108,8 @@ def main()->None:
     model = torch.nn.DataParallel(model)
     model.load_state_dict(torch.load(os.path.join(
         model_dir, 'model.pth'),map_location=device)['model_state_dict'])
-    model = model.module.to(device)
-    # model.to(device)
+    # model = model.module.to(device)
+    model.to(device)
     model.eval()
     objective = torch.nn.Softmax()
     
@@ -128,32 +128,6 @@ def main()->None:
         labels=labels,
         log_dir=log_dir,
     )
-    
-
-def test_load_cpu():
-    init_logger()
-    device = torch.device('cpu')
-    model = CNN_Transformers(
-        image_size=360,          # image size
-        frames=10,               # number of frames
-        image_patch_size=36,     # image patch size
-        frame_patch_size=10,      # frame patch size
-        num_classes=2,
-        dim=512,
-        depth=6,
-        heads=8,
-        mlp_dim=512,
-        cnn=torchvision.models.vgg19(pretrained=True),
-        dropout=0.1,
-        emb_dropout=0.1,
-        pool='cls' 
-    )  # 16784 of 19456 gpu mb 0.6094
-    model = torch.nn.DataParallel(model)
-    model.to(device)
-    model.load_state_dict(torch.load(os.path.join(
-        'cnn_transformers_model', 'model.pth'),map_location=device)['model_state_dict'])
-
-    logging.debug(model.train())
     
 if __name__ == "__main__":
     """
