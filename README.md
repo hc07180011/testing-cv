@@ -24,6 +24,10 @@
   * [End to End VGG BiDirectional LSTM](https://pytorch.org/docs/stable/generated/torch.nn.LSTM.html)
   * [End to End VGG 3DViT](https://arxiv.org/abs/2209.07026)
 
+![transformers](./plots/cnn_lstm_plots/confusion_matrix.png)
+![lstm](./plots/cnn_trans_plots/confusion_matrix.png)
+
+
 ### Flicker Outlier Detection Results
 
 ## Install
