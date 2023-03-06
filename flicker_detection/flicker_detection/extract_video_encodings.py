@@ -99,14 +99,13 @@ def mov_dif_aug(
                for vid in os.listdir(dst)]
     w_chunk = np.zeros((chunk_size,)+shape, dtype=np.uint8)
     for vid in tqdm.tqdm(os.listdir(src)):
-        if  vid.replace(".mp4", "").replace("reduced_", "") in dst_vid:
+        if vid.replace(".mp4", "").replace("reduced_", "") in dst_vid:
             continue
 
         cur = 0
         vidcap = cv2.VideoCapture(os.path.join(src, vid))
         success, frame = vidcap.read()
-        ms = vidcap.get(cv2.CAP_PROP_POS_MSEC)/1000
-        w_chunk = np.full_like(w_chunk,frame)
+        w_chunk[:] = frame
         while success:
             w_chunk[cur % chunk_size] = frame
             cur += 1
@@ -120,7 +119,7 @@ def mov_dif_aug(
                 w_chunk[idx],
                 None,
                 alpha=0,
-                beta=255,
+                beta=1,
                 norm_type=cv2.NORM_MINMAX,
                 dtype=cv2.CV_32F
             )
@@ -129,12 +128,10 @@ def mov_dif_aug(
                 for norm, mov in zip(w_chunk[idx], mov)
             ])
             skvideo.io.vwrite(
-                os.path.join(dst, f"{cur}_frame_{int(ms)}_sec_"+vid.replace("reduced_", "")),
+                os.path.join(dst, f"{cur}_"+vid.replace("reduced_", "")),
                 stacked
             )
             success, frame = vidcap.read()
-            ms = vidcap.get(cv2.CAP_PROP_POS_MSEC)/1000
-        
         gc.collect()
 
 
@@ -156,14 +153,15 @@ def preprocessing(
         'video_0B061FQCB00136_barbet_07-21-2022_14-17-42-501',
         'video_03121JEC200057_sunfish_07-06-2022_23-18-35-286'
     ]
-    # logging.debug(set(false_positives_vid)-set([f.split('_',1)[-1].replace('.mp4','') for f in os.listdir('data/no_flicker')]))
     flicker_lst = list(itertools.chain(
         *list(map(lambda f: os.listdir(f), flicker_dir))))
+    # logging.debug(f"{flicker_lst}")
     non_flicker_lst = [
         x for x in os.listdir(non_flicker_dir)
         if x.replace(".mp4", "").split("_", 1)[-1] not in false_positives_vid
     ]
     fp = list(set(os.listdir(non_flicker_dir)) - set(non_flicker_lst))
+    # logging.debug(fp)
 
     random.seed(42)
     random.shuffle(non_flicker_lst)
@@ -179,19 +177,19 @@ def preprocessing(
     length = max([
         len(flicker_train),
         len(flicker_test),
-        len(fp_train),#+non_flicker_train
-        len(fp_test)#+non_flicker_test
+        len(non_flicker_train+fp_train),
+        len(non_flicker_test+fp_test)
     ])
     pd.DataFrame({
         "flicker_train": tuple(flicker_train) + ("",) * (length - len(flicker_train)),
-        "non_flicker_train": tuple(fp_train) + ("",) * (length - len(fp_train)),#+non_flicker_train
+        "non_flicker_train": tuple(non_flicker_train+fp_train) + ("",) * (length - len(non_flicker_train+fp_train)),
         "flicker_test": tuple(flicker_test) + ("",) * (length - len(flicker_test)),
-        "non_flicker_test": tuple(fp_test) + ("",) * (length - len(fp_test)),#+non_flicker_test
+        "non_flicker_test": tuple(non_flicker_test+fp_test) + ("",) * (length - len(non_flicker_test+fp_test)),
     }).to_csv("{}.csv".format(cache_path))
 
-    logging.debug(f"{len(fp_train)} - {len(fp_test)}") #non_flicker_train +non_flicker_test+ <- bring back
-    
-    np.savez(cache_path, flicker_train, fp_train, flicker_test, fp_test)#+non_flicker_train+non_flicker_test
+    logging.debug(non_flicker_test)
+    np.savez(cache_path, flicker_train, non_flicker_train +
+             fp_train, flicker_test, non_flicker_test+fp_test)
 
 
 def command_arg() -> ArgumentParser:
@@ -204,11 +202,11 @@ def command_arg() -> ArgumentParser:
                         help='directory of flicker3')
     parser.add_argument('--flicker4', type=str, default="data/flicker4",
                         help='directory of flicker4')
-    parser.add_argument('--meta_data_dir', type=str, default="data/show-data",
+    parser.add_argument('--non_flicker_dir', type=str, default="data/no_flicker",
                         help='directory of flicker videos')
     parser.add_argument('--cache_path', type=str, default=".cache/train_test",
                         help='directory of miscenllaneous information')
-    parser.add_argument('--videos_path', type=str, default="data/reduced-data",
+    parser.add_argument('--videos_path', type=str, default="data/lower_res",
                         help='src directory to extract embeddings from')
     parser.add_argument(
         "-preprocess", "--preprocess", action="store_true",
@@ -225,40 +223,44 @@ def command_arg() -> ArgumentParser:
 
 if __name__ == "__main__":
     """
+    get google resources, beause they complain about it
+    Google allow to publish dataset for paper? or perform on outlier detection data
+    egocentric computer vision
 
+     Seminar in Information Science and Technology
       Predictive Modeling in Biomedicine
+
+
     said doesn't have to be flicker, but just general state of the art
     said can consider data augmentation to generate flickers? then consider publish dataset
     computation can be registered for google UR
     reduce computation can also be research
-    use TPUS
-    
+
     multiclass increase batch size
     can improve gpu memory usage
+
     big changes but rare occurance outlier dataset
     use logging time stamps match with video time stamps?
-    
+
     if use transformers, take the largest frame rate as default tensor size , problem lower rates need to pad them
-    resnet50
-    
     """
     init_logger()
     args = command_arg()
-    videos_path, flicker1_path, flicker2_path, flicker3_path, flicker4_path, meta_data_path, cache_path =\
-        args.videos_path, args.flicker1, args.flicker2, args.flicker3, args.flicker4, args.meta_data_dir, args.cache_path
+    videos_path, flicker1_path, flicker2_path, flicker3_path, flicker4_path, non_flicker_path, cache_path =\
+        args.videos_path, args.flicker1, args.flicker2, args.flicker3, args.flicker4, args.non_flicker_dir, args.cache_path
 
     if args.preprocess:
         mov_dif_aug(
             videos_path,
-            meta_data_path,
-            chunk_size=11,
+            non_flicker_path,
+            chunk_size=21,
             shape=(360, 180, 3)
         )
 
     if args.split:
         preprocessing(
             (flicker1_path, flicker2_path, flicker3_path, flicker4_path),
-            meta_data_path,
+            non_flicker_path,
             cache_path,
         )
     # flicker_chunk(non_flicker_path, flicker_path, labels)
