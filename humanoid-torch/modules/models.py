@@ -51,27 +51,11 @@ class Humanoid(BaseModel):
         
         self.cnn = self.build_cnn()
         self.heatmap = self.build_heatmap()
-
-        self.lstm1 = torch.nn.LSTM(
-            inputs_size=,
-            hidden_size=,
-            num_layers=,
-            batch_first=True,
-            bidrectional=,
-        )
-        self.lstm2 = torch.nn.LSTM(
-            inputs_size=,
-            hidden_size=,
-            num_layers=,
-            batch_first=True,
-            bidrectional=,
-        )
-        self.lstm3 = torch.nn.LSTM(
-            inputs_size=,
-            hidden_size=,
-            num_layers=,
-            batch_first=True,
-            bidrectional=,
+        self.lstm = torch.nn.LSTM(
+            input_size=880,
+            hidden_size=880,
+            num_layers=1,
+            batch_first=True
         )
         
         self.pool5_up = torch.nn.ConvTranspose2d(
@@ -151,15 +135,18 @@ class Humanoid(BaseModel):
         
         out = self.relu(self.conv3(out))
         out = self.max_pool(out)
-        pool_heat3 = self.relu(self.pool_heat(out.clone())).reshape((-1,self.frame_num,np.prod([*out.shape[-2:]])))
+        
+        pool_heat3 = self.relu(self.pool_heat(out.clone()))
+        pool_heat3_in = pool_heat3.reshape((-1,self.frame_num,np.prod([*out.shape[-2:]])))
         pool_heat3 = torch.add(
-            self.lstm(pool_heat3).reshape((-1,23,40,1)),
-            pool_heat3.reshape(self.batch_size,self.frame_num,23,40,1)[:,self.frame_num - 1,:,:,:]
+            self.lstm(pool_heat3_in,self.init_hidden(pool_heat3_in)).reshape((-1,np.prod([*out.shape[-2:]]),1)),
+            pool_heat3.reshape(self.batch_size,self.frame_num,*out.shape[-2:],1)[:,self.frame_num - 1,:,:,:]
             )
         
         out = self.relu(self.conv4(out))
         out = self.max_pool(out)
-        pool_heat4 = self.relu(self.pool_heat(out.clone())).reshape((-1,self.frame_num,np.prod([*out.shape[-2:]])))
+        pool_heat4 = self.relu(self.pool_heat(out.clone()))
+        pool_heat4_in = pool_heat4.reshape((-1,self.frame_num,np.prod([*out.shape[-2:]])))
         pool_heat4 = torch.add(
             self.lstm(pool_heat4).reshape((-1,12,20,1)),
             pool_heat4.reshape(self.batch_size,self.frame_num,12,20,1)[:,self.frame_num - 1,:,:,:]
