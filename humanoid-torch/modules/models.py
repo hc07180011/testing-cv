@@ -2,6 +2,7 @@ import logging
 import json
 import torch
 import numpy as np
+import torch.nn.functional as F
 
 from vit_pytorch import ViT
 from einops import rearrange, repeat
@@ -62,6 +63,26 @@ class BaseModel(torch.nn.Module):
             num_layers=1,
             batch_first=True
         )
+    
+    def init_hidden(
+        self,
+        x: torch.Tensor
+    ) -> torch.FloatTensor:
+        h0 = torch.zeros(
+            1,
+            x.size(0),
+            x.shape[-1],
+            device=x.device
+        ).requires_grad_()
+
+        # Initialize cell state
+        c0 = torch.zeros(
+            1,
+            x.size(0),
+            x.shape[-1],
+            device=x.device
+        ).requires_grad_()
+        return h0, c0
 
 
 class Humanoid(BaseModel):
@@ -73,73 +94,12 @@ class Humanoid(BaseModel):
         
         self.frame_num = config_json["frame_num"]
         
-        self.cnn = self.build_cnn()
-        self.heatmap = self.build_heatmap()
+        self.build_cnn()
+        self.build_lstm()
         
-        self.pool5_up = torch.nn.ConvTranspose2d(
-            in_channels=, 
-            out_channels, 
-            kernel_size, 
-            stride=1, 
-            padding=0, 
-            output_padding=0, 
-            groups=1, 
-            bias=True, 
-            dilation=1, 
-            padding_mode='zeros', 
-            device=None, 
-            dtype=None
-        )
-        
-        self.pool4_up = torch.nn.ConvTranspose2d(
-            in_channels=, 
-            out_channels, 
-            kernel_size, 
-            stride=1, 
-            padding=0, 
-            output_padding=0, 
-            groups=1, 
-            bias=True, 
-            dilation=1, 
-            padding_mode='zeros', 
-            device=None, 
-            dtype=None
-        )
-        
-        self.pool3_up = torch.nn.ConvTranspose2d(
-            in_channels=(64, 22, 40), 
-            out_channels=, 
-            kernel_size=, 
-            stride=1, 
-            padding=0, 
-            output_padding=0, 
-            groups=1, 
-            bias=True, 
-            dilation=1, 
-            padding_mode='zeros', 
-            device=None, 
-            dtype=None
-        )
-
-    def init_hidden(
-        self,
-        x: torch.Tensor
-    ) -> torch.FloatTensor:
-        h0 = torch.zeros(
-            self.layer_dim*self.n_directions,
-            x.size(0),
-            self.hidden_dim,
-            device=x.device
-        ).requires_grad_()
-
-        # Initialize cell state
-        c0 = torch.zeros(
-            self.layer_dim*self.n_directions,
-            x.size(0),
-            self.hidden_dim,
-            device=x.device
-        ).requires_grad_()
-        return h0, c0
+        self.pool5_up_filters = torch.nn.Parameter(torch.randn((5, 11, 1, 1)))
+        self.pool4_up_filters = torch.nn.Parameter(torch.randn((11, 22, 1, 1)))
+        self.pool3_up_filters = torch.nn.Parameter(torch.randn((22, 22, 1, 1)))
 
     def forward(
         self,
@@ -153,52 +113,86 @@ class Humanoid(BaseModel):
         
         out = self.relu(self.conv3(out))
         out = self.max_pool(out)
+        
         pool_heat3 = self.relu(self.pool_heat(out.clone()))
         pool_heat3_in = pool_heat3.reshape((-1,self.frame_num,np.prod([*out.shape[-2:]])))
-        
+        res3, _ = self.lstm1(pool_heat3_in,self.init_hidden(pool_heat3_in))
         pool_heat3 = torch.add(
-            self.lstm(pool_heat3_in,self.init_hidden(pool_heat3_in)).reshape((-1,*out.shape[-2:],1)),
-            pool_heat3.reshape(self.batch_size,self.frame_num,*out.shape[-2:],1)[:,self.frame_num - 1,:,:,:]
-            )
+            res3.reshape((-1,*out.shape[-2:],1)),
+            pool_heat3.reshape(1,self.frame_num,*out.shape[-2:],1)[:,self.frame_num - 1,:,:,:]
+            ) # TO DO adjust batch size
         
         out = self.relu(self.conv4(out))
         out = self.max_pool(out)
+        
         pool_heat4 = self.relu(self.pool_heat(out.clone()))
         pool_heat4_in = pool_heat4.reshape((-1,self.frame_num,np.prod([*out.shape[-2:]])))
-        
+        res4,_ = self.lstm2(pool_heat4_in,self.init_hidden(pool_heat4_in))
         pool_heat4 = torch.add(
-            self.lstm(pool_heat4_in,self.init_hidden(pool_heat3_in)).reshape((-1,*out.shape[-2:],1)),
-            pool_heat4.reshape(self.batch_size,self.frame_num,*out.shape[-2:],1)[:,self.frame_num - 1,:,:,:]
-            )
+            res4.reshape((-1,*out.shape[-2:],1)),
+            pool_heat4.reshape(1,self.frame_num,*out.shape[-2:],1)[:,self.frame_num - 1,:,:,:]
+        )
         
         out = self.relu(self.conv4(out))
         out = self.max_pool(out)
         pool_heat5 = self.relu(self.pool_heat(out.clone()))
         pool_heat5_in = pool_heat5.reshape((-1,self.frame_num,np.prod([*out.shape[-2:]])))
         
+        res5,_ = self.lstm3(pool_heat5_in,self.init_hidden(pool_heat5_in))
         pool_heat5 = torch.add(
-            self.lstm(pool_heat5_in,self.init_hidden(pool_heat5_in)).reshape((-1,*out.shape[-2:],1)),
-            pool_heat5.reshape(self.batch_size,self.frame_num,*out.shape[-2:],1)[:,self.frame_num - 1,:,:,:]
+            res5.reshape((-1,*out.shape[-2:],1)),
+            pool_heat5.reshape(1,self.frame_num,*out.shape[-2:],1)[:,self.frame_num - 1,:,:,:]
         )
         
-        return pool3_up,pool_head5
+        pool5_up = self.relu(F.conv_transpose2d(
+            input=pool_heat5,
+            weight=self.pool5_up_filters, 
+            output_padding=(1,0), 
+            stride=(2,1)
+        ))
+        pool4_heat_sum = torch.add(pool_heat4,pool5_up)
+        pool4_up = self.relu(F.conv_transpose2d(
+            input=pool4_heat_sum,
+            weight=self.pool4_up_filters, 
+            output_padding=(1,0), 
+            stride=(2,2)
+        ))
+        logging.debug(f"POOLHEAT4 - {pool_heat3.shape}")
+        logging.debug(f"POOL4UP - {pool4_up.shape}")
+        pool3_heat_sum = torch.add(pool_heat3,pool4_up)
+        pool3_up = self.relu(F.conv_transpose2d(
+            input=pool3_heat_sum,
+            weight=self.pool3_up_filters, 
+            output_padding=(0,0), 
+            stride=(1,2)
+        ))
+        
+        return pool3_up,pool_heat5
     
     def initialization(self) -> None:
         for m in self.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.normal_(param.data, std=0.05)
-            elif isinstance(m, nn.LSTM):
+            if isinstance(m, torch.nn.Linear):
+                torch.nn.init.normal_(param.data, std=0.05)
+            elif isinstance(m, torch.nn.LSTM):
                 for name, param in m.named_parameters():
                     if 'weight_ih' in name:
                         for i in range(4):
                             mul = param.shape[0]//4
-                            nn.init.xavier_uniform_(param[i*mul:(i+1)*mul])
+                            torch.nn.init.xavier_uniform_(param[i*mul:(i+1)*mul])
                     elif 'weight_hh' in name:
                         for i in range(4):
                             mul = param.shape[0]//4
-                            nn.init.xavier_uniform_(param[i*mul:(i+1)*mul])
+                            torch.nn.init.xavier_uniform_(param[i*mul:(i+1)*mul])
                     elif 'bias' in name:
-                        nn.init.zeros_(param.data)
+                        torch.nn.init.zeros_(param.data)
     
 if __name__ == "__main__":
-    pass
+    import json
+    from logger import init_logger
+    
+    init_logger()
+    config_path = '../config.json'
+    config = json.load(open(config_path,'r'))
+    x = torch.randn(size=(4,3,180,320))
+    model = Humanoid(config_json=config)
+    deconv,conv = model(x)
