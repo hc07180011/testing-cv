@@ -157,8 +157,7 @@ class Humanoid(BaseModel):
             output_padding=(1,0), 
             stride=(2,2)
         ))
-        logging.debug(f"POOLHEAT4 - {pool_heat3.shape}")
-        logging.debug(f"POOL4UP - {pool4_up.shape}")
+
         pool3_heat_sum = torch.add(pool_heat3,pool4_up)
         pool3_up = self.relu(F.conv_transpose2d(
             input=pool3_heat_sum,
@@ -185,14 +184,26 @@ class Humanoid(BaseModel):
                             torch.nn.init.xavier_uniform_(param[i*mul:(i+1)*mul])
                     elif 'bias' in name:
                         torch.nn.init.zeros_(param.data)
-    
-if __name__ == "__main__":
+
+
+def test_humanoid()->None:
     import json
     from logger import init_logger
     
     init_logger()
     config_path = '../config.json'
+    test_sample = '/data/humanoid_train_data/im_hm_interact_9.npz'
     config = json.load(open(config_path,'r'))
-    x = torch.randn(size=(4,3,180,320))
+    # x = torch.randn(size=(4,3,180,320))
+    im_hm_interact = np.load(test_sample)
+    img, hm , interact = im_hm_interact['img'],im_hm_interact['hm'],im_hm_interact['interact']
+    logging.debug(f"IMG - {img.shape}")
+    logging.debug(f"HM - {hm.shape}")
+    logging.debug(f"INTERACT - {interact.shape}")
+
     model = Humanoid(config_json=config)
-    deconv,conv = model(x)
+    pool3_up,pool_heat5 = model(img)
+    logging.debug(f"{pool3_up.shape} - {pool_heat5.shape}")
+
+if __name__ == "__main__":
+    test_humanoid()
