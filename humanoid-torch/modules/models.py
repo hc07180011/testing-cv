@@ -31,13 +31,37 @@ class BaseModel(torch.nn.Module):
 
     def build_cnn(
         self,
-    )->torch.nn.Sequential:
+    )->None:
         self.conv1 = torch.nn.Conv2d(in_channels=self.in_channels,out_channels=16,kernel_size=3,padding='same')
         self.conv2 = torch.nn.Conv2d(in_channels=16,out_channels=32,kernel_size=3,padding='same')
         self.conv3 = torch.nn.Conv2d(in_channels=32,out_channels=64,kernel_size=3,padding='same')
         self.conv4 = torch.nn.Conv2d(in_channels=64,out_channels=64,kernel_size=3,padding='same')
         
-        self.pool_heat = torch.nn.Conv2d(in_channels=64,out_channels=1,kernel_size=1,padding='same')        
+        self.pool_heat = torch.nn.Conv2d(in_channels=64,out_channels=1,kernel_size=1,padding='same')   
+    
+    def build_lstm(
+        self,
+    )->None:
+        self.lstm1 = torch.nn.LSTM(
+            input_size=880,
+            hidden_size=880,
+            num_layers=1,
+            batch_first=True
+        )
+        
+        self.lstm2 = torch.nn.LSTM(
+            input_size=220,
+            hidden_size=220,
+            num_layers=1,
+            batch_first=True
+        )
+        
+        self.lstm3 = torch.nn.LSTM(
+            input_size=50,
+            hidden_size=50,
+            num_layers=1,
+            batch_first=True
+        )
 
 
 class Humanoid(BaseModel):
@@ -51,12 +75,6 @@ class Humanoid(BaseModel):
         
         self.cnn = self.build_cnn()
         self.heatmap = self.build_heatmap()
-        self.lstm = torch.nn.LSTM(
-            input_size=880,
-            hidden_size=880,
-            num_layers=1,
-            batch_first=True
-        )
         
         self.pool5_up = torch.nn.ConvTranspose2d(
             in_channels=, 
@@ -135,11 +153,11 @@ class Humanoid(BaseModel):
         
         out = self.relu(self.conv3(out))
         out = self.max_pool(out)
-        
         pool_heat3 = self.relu(self.pool_heat(out.clone()))
         pool_heat3_in = pool_heat3.reshape((-1,self.frame_num,np.prod([*out.shape[-2:]])))
+        
         pool_heat3 = torch.add(
-            self.lstm(pool_heat3_in,self.init_hidden(pool_heat3_in)).reshape((-1,np.prod([*out.shape[-2:]]),1)),
+            self.lstm(pool_heat3_in,self.init_hidden(pool_heat3_in)).reshape((-1,*out.shape[-2:],1)),
             pool_heat3.reshape(self.batch_size,self.frame_num,*out.shape[-2:],1)[:,self.frame_num - 1,:,:,:]
             )
         
@@ -147,17 +165,20 @@ class Humanoid(BaseModel):
         out = self.max_pool(out)
         pool_heat4 = self.relu(self.pool_heat(out.clone()))
         pool_heat4_in = pool_heat4.reshape((-1,self.frame_num,np.prod([*out.shape[-2:]])))
+        
         pool_heat4 = torch.add(
-            self.lstm(pool_heat4).reshape((-1,12,20,1)),
-            pool_heat4.reshape(self.batch_size,self.frame_num,12,20,1)[:,self.frame_num - 1,:,:,:]
+            self.lstm(pool_heat4_in,self.init_hidden(pool_heat3_in)).reshape((-1,*out.shape[-2:],1)),
+            pool_heat4.reshape(self.batch_size,self.frame_num,*out.shape[-2:],1)[:,self.frame_num - 1,:,:,:]
             )
         
         out = self.relu(self.conv4(out))
         out = self.max_pool(out)
-        pool_heat5 = self.relu(self.pool_heat(out.clone())).reshape((-1,self.frame_num,np.prod([*out.shape[-2:]])))
+        pool_heat5 = self.relu(self.pool_heat(out.clone()))
+        pool_heat5_in = pool_heat5.reshape((-1,self.frame_num,np.prod([*out.shape[-2:]])))
+        
         pool_heat5 = torch.add(
-            self.lstm(pool_heat5).reshape((-1,6,10,1)),
-            pool_heat5.reshape(self.batch_size,self.frame_num,6,10,1)[:,self.frame_num - 1,:,:,:]
+            self.lstm(pool_heat5_in,self.init_hidden(pool_heat5_in)).reshape((-1,*out.shape[-2:],1)),
+            pool_heat5.reshape(self.batch_size,self.frame_num,*out.shape[-2:],1)[:,self.frame_num - 1,:,:,:]
         )
         
         return pool3_up,pool_head5
