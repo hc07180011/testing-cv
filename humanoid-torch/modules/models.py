@@ -4,11 +4,6 @@ import torch
 import numpy as np
 import torch.nn.functional as F
 
-from vit_pytorch import ViT
-from einops import rearrange, repeat
-from einops.layers.torch import Rearrange
-from collections import OrderedDict
-from typing import Tuple
 
 
 class BaseModel(torch.nn.Module):
@@ -99,7 +94,7 @@ class Humanoid(BaseModel):
         
         self.pool5_up_filters = torch.nn.Parameter(torch.randn((5, 11, 1, 1)))
         self.pool4_up_filters = torch.nn.Parameter(torch.randn((11, 22, 1, 1)))
-        self.pool3_up_filters = torch.nn.Parameter(torch.randn((22, 22, 1, 1)))
+        self.pool3_up_filters = torch.nn.Parameter(torch.randn((22, 180, 1, 1)))
 
     def forward(
         self,
@@ -162,8 +157,8 @@ class Humanoid(BaseModel):
         pool3_up = self.relu(F.conv_transpose2d(
             input=pool3_heat_sum,
             weight=self.pool3_up_filters, 
-            output_padding=(0,0), 
-            stride=(1,2)
+            output_padding=(7,0), 
+            stride=(8,1)
         ))
         
         return pool3_up,pool_heat5
@@ -188,22 +183,36 @@ class Humanoid(BaseModel):
 
 def test_humanoid()->None:
     import json
+    import tqdm
     from logger import init_logger
-    
+    from losses import HeatMapInteractLoss
+    from loader import RicoInteract,prep
+    from torch.utils.data import DataLoader
+
     init_logger()
     config_path = '../config.json'
-    test_sample = '/data/humanoid_train_data/im_hm_interact_9.npz'
     config = json.load(open(config_path,'r'))
-    # x = torch.randn(size=(4,3,180,320))
-    im_hm_interact = np.load(test_sample)
-    img, hm , interact = im_hm_interact['img'],im_hm_interact['hm'],im_hm_interact['interact']
-    logging.debug(f"IMG - {img.shape}")
-    logging.debug(f"HM - {hm.shape}")
-    logging.debug(f"INTERACT - {interact.shape}")
-
     model = Humanoid(config_json=config)
-    pool3_up,pool_heat5 = model(img)
-    logging.debug(f"{pool3_up.shape} - {pool_heat5.shape}")
+    criterion = HeatMapInteractLoss()
+    file_generic = 'im_hm_interact'
+    ext = 'npz'
+    root = '/data/humanoid_train_data'
+    dataset = RicoInteract(root=root,file_generic=file_generic,ext=ext,transform=prep)
+    dataloader = DataLoader(dataset=dataset, num_workers=2, batch_size=1,prefetch_factor=2, pin_memory=True,shuffle=False)
+    
+    for idx,(inputs,hm,interact) in enumerate(tqdm.tqdm(dataloader)):
+        inputs,hm,interact = inputs.squeeze(),hm.squeeze(),interact.squeeze()
+        logging.debug(f"{idx}: {inputs.shape} - {hm.shape} - {interact.shape}")
+        heatmap_out,interact_out = model(inputs)
+        logging.debug(f"{heatmap_out.shape} - {interact_out.shape}")
+        loss = criterion(
+            x=heatmap_out,
+            heatmap_true=hm,
+            interact_true=interact
+        )
+        logging.debug(f'LOSS - {loss}')
+        break
+    
 
 if __name__ == "__main__":
     test_humanoid()
